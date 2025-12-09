@@ -26,30 +26,16 @@ source .venv/bin/activate
 uv pip install Jinja2
 ```
 
-## Quick Start
+### Examples
 
-### Single Node Example (Mistral-7B)
-
-Even for single-node deployments, you can use the multi-node framework:
-
-```bash
-python serving/multi-node/submit_job.py \
-  --slurm-nodes 1 \
-  --serving-framework sglang \
-  --slurm-environment /path/to/your/environment.toml \
-  --framework-args "--model-path /path/to/mistralai/Mistral-7B-v0.1 --tp-size 4 --host 0.0.0.0 --port 8080 --served-model-name mistralai/Mistral-7B-v0.1"
-```
-
-### Multi-Node Examples
-
-For detailed multi-node deployment examples including:
+For detailed single/multi-node deployment examples including:
 - **DeepSeek V3.1** (4 nodes, TP16)
 - **Kimi-k2** (4 nodes, TP16)
 - **Multiple workers with router**
 - **OCF configuration**
 - **Pre-launch commands**
 
-See the comprehensive documentation in [serving/multi-node/README.md](serving/multi-node/README.md)
+See the comprehensive documentation in [serving/README.md](serving/README.md)
 
 ## Features
 

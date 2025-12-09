@@ -4,14 +4,30 @@ Framework-agnostic SLURM job submission for distributed inference servers (SGLan
 
 ## Overview
 
-This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely framework-agnostic - specify the framework and pass through all framework-specific parameters. OCF is enabled by default for service discovery and health monitoring.
+This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely serving framework-agnostic - specify the framework and pass through all framework-specific parameters. OCF is enabled by default for service discovery, external access (via [serving](https://serving.swissai.cscs.ch)) and monitoring.
+
+
+## Mistral
+
+### Single Worker Single Node
+
+Even for single-node deployments, you can use the framework:
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
+    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-v0.1 --tp-size 4 --host 0.0.0.0 --port 8080 --served-model-name mistralai/Mistral-7B-v0.1"
+```
+
 
 ## DeepSeek
 
 ### Single Worker (4 nodes)
 
 ```bash
-python serving/multi-node/submit_job.py \
+python serving/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
@@ -21,7 +37,7 @@ python serving/multi-node/submit_job.py \
 ### Multiple Workers with Router
 
 ```bash
-python serving/multi-node/submit_job.py \
+python serving/submit_job.py \
   --slurm-nodes 8 \
   --workers 2 \
   --nodes-per-worker 4 \
@@ -38,7 +54,7 @@ Kimi-k2 requires the `--tool-call-parser kimi_k2` parameter for tool usage suppo
 ### Single Worker (4 nodes, TP16)
 
 ```bash
-python serving/multi-node/submit_job.py \
+python serving/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
