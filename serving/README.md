@@ -56,6 +56,7 @@ Kimi-k2 requires the `--tool-call-parser kimi_k2` parameter for tool usage suppo
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 4 \
+  --slurm-time 6:00:00 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2-Instruct --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name moonshotai/Kimi-K2-Instruct --trust-remote-code --tool-call-parser kimi_k2" \
@@ -68,12 +69,18 @@ python serving/submit_job.py \
 - `--slurm-nodes`: Total number of nodes to allocate
 - `--serving-framework`: Either `sglang` or `vllm`
 
-### Optional
-- `--slurm-environment`: Path to environment TOML file (default: uses `{framework}.toml` in same directory)
+### SLURM Configuration
+- `--slurm-environment`: Path to environment TOML file (default: uses framework name)
 - `--slurm-job-name`: Job name (default: random 4-letter ID)
 - `--slurm-partition`: SLURM partition (default: `normal`)
+- `--slurm-time`: Job time limit (default: `04:00:00`)
+- `--slurm-account`: SLURM account (default: `infra01`)
+
+### Framework Configuration
 - `--framework-args`: Arguments passed directly to the serving framework
 - `--pre-launch-cmds`: Commands to run before launching framework (e.g., `"pip install blobfile; pip install package2"`)
+
+### Worker Configuration
 - `--workers`: Number of independent workers (default: 1)
 - `--nodes-per-worker`: Nodes per worker (default: all nodes / workers)
 - `--worker-port`: Port for workers (default: 5000)
