@@ -15,7 +15,7 @@ python serving/multi-node/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 5000"
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1"
 ```
 
 ### Multiple Workers with Router
@@ -27,7 +27,7 @@ python serving/multi-node/submit_job.py \
   --nodes-per-worker 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 5000" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1" \
   --use-router
 ```
 
@@ -38,7 +38,7 @@ python serving/multi-node/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 5000" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1" \
   --use-ocf \
   --ocf-bootstrap-addr "/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu"
 ```
