@@ -42,7 +42,7 @@ python serving/multi-node/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/kimi-ai/Kimi-k2 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name kimi-ai/Kimi-k2 --trust-remote-code --tool-call-parser kimi_k2" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2-Instruct --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name moonshotai/Kimi-K2-Instruct --trust-remote-code --tool-call-parser kimi_k2" \
   --pre-launch-cmds "pip install blobfile"
 ```
 
