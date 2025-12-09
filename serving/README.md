@@ -7,6 +7,24 @@ Framework-agnostic SLURM job submission for distributed inference servers (SGLan
 This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely serving framework-agnostic - specify the framework and pass through all framework-specific parameters. OCF is enabled by default for service discovery, external access (via [serving](https://serving.swissai.cscs.ch)) and monitoring.
 
 
+## Apertus
+
+### Single Worker Single Node
+
+Even for single-node deployments, you can use the framework:
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/sglang.toml \
+    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
+     --host 0.0.0.0 \
+     --port 8080 \
+     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami)"
+```
+Note there is already a model called `swiss-ai/Apertus-8B-Instruct-2509` so it's important to rename the served-model-name to something else. Or remove it entirely then it defaults to long model-path.
+
 ## Mistral
 
 ### Single Worker Single Node
@@ -29,7 +47,7 @@ python serving/submit_job.py \
 python serving/submit_job.py \
   --slurm-nodes 1 \
   --serving-framework sglang \
-  --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
+  --slurm-environment $(pwd)/serving/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/Snowflake/snowflake-arctic-embed-l-v2.0 \
    --host 0.0.0.0 \
    --port 8080 \
@@ -44,7 +62,7 @@ python serving/submit_job.py \
 python serving/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
-  --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
+  --slurm-environment $(pwd)/serving/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1"
 ```
 
@@ -56,7 +74,7 @@ python serving/submit_job.py \
   --workers 2 \
   --nodes-per-worker 4 \
   --serving-framework sglang \
-  --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
+  --slurm-environment $(pwd)/serving/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1" \
   --use-router
 ```
@@ -72,7 +90,7 @@ python serving/submit_job.py \
   --slurm-nodes 4 \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
-  --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
+  --slurm-environment $(pwd)/serving/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2-Instruct --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name moonshotai/Kimi-K2-Instruct --trust-remote-code --tool-call-parser kimi_k2" \
   --pre-launch-cmds "pip install blobfile"
 ```
