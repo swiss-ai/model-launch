@@ -1,2 +1,0 @@
-tp_size: 16
-grammar_backend: xgrammar # because kimi uses a slow model, which is not supported by llguidance
