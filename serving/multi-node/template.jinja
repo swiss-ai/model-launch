@@ -12,6 +12,7 @@ LOG_DIR="${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}"
 FRAMEWORK="{{ framework }}"
 ENVIRONMENT="{{ environment }}"
 FRAMEWORK_ARGS="{{ framework_args }}"
+PRE_LAUNCH_CMDS="{{ pre_launch_cmds }}"
 WORKERS={{ workers }}
 NODES_PER_WORKER={{ nodes_per_worker }}
 WORKER_PORT={{ worker_port }}
@@ -23,7 +24,6 @@ USE_OCF={{ "true" if use_ocf else "false" }}
 OCF_BOOTSTRAP_ADDR="{{ ocf_bootstrap_addr }}"
 OCF_SERVICE_NAME="{{ ocf_service_name }}"
 OCF_SERVICE_PORT={{ ocf_service_port }}
-OCF_ALL_NODES={{ "true" if ocf_all_nodes else "false" }}
 
 {% raw %}
 mkdir -p "${LOG_DIR}"
@@ -110,11 +110,9 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         # Build the framework command
         FRAMEWORK_CMD="$FRAMEWORK_LAUNCH --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} $FRAMEWORK_ARGS"
 
-        # Wrap with OCF if enabled (and if master node only, or all nodes if requested)
-        if [ "$USE_OCF" = "true" ]; then
-            if [ "$OCF_ALL_NODES" = "true" ] || [ $local_rank -eq 0 ]; then
-                FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
-            fi
+        # Wrap with OCF if enabled (only on master node - rank 0)
+        if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
+            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --subprocess \"$FRAMEWORK_CMD\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT"
         fi
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \
@@ -125,6 +123,11 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
             bash --norc --noprofile -c "\
 set -ex
 $FRAMEWORK_ENV_SETUP
+# Run pre-launch commands if provided
+if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
+    echo \"Running pre-launch commands...\"
+    eval \"$PRE_LAUNCH_CMDS\"
+fi
 $FRAMEWORK_CMD" &
     done
 done

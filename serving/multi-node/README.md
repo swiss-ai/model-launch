@@ -1,10 +1,10 @@
 # Multi-Node Inference Server
 
-Framework-agnostic SLURM job submission for distributed inference servers (SGLang, vLLM).
+Framework-agnostic SLURM job submission for distributed inference servers (SGLang, vLLM) with OCF (Open Compute Framework) integration enabled by default.
 
 ## Overview
 
-This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely framework-agnostic - specify the framework and pass through all framework-specific parameters.
+This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely framework-agnostic - specify the framework and pass through all framework-specific parameters. OCF is enabled by default for service discovery and health monitoring.
 
 ## DeepSeek
 
@@ -31,16 +31,19 @@ python serving/multi-node/submit_job.py \
   --use-router
 ```
 
-### With OCF (Open Compute Framework)
+## Kimi-k2
+
+Kimi-k2 requires the `--tool-call-parser kimi_k2` parameter for tool usage support. With TP16 and 4 GPUs per node, this requires 4 nodes. May need additional packages like `blobfile`.
+
+### Single Worker (4 nodes, TP16)
 
 ```bash
 python serving/multi-node/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1" \
-  --use-ocf \
-  --ocf-bootstrap-addr "/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu"
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/kimi-ai/Kimi-k2 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name kimi-ai/Kimi-k2 --trust-remote-code --tool-call-parser kimi_k2" \
+  --pre-launch-cmds "pip install blobfile"
 ```
 
 ## Parameters
@@ -54,6 +57,7 @@ python serving/multi-node/submit_job.py \
 - `--slurm-job-name`: Job name (default: random 4-letter ID)
 - `--slurm-partition`: SLURM partition (default: `normal`)
 - `--framework-args`: Arguments passed directly to the serving framework
+- `--pre-launch-cmds`: Commands to run before launching framework (e.g., `"pip install blobfile; pip install package2"`)
 - `--workers`: Number of independent workers (default: 1)
 - `--nodes-per-worker`: Nodes per worker (default: all nodes / workers)
 - `--worker-port`: Port for workers (default: 5000)
@@ -65,11 +69,13 @@ python serving/multi-node/submit_job.py \
 - `--router-args`: Arguments passed to the router
 
 ### OCF (Open Compute Framework) Options
-- `--use-ocf`: Enable OCF wrapper for framework launch
-- `--ocf-bootstrap-addr`: OCF bootstrap address (required if `--use-ocf` is set)
+
+**OCF is enabled by default** for service discovery and health monitoring. It runs on the master node (rank 0) of each worker.
+
+- `--disable-ocf`: Disable OCF wrapper (OCF is enabled by default)
+- `--ocf-bootstrap-addr`: OCF bootstrap address (default: `/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu`)
 - `--ocf-service-name`: OCF service name (default: `llm`)
-- `--ocf-service-port`: OCF service port (default: 8080)
-- `--ocf-all-nodes`: Run OCF on all nodes (default: master node only)
+- `--ocf-service-port`: OCF service port - must match the port your framework listens on (default: 8080)
 
 ## Monitoring
 

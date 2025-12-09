@@ -59,6 +59,9 @@ def parse_args():
     # Framework arguments as a single string
     parser.add_argument("--framework-args", type=str, default="", help="Arguments to pass to the serving framework")
 
+    # Pre-launch setup
+    parser.add_argument("--pre-launch-cmds", type=str, default="", help="Commands to run before launching framework (e.g., 'pip install blobfile; pip install package2')")
+
     # Optional orchestration parameters
     parser.add_argument("--workers", type=int, default=1, help="Number of independent workers")
     parser.add_argument("--nodes-per-worker", type=int, help="Nodes per worker (default: all nodes / workers)")
@@ -71,11 +74,10 @@ def parse_args():
     parser.add_argument("--router-args", type=str, default="", help="Arguments to pass to the router")
 
     # OCF (Open Compute Framework) parameters
-    parser.add_argument("--use-ocf", action="store_true", help="Enable OCF wrapper for framework launch")
-    parser.add_argument("--ocf-bootstrap-addr", type=str, help="OCF bootstrap address")
+    parser.add_argument("--disable-ocf", action="store_true", help="Disable OCF wrapper (OCF is enabled by default)")
+    parser.add_argument("--ocf-bootstrap-addr", type=str, default="/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu", help="OCF bootstrap address")
     parser.add_argument("--ocf-service-name", type=str, default="llm", help="OCF service name")
     parser.add_argument("--ocf-service-port", type=int, default=8080, help="OCF service port")
-    parser.add_argument("--ocf-all-nodes", action="store_true", help="Run OCF on all nodes (default: master node only)")
 
     return parser.parse_args()
 
@@ -102,6 +104,7 @@ def main():
         "environment": environment,
         "framework": args.serving_framework,
         "framework_args": args.framework_args,
+        "pre_launch_cmds": args.pre_launch_cmds,
         "workers": args.workers,
         "nodes_per_worker": nodes_per_worker,
         "worker_port": args.worker_port,
@@ -109,11 +112,10 @@ def main():
         "router_environment": router_environment,
         "router_port": args.router_port,
         "router_args": args.router_args,
-        "use_ocf": args.use_ocf,
+        "use_ocf": not args.disable_ocf,
         "ocf_bootstrap_addr": args.ocf_bootstrap_addr,
         "ocf_service_name": args.ocf_service_name,
         "ocf_service_port": args.ocf_service_port,
-        "ocf_all_nodes": args.ocf_all_nodes,
     }
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as temp_file:
