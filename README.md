@@ -35,7 +35,7 @@ For detailed single/multi-node deployment examples including:
 - **OCF configuration**
 - **Pre-launch commands**
 
-See the comprehensive documentation in [serving/README.md](serving/README.md)
+See the comprehensive documentation in [serving/](serving/)
 
 ## Features
 

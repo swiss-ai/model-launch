@@ -17,8 +17,8 @@ Even for single-node deployments, you can use the framework:
 python serving/submit_job.py \
     --slurm-nodes 1 \
     --serving-framework sglang \
-    --slurm-environment /capstor/store/cscs/swissai/infra01/users/rosmith/torrent/rob_ofi.toml \
-    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-v0.1 --tp-size 4 --host 0.0.0.0 --port 8080 --served-model-name mistralai/Mistral-7B-v0.1"
+    --slurm-environment serving/sglang.toml \
+    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-v0.1 --tp-size 4 --host 0.0.0.0 --port 8080 --served-model-name mistralai/Mistral-7B-v0.1-ABC"
 ```
 
 

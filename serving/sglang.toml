@@ -1,4 +1,4 @@
-image = "/capstor/store/cscs/swissai/infra01/reasoning/imgs/projects/verl_swiss/image.sqsh"
+image = "lmsysorg/sglang:latest"
 
 # "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
 mounts = [
@@ -11,7 +11,7 @@ mounts = [
 ]
 
 # The initial directory in the container.
-workdir = "/users/rosmith"
+workdir = "/"
 
 [env]
 NCCL_NET_PLUGIN = "ofi"
