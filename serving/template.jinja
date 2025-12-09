@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name={{ job_name }}
-#SBATCH --account=infra01
-#SBATCH --time=04:00:00
+#SBATCH --account={{ account }}
+#SBATCH --time={{ time }}
 #SBATCH --exclusive
 #SBATCH --nodes={{ nodes }}
 #SBATCH --partition={{ partition }}

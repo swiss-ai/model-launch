@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument("--slurm-job-name", type=str, default=nanoid())
     parser.add_argument("--slurm-nodes", type=int, required=True, help="Total number of nodes to allocate")
     parser.add_argument("--slurm-partition", type=str, default="normal")
+    parser.add_argument("--slurm-time", type=str, default="04:00:00", help="Job time limit (default: 04:00:00)")
+    parser.add_argument("--slurm-account", type=str, default="infra01", help="SLURM account (default: infra01)")
     parser.add_argument("--slurm-environment", type=str, help="SLURM environment name (default: {framework})")
 
     # Framework selection
@@ -86,6 +88,14 @@ def main():
     setup_logging()
     args = parse_args()
 
+    # Log the full command
+    import sys
+    logging.info("=" * 80)
+    logging.info("Full command:")
+    logging.info(" ".join(sys.argv))
+    logging.info("=" * 80)
+    logging.info("")
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     template_path = os.path.join(script_dir, "template.jinja")
 
@@ -99,8 +109,10 @@ def main():
     # Build template args
     template_args = {
         "job_name": args.slurm_job_name,
+        "account": args.slurm_account,
         "nodes": args.slurm_nodes,
         "partition": args.slurm_partition,
+        "time": args.slurm_time,
         "environment": environment,
         "framework": args.serving_framework,
         "framework_args": args.framework_args,
@@ -121,7 +133,19 @@ def main():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as temp_file:
         generate_job_script(template_path, temp_file.name, **template_args)
         job_id = submit_job(temp_file.name)
-        logging.info(f"Job output will be available in: logs/{job_id}/log.out")
+        log_dir = f"logs/{job_id}"
+
+        logging.info("")
+        logging.info(f"Root job output will be available in: {log_dir}/log.out")
+        logging.info("")
+        logging.info(f"To view CSCS Dashboard:")
+        logging.info(" https://console.mlp.cscs.ch/")
+        logging.info("")
+        logging.info("To tail all logs (from all nodes):")
+        logging.info(f"  tail -f {log_dir}/*")
+        logging.info("")
+        logging.info("To cancel job:")
+        logging.info(f"  scancel {job_id}")
 
 
 if __name__ == "__main__":
