@@ -106,6 +106,13 @@ Check job status:
 squeue -j <job_id>
 ```
 
+or 
+```bash
+squeue --me
+```
+
+or via CSCS web [dashboard](https://my.mlp.cscs.ch/).
+
 Connect to running job:
 ```bash
 srun --jobid <job_id> -w <node> --overlap --pty bash
@@ -115,3 +122,4 @@ Cancel job:
 ```bash
 scancel <job_id>
 ```
+
