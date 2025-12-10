@@ -2,6 +2,7 @@ image = "vllm/vllm-openai:latest"
 
 # "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
 mounts = [
+  "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
   "/capstor",
   "/iopsstor",
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
