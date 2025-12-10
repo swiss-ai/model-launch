@@ -68,7 +68,7 @@ python serving/submit_job.py \
 ```
 
 ### Qwen3-Next-80B-A3B-Instruct
---context-length 262144 --mem-fraction-static 0.8 --speculative-algo NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4
+
 ```bash
 python serving/submit_job.py \
     --slurm-nodes 1 \
