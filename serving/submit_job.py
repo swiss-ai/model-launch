@@ -4,13 +4,13 @@ import logging
 import argparse
 import tempfile
 
-from utils import nanoid, setup_logging, generate_job_script, submit_job
+from utils import nanoid, extract_model_name, setup_logging, generate_job_script, submit_job
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     # SLURM-specific parameters (prefixed to avoid collisions)
-    parser.add_argument("--slurm-job-name", type=str, default=nanoid())
+    parser.add_argument("--slurm-job-name", type=str, default=None)
     parser.add_argument("--slurm-nodes", type=int, required=True, help="Total number of nodes to allocate")
     parser.add_argument("--slurm-partition", type=str, default="normal")
     parser.add_argument("--slurm-time", type=str, default="04:00:00", help="Job time limit (default: 04:00:00)")
@@ -49,6 +49,11 @@ def parse_args():
 def main():
     setup_logging()
     args = parse_args()
+
+    # Generate job name if not provided
+    if not args.slurm_job_name:
+        model_name = extract_model_name(args.framework_args)
+        args.slurm_job_name = nanoid(model_name=model_name)
 
     # Log the full command
     logging.info("=" * 80)

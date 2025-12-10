@@ -51,6 +51,7 @@ python serving/submit_job.py \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/Snowflake/snowflake-arctic-embed-l-v2.0 \
    --host 0.0.0.0 \
    --port 8080 \
+   --pipeline-type embedding \
    --served-model-name Snowflake/snowflake-arctic-embed-l-v2.0"
 ```
 
