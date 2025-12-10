@@ -6,3 +6,4 @@ logs/
 .vscode/
 .venv/
 .idea/
+core_nid*
