@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--slurm-time", type=str, default="04:00:00", help="Job time limit (default: 04:00:00)")
     parser.add_argument("--slurm-account", type=str, default="infra01", help="SLURM account (default: infra01)")
     parser.add_argument("--slurm-environment", type=str, help="SLURM environment name (default: {framework})")
+    parser.add_argument("--interactive", action="store_true", help="Launch interactive shell instead of batch job")
 
     # Framework selection
     parser.add_argument("--serving-framework", type=str, choices=["sglang", "vllm"], required=True, help="Serving framework to use")
@@ -98,20 +99,31 @@ def main():
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as temp_file:
         generate_job_script(template_path, temp_file.name, **template_args)
-        job_id = submit_job(temp_file.name)
-        log_dir = f"logs/{job_id}"
+        job_id = submit_job(
+            temp_file.name,
+            interactive=args.interactive,
+            nodes=args.slurm_nodes,
+            partition=args.slurm_partition,
+            time=args.slurm_time,
+            account=args.slurm_account,
+            environment=environment
+        )
 
-        logging.info("")
-        logging.info(f"Root job output will be available in: {log_dir}/log.out")
-        logging.info("")
-        logging.info(f"To view CSCS Dashboard:")
-        logging.info(" https://console.mlp.cscs.ch/")
-        logging.info("")
-        logging.info("To tail all logs (from all nodes):")
-        logging.info(f"  tail -f {log_dir}/*")
-        logging.info("")
-        logging.info("To cancel job:")
-        logging.info(f"  scancel {job_id}")
+        # Only show batch-specific info if not in interactive mode
+        if not args.interactive and job_id:
+            log_dir = f"logs/{job_id}"
+
+            logging.info("")
+            logging.info(f"Root job output will be available in: {log_dir}/log.out")
+            logging.info("")
+            logging.info(f"To view CSCS Dashboard:")
+            logging.info(" https://console.mlp.cscs.ch/")
+            logging.info("")
+            logging.info("To tail all logs (from all nodes):")
+            logging.info(f"  tail -f {log_dir}/*")
+            logging.info("")
+            logging.info("To cancel job:")
+            logging.info(f"  scancel {job_id}")
 
 
 if __name__ == "__main__":

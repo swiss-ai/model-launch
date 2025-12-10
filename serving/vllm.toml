@@ -11,7 +11,7 @@ mounts = [
 ]
 
 # The initial directory in the container.
-workdir = "/workspace" 
+workdir = "/opt" 
 
 [env]
 NCCL_NET_PLUGIN = "ofi"

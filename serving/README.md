@@ -155,6 +155,7 @@ python serving/submit_job.py \
 - `--slurm-partition`: SLURM partition (default: `normal`)
 - `--slurm-time`: Job time limit (default: `04:00:00`)
 - `--slurm-account`: SLURM account (default: `infra01`)
+- `--interactive`: Launch interactive shell instead of batch job
 
 ### Framework Configuration
 - `--framework-args`: Arguments passed directly to the serving framework
@@ -179,6 +180,20 @@ python serving/submit_job.py \
 - `--ocf-bootstrap-addr`: OCF bootstrap address (default: `/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu`)
 - `--ocf-service-name`: OCF service name (default: `llm`)
 - `--ocf-service-port`: OCF service port - must match the port your framework listens on (default: 8080)
+
+## Interactive Mode
+
+Launch an interactive shell in the container environment instead of submitting a batch job. Useful for debugging, testing, or manual exploration.
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/vllm.toml \
+    --interactive
+```
+
+This opens an interactive bash session similar to `srun --pty bash`, with your specified container environment loaded. Press Ctrl+D or type `exit` to end the session.
 
 ## Monitoring
 

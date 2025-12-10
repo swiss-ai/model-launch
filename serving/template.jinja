@@ -56,13 +56,15 @@ done
 case "$FRAMEWORK" in
     sglang)
         FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
-        FRAMEWORK_LAUNCH="python -m sglang.launch_server"
-        ROUTER_LAUNCH="python -m sglang_router.launch_router"
+        FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
+        FRAMEWORK_DIST_ARGS="--dist-init-addr \${worker_host_ip}:5757 --nnodes \${NODES_PER_WORKER} --node-rank \${local_rank}"
+        ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
         ;;
     vllm)
         FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
-        FRAMEWORK_LAUNCH="python -m vllm.entrypoints.openai.api_server"
-        ROUTER_LAUNCH="python -m vllm.entrypoints.router"
+        FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
+        FRAMEWORK_DIST_ARGS=""
+        ROUTER_LAUNCH="python3 -m vllm.entrypoints.router"
         ;;
 esac
 
@@ -108,11 +110,11 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         node=${nodes[$global_node_idx]}
 
         # Build the framework command
-        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} $FRAMEWORK_ARGS"
+        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS $FRAMEWORK_ARGS"
 
         # Wrap with OCF if enabled (only on master node - rank 0)
         if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
-            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --subprocess \"$FRAMEWORK_CMD\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT"
+            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
         fi
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \

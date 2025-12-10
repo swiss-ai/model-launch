@@ -66,20 +66,67 @@ def generate_job_script(template_path, output_path, **kwargs):
         f.write(rendered_script)
 
 
-def submit_job(job_script_path):
-    try:
-        result = subprocess.run(
-            ["sbatch", job_script_path], capture_output=True, text=True, check=True
-        )
-        output_lines = result.stdout.strip().split("\n")
+def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", time="04:00:00", account="infra01", environment=None):
+    """Submit a job to SLURM either as a batch job or interactively.
 
-        job_id = output_lines[-1].split()[-1]
-        logging.info(f"Job submitted successfully with ID: {job_id}")
-        return job_id
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error submitting job: {e}")
-        logging.error(f"stderr: {e.stderr}")
-        raise
-    except (IndexError, ValueError):
-        logging.error(f"Error parsing job ID from sbatch output: {result.stdout}")
-        raise
+    Args:
+        job_script_path: Path to the job script
+        interactive: If True, launch an interactive session instead of batch job
+        nodes: Number of nodes to allocate (for interactive mode)
+        partition: SLURM partition (for interactive mode)
+        time: Time limit (for interactive mode)
+        account: SLURM account (for interactive mode)
+        environment: Container environment to use (for interactive mode)
+
+    Returns:
+        Job ID if batch mode, None if interactive mode
+    """
+    if interactive:
+        # Build srun command for interactive session
+        cmd = [
+            "srun",
+            f"--nodes={nodes}",
+            f"--partition={partition}",
+            f"--time={time}",
+            f"--account={account}",
+            "--exclusive",
+            "--pty"
+        ]
+
+        if environment:
+            cmd.extend(["--container-writable", f"--environment={environment}"])
+
+        cmd.append("bash")
+
+        logging.info(f"Launching interactive session with command: {' '.join(cmd)}")
+        logging.info("Press Ctrl+D or type 'exit' to end the session")
+
+        # Run interactively (blocking, no capture)
+        try:
+            subprocess.run(cmd, check=True)
+            logging.info("Interactive session ended")
+            return None
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error launching interactive session: {e}")
+            raise
+        except KeyboardInterrupt:
+            logging.info("\nInteractive session interrupted")
+            return None
+    else:
+        # Original batch submission logic
+        try:
+            result = subprocess.run(
+                ["sbatch", job_script_path], capture_output=True, text=True, check=True
+            )
+            output_lines = result.stdout.strip().split("\n")
+
+            job_id = output_lines[-1].split()[-1]
+            logging.info(f"Job submitted successfully with ID: {job_id}")
+            return job_id
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error submitting job: {e}")
+            logging.error(f"stderr: {e.stderr}")
+            raise
+        except (IndexError, ValueError):
+            logging.error(f"Error parsing job ID from sbatch output: {result.stdout}")
+            raise
