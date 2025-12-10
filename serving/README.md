@@ -13,7 +13,7 @@ This system submits SLURM jobs to launch inference servers across multiple nodes
 |----------------------|--------|
 | [swiss-ai/Apertus-8B-Instruct-2509](#apertus-8b-instruct-2509) | ✅ |
 | [mistralai/Mistral-7B-v0.1](#mistral-7b-v01) | ✅ |
-| [Snowflake/snowflake-arctic-embed-l-v2.0](#snowflake-arctic-embed-l-v20) | ❌ |
+| [Snowflake/snowflake-arctic-embed-l-v2.0](#snowflake-arctic-embed-l-v20) | ✅ |
 | [deepseek-ai/DeepSeek-V3.1](#deepseek-v31) | ✅ |
 | [deepseek-ai/DeepSeek-V3.1 (Multi-Worker Router)](#deepseek-v31-with-router-and-2x-workers) | ❓ |
 | [moonshotai/Kimi-K2-Instruct](#kimi-k2-instruct) | ✅ |
