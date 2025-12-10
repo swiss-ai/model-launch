@@ -109,8 +109,17 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         global_node_idx=$((start_node + local_rank))
         node=${nodes[$global_node_idx]}
 
-        # Build the framework command
-        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS $FRAMEWORK_ARGS"
+        # Build the framework command with expanded variables
+        case "$FRAMEWORK" in
+            sglang)
+                FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                ;;
+            vllm)
+                FRAMEWORK_DIST_ARGS_EXPANDED=""
+                ;;
+        esac
+
+        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
 
         # Wrap with OCF if enabled (only on master node - rank 0)
         if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then

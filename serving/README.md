@@ -25,6 +25,8 @@ Tested means the model has started and responded to a simple request.
 
 ### Apertus-8B-Instruct-2509
 
+The [2 Apertus models](https://github.com/swiss-ai/model-spinning/blob/main/auto-spin/config.yaml#L2-L21) are continously running 24/7 this are launched every 5 minutes by a [scheduled github action](https://github.com/swiss-ai/model-spinning/blob/main/.github/workflows/autospin.yml#L5).
+
 ```bash
 python serving/submit_job.py \
     --slurm-nodes 1 \
@@ -63,6 +65,20 @@ python serving/submit_job.py \
    --port 8080 \
    --task embedding \
    --served-model-name Snowflake/snowflake-arctic-embed-l-v2.0"
+```
+
+### Qwen3-Next-80B-A3B-Instruct
+--context-length 262144 --mem-fraction-static 0.8 --speculative-algo NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/sglang.toml \
+    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3-Next-80B-A3B-Instruct \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --tp-size 4 \
+      --served-model-name Qwen/Qwen3-Next-80B-A3B-Instruct"
 ```
 
 

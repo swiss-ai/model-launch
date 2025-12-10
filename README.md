@@ -46,3 +46,11 @@ See the comprehensive documentation in [serving/](serving/)
 - **Architecture Detection**: Automatically detects ARM64 vs x86_64
 - **Pre-Launch Commands**: Install packages or run setup before framework launch
 - **Flexible Configuration**: Pass-through framework arguments for complete control
+
+## Contributing
+
+GitHub issues are welcome! Feel free to:
+- Report bugs or issues
+- Suggest new features
+- Propose model support additions
+- Ask questions about usage
