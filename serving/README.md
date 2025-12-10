@@ -188,8 +188,8 @@ Launch an interactive shell in the container environment instead of submitting a
 ```bash
 python serving/submit_job.py \
     --slurm-nodes 1 \
-    --serving-framework sglang \
-    --slurm-environment $(pwd)/serving/sglang.toml \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/vllm.toml \
     --interactive
 ```
 
