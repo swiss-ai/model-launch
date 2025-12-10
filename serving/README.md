@@ -46,12 +46,12 @@ python serving/submit_job.py \
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 1 \
-  --serving-framework sglang \
-  --slurm-environment $(pwd)/serving/sglang.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/Snowflake/snowflake-arctic-embed-l-v2.0 \
+  --serving-framework vllm \
+  --slurm-environment $(pwd)/serving/vllm.toml \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Snowflake/snowflake-arctic-embed-l-v2.0 \
    --host 0.0.0.0 \
    --port 8080 \
-   --pipeline-type embedding \
+   --task embedding \
    --served-model-name Snowflake/snowflake-arctic-embed-l-v2.0"
 ```
 

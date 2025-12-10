@@ -1,4 +1,4 @@
-image = "/capstor/store/cscs/swissai/infra01/reasoning/imgs/projects/vllm/image.sqsh"
+image = "vllm/vllm-openai:latest"
 
 # "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
 mounts = [
