@@ -4,7 +4,6 @@ image = "vllm/vllm-openai:latest"
 mounts = [
   "/capstor",
   "/iopsstor",
-  "/users",
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
   "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
   "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
