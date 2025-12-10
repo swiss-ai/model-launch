@@ -7,11 +7,23 @@ Framework-agnostic SLURM job submission for distributed inference servers (SGLan
 This system submits SLURM jobs to launch inference servers across multiple nodes. It's designed to be completely serving framework-agnostic - specify the framework and pass through all framework-specific parameters. OCF is enabled by default for service discovery, external access (via [serving](https://serving.swissai.cscs.ch)) and monitoring.
 
 
-## Apertus
+## Model Overview Table
 
-### Single Worker Single Node
+| Model / Configuration | Tested |
+|----------------------|--------|
+| [swiss-ai/Apertus-8B-Instruct-2509](#apertus-8b-instruct-2509) | ✅ |
+| [mistralai/Mistral-7B-v0.1](#mistral-7b-v01) | ✅ |
+| [Snowflake/snowflake-arctic-embed-l-v2.0](#snowflake-arctic-embed-l-v20) | ❌ |
+| [deepseek-ai/DeepSeek-V3.1](#deepseek-v31) | ✅ |
+| [deepseek-ai/DeepSeek-V3.1 (Multi-Worker Router)](#deepseek-v31-with-router-and-2x-workers) | ❓ |
+| [moonshotai/Kimi-K2-Instruct](#kimi-k2-instruct) | ✅ |
+| [moonshotai/Kimi-K2-Thinking](#kimi-k2-thinking) | ✅ |
 
-Even for single-node deployments, you can use the framework:
+Tested means the model has started and responded to a simple request.
+
+## Models
+
+### Apertus-8B-Instruct-2509
 
 ```bash
 python serving/submit_job.py \
@@ -23,25 +35,23 @@ python serving/submit_job.py \
      --port 8080 \
      --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami)"
 ```
-Note there is already a model called `swiss-ai/Apertus-8B-Instruct-2509` so it's important to rename the served-model-name to something else. Or remove it entirely then it defaults to long model-path.
+Note there is usually already a model called `swiss-ai/Apertus-8B-Instruct-2509` so to prevent name collisions it's important to rename the `served-model-name` to something else. If you remove it entirely then it defaults to long model-path.
 
-## Mistral
-
-### Single Worker Single Node
-
-Even for single-node deployments, you can use the framework:
+### Mistral-7B-v0.1
 
 ```bash
 python serving/submit_job.py \
     --slurm-nodes 1 \
     --serving-framework sglang \
     --slurm-environment $(pwd)/serving/sglang.toml \
-    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-v0.1 --host 0.0.0.0 --port 8080 --served-model-name mistralai/Mistral-7B-v0.1"
+    --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-v0.1 \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --served-model-name mistralai/Mistral-7B-v0.1"
 ```
 
-## Snowflake Embedding
 
-### Single Worker (1 node, 4 GPUs)
+### snowflake-arctic-embed-l-v2.0
 
 ```bash
 python serving/submit_job.py \
@@ -55,20 +65,27 @@ python serving/submit_job.py \
    --served-model-name Snowflake/snowflake-arctic-embed-l-v2.0"
 ```
 
-## DeepSeek
 
-### Single Worker (4 nodes)
+### DeepSeek-V3.1
+
+Cannot fit on single node. Tested with 4 nodes, total 16 GPUs.
 
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework sglang \
   --slurm-environment $(pwd)/serving/sglang.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1"
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name deepseek-ai/DeepSeek-V3.1"
 ```
 
-### Multiple Workers with Router
+### DeepSeek-V3.1 with router and 2x Workers
 
+In the last example we saw deepseek can run with 4 nodes.
+To increase throughput we can use router that points to multiple nodes. Experimental. 
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 8 \
@@ -76,15 +93,18 @@ python serving/submit_job.py \
   --nodes-per-worker 4 \
   --serving-framework sglang \
   --slurm-environment $(pwd)/serving/sglang.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name deepseek-ai/DeepSeek-V3.1" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name deepseek-ai/DeepSeek-V3.1" \
   --use-router
 ```
+### Kimi-K2-Instruct
 
-## Kimi-k2
+Kimi-K2 requires the `--tool-call-parser kimi_k2` parameter for tool usage support. With TP16 and 4 GPUs per node, this requires 4 nodes so 16 GPUs total. Depending on the image it may need additional packages like `blobfile`.
 
-Kimi-k2 requires the `--tool-call-parser kimi_k2` parameter for tool usage support. With TP16 and 4 GPUs per node, this requires 4 nodes. May need additional packages like `blobfile`.
-
-### Single Worker (4 nodes, TP16)
+Runs with 4 nodes, TP16. Requires some time to start.
 
 ```bash
 python serving/submit_job.py \
@@ -92,12 +112,19 @@ python serving/submit_job.py \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
   --slurm-environment $(pwd)/serving/sglang.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2-Instruct --tp-size 16 --host 0.0.0.0 --port 8080 --served-model-name moonshotai/Kimi-K2-Instruct --trust-remote-code --tool-call-parser kimi_k2" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2-Instruct \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name moonshotai/Kimi-K2-Instruct \
+    --trust-remote-code \
+    --tool-call-parser kimi_k2" \
   --pre-launch-cmds "pip install blobfile"
 ```
 
+### Kimi-K2-Thinking
 
-### Single Worker (4 nodes, TP16)
+Runs with 4 nodes, TP16. Requires some time to start. Must include `reasoning-parser`.
 
 ```bash
 python serving/submit_job.py \
@@ -114,6 +141,7 @@ python serving/submit_job.py \
     --tool-call-parser kimi_k2 \
     --reasoning-parser kimi_k2" \
   --pre-launch-cmds "pip install blobfile"
+```  
 
 ## Parameters
 
@@ -145,7 +173,7 @@ python serving/submit_job.py \
 
 ### OCF (Open Compute Framework) Options
 
-**OCF is enabled by default** for service discovery and health monitoring. It runs on the master node (rank 0) of each worker.
+**OCF is enabled by default** for model discovery, adds external + API-key access on serving [website](https://serving.swissai.cscs.ch) and health monitoring. It runs on the master node (rank 0) of each worker.
 
 - `--disable-ocf`: Disable OCF wrapper (OCF is enabled by default)
 - `--ocf-bootstrap-addr`: OCF bootstrap address (default: `/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu`)
