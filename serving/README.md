@@ -18,6 +18,7 @@ This system submits SLURM jobs to launch inference servers across multiple nodes
 | [deepseek-ai/DeepSeek-V3.1 (Multi-Worker Router)](#deepseek-v31-with-router-and-2x-workers) | ❓ |
 | [moonshotai/Kimi-K2-Instruct](#kimi-k2-instruct) | ✅ |
 | [moonshotai/Kimi-K2-Thinking](#kimi-k2-thinking) | ✅ |
+| [zai-org/GLM-4.6](#glm-46) | ✅ |
 
 Tested means the model has started and responded to a simple request.
 
@@ -157,7 +158,49 @@ python serving/submit_job.py \
     --tool-call-parser kimi_k2 \
     --reasoning-parser kimi_k2" \
   --pre-launch-cmds "pip install blobfile"
-```  
+```
+
+### GLM-4.6
+
+Runs with 4 nodes, TP16. Can include custom reasoning and tool-call parsers from `glm45`:
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 4 \
+  --slurm-time 6:00:00 \
+  --serving-framework sglang \
+  --slurm-environment $(pwd)/serving/sglang.toml \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.6 \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name zai-org/GLM-4.6 \
+    --trust-remote-code \
+    --tool-call-parser glm45  \
+    --reasoning-parser glm45" \
+  --pre-launch-cmds "pip install blobfile"
+```
+
+or using router with 2 workers/4 nodes each (requires latest sglang env):
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 8 \
+  --use-router \
+  --workers 2 \
+  --nodes-per-worker 4 \
+  --slurm-time 6:00:00 \
+  --serving-framework sglang \
+  --slurm-environment $(pwd)/serving/sglang_latest.toml \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.6 \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name zai-org/GLM-4.6 \
+    --trust-remote-code \
+    --tool-call-parser glm45  \
+    --reasoning-parser glm45" \
+  --pre-launch-cmds "pip install blobfile"
+```
 
 ## Parameters
 
