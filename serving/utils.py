@@ -3,8 +3,58 @@ import string
 import logging
 import subprocess
 import shlex
+import json
+from urllib.request import urlopen
+from urllib.error import URLError
 
 from jinja2 import Template
+
+
+def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/dnt/bootstraps", timeout=10):
+    """Fetch bootstrap addresses from the OCF bootstrap API.
+
+    Args:
+        bootstrap_api_url: URL to fetch bootstrap addresses from
+        timeout: Request timeout in seconds
+
+    Returns:
+        str: Bootstrap multiaddr (e.g., /ip4/148.187.108.172/tcp/43905/p2p/QmQs...)
+        None: If fetch fails
+    """
+    try:
+        logging.info(f"Fetching bootstrap addresses from {bootstrap_api_url}")
+        with urlopen(bootstrap_api_url, timeout=timeout) as response:
+            data = json.loads(response.read().decode('utf-8'))
+
+        if not data:
+            logging.warning("No bootstrap nodes found in API response")
+            return None
+
+        # Get the first available bootstrap node
+        # Keys are like "/QmPf4rfgfHTVy6geMJX9iTmmbp4jxDpe2uWuJsTmcENwAq"
+        for peer_id_key, node_info in data.items():
+            public_address = node_info.get('public_address')
+            if public_address:
+                # Extract peer ID (remove leading slash)
+                peer_id = peer_id_key.lstrip('/')
+                # Construct multiaddr: /ip4/{ip}/tcp/{port}/p2p/{peer_id}
+                # Using port 43905 as standard libp2p port
+                bootstrap_addr = f"/ip4/{public_address}/tcp/43905/p2p/{peer_id}"
+                logging.info(f"Using bootstrap address: {bootstrap_addr}")
+                return bootstrap_addr
+
+        logging.warning("No valid bootstrap nodes with public_address found")
+        return None
+
+    except URLError as e:
+        logging.warning(f"Failed to fetch bootstrap addresses: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logging.warning(f"Failed to parse bootstrap API response: {e}")
+        return None
+    except Exception as e:
+        logging.warning(f"Unexpected error fetching bootstrap addresses: {e}")
+        return None
 
 
 def extract_model_name(framework_args: str) -> str:
