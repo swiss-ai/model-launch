@@ -30,31 +30,32 @@ def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/
             logging.warning("No bootstrap nodes found in API response")
             return None
 
-        # Handle both list and dict response formats
-        nodes = []
-        if isinstance(data, list):
-            # If data is a list, iterate through it
-            nodes = data
-        elif isinstance(data, dict):
-            # If data is a dict with peer IDs as keys, convert to list of dicts
-            nodes = [{"peer_id": key.lstrip('/'), **value} for key, value in data.items()]
-        else:
-            logging.warning(f"Unexpected API response type: {type(data)}")
-            return None
+        # Handle format 1: {"bootstraps": ["/ip4/148.187.108.172/tcp/43905/p2p/QmPf4..."]}
+        bootstraps = data.get('bootstraps')
+        if bootstraps and isinstance(bootstraps, list) and len(bootstraps) > 0:
+            bootstrap_addr = bootstraps[0]
+            logging.info(f"Using bootstrap address: {bootstrap_addr}")
+            return bootstrap_addr
 
-        # Get the first available bootstrap node with a public address
-        for node_info in nodes:
+        # Handle format 2: {"/QmPf4...": {"id": "QmPf4...", "public_address": "148.187.108.172", ...}}
+        for peer_id_key, node_info in data.items():
+            if not isinstance(node_info, dict):
+                continue
+
             public_address = node_info.get('public_address')
-            peer_id = node_info.get('peer_id') or node_info.get('id')
+            if not public_address:
+                continue
 
-            if public_address and peer_id:
-                # Construct multiaddr: /ip4/{ip}/tcp/{port}/p2p/{peer_id}
-                # Using port 43905 as standard libp2p port
-                bootstrap_addr = f"/ip4/{public_address}/tcp/43905/p2p/{peer_id}"
-                logging.info(f"Using bootstrap address: {bootstrap_addr}")
-                return bootstrap_addr
+            # Extract peer ID (remove leading slash)
+            peer_id = peer_id_key.lstrip('/')
 
-        logging.warning("No valid bootstrap nodes with public_address found")
+            # Construct multiaddr: /ip4/{ip}/tcp/{port}/p2p/{peer_id}
+            # Using port 43905 as standard libp2p port
+            bootstrap_addr = f"/ip4/{public_address}/tcp/43905/p2p/{peer_id}"
+            logging.info(f"Using bootstrap address: {bootstrap_addr}")
+            return bootstrap_addr
+
+        logging.warning("No valid bootstrap addresses found in API response")
         return None
 
     except URLError as e:
@@ -62,6 +63,9 @@ def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/
         return None
     except json.JSONDecodeError as e:
         logging.warning(f"Failed to parse bootstrap API response: {e}")
+        return None
+    except (KeyError, IndexError, TypeError) as e:
+        logging.warning(f"Unexpected API response format: {e}")
         return None
     except Exception as e:
         logging.warning(f"Unexpected error fetching bootstrap addresses: {e}")
