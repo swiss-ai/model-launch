@@ -15,6 +15,8 @@ cd model-launch
 
 ### 2. Create Virtual Environment
 
+(if `uv` is not installed, you can install it by `curl -LsSf https://astral.sh/uv/install.sh | sh`. See [uv](https://github.com/astral-sh/uv) for more details.)
+
 ```bash
 uv venv
 source .venv/bin/activate
