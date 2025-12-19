@@ -2,7 +2,7 @@
 
 ## 1. On Clariden
 
-1. Check if the desired model is already running on the [API](https://serving.swissai.cscs.ch/.
+1. Check if the desired model is already running on the [API](https://serving.swissai.cscs.ch/).
 2. If it is not, launch the model following the instructions in the [README](README.md).
 
 ## 2. On your dev machine (your laptop, Clariden, your group's server...)
