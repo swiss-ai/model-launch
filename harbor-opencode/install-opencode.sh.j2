@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Adapted from https://github.com/laude-institute/harbor/blob/main/src/harbor/agents/installed/install-opencode.sh.j2
+# Released under Apache 2.0 License.
+
+apt-get update
+apt-get install -y curl
+
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+
+source "$HOME/.nvm/nvm.sh"
+
+nvm install 22
+npm -v
+
+{% if version %}
+npm i -g opencode-ai@{{ version }}
+{% else %}
+npm i -g opencode-ai@latest
+{% endif %}
+
+mkdir -p ~/.config/opencode/
+
+cat << EOF > ~/.config/opencode/opencode.json
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "tools": {"*": true},
+  "provider": {
+    "swiss-ai": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Swiss AI",
+      "options": {
+        "baseURL": "https://api.swissai.cscs.ch/v1",
+        "apiKey": "{env:SWISS_AI_API_KEY}"
+      },
+      "models": {
+        "moonshotai/Kimi-K2-Thinking": {
+          "name": "moonshotai/Kimi K2 Thinking"
+        },
+        "swiss-ai/Apertus-8B-Instruct-2509": {
+          "name": "swiss-ai/Apertus-8B-Instruct-2509"
+        },
+        "swiss-ai/Apertus-70B-Instruct-2509": {
+          "name": "swiss-ai/Apertus-70B-Instruct-2509"
+        }
+      }
+    }
+  }
+}
+EOF
