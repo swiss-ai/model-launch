@@ -20,3 +20,11 @@ realpath $SCRATCH/my_image_name.sqsh                                        # ge
 1. `Error: no context directory and no Containerfile specified`
 
    You have missed the trailing dot (`.`) in the `podman build` command. Make sure to include it to specify the current directory as the build context.
+
+2. `Error: unable to copy from source docker:// ... operation not supported`
+
+   Follow the step 9 instructions in [Setup Clariden documentations](https://github.com/swiss-ai/documentation/blob/main/pages/setup_clariden.md).
+
+3. `Error: unable to copy from source docker:// ... permission denied exit status 1`
+
+   Refer to the number 2 above.
