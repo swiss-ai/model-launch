@@ -1,0 +1,30 @@
+image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_kimik25_nightly.sqsh"
+
+# "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
+mounts = [
+  "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
+  "/capstor",
+  "/iopsstor",
+  "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
+  "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
+  "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
+]
+
+workdir = "/opt" 
+
+[env]
+# NCCL_DEBUG = "info"  # uncomment for debugging
+NCCL_NET_PLUGIN = "ofi"
+NCCL_NET = "Socket"
+NCCL_CROSS_NIC = "1"
+NCCL_NET_GDR_LEVEL = "PHB"
+NCCL_SOCKET_IFNAME = "hsn"
+NCCL_PROTO = "^LL128"
+FI_CXI_COMPAT = "0"
+FI_MR_CACHE_MONITOR = "userfaultfd"
+FI_CXI_RX_MATCH_MODE = "software"
+FI_CXI_DEFAULT_CQ_SIZE = "131072"
+FI_CXI_DEFAULT_TX_SIZE = "32768"
+FI_CXI_DISABLE_HOST_REGISTER = "1"
+OFI_NCCL_DISABLE_DMABUF = "1"
+SGL_ENABLE_JIT_DEEPGEMM = "0"
