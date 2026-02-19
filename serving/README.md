@@ -195,17 +195,17 @@ python serving/submit_job.py \
 
 </details>
 
-#### `moonshotai/Kimi-K2.5`
+#### `Kimi-K2.5`
 
 <details>
-<summary>SGLang ()</summary>
+<summary>SGLang (tested ✅)</summary>
 
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 4 \
-  --slurm-time 12:00:00 \
-  --serving-framework sglang \
-  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+  --slurm-time 6:00:00 \
+  --serving-framework sglang \ 
+  --slurm-environment $(pwd)/serving/envs/sglang_kimi.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2.5 \
     --served-model-name moonshotai/Kimi-K2.5-$(whoami) \
     --tp-size 16 \
@@ -213,8 +213,7 @@ python serving/submit_job.py \
     --port 8080 \
     --trust-remote-code \
     --tool-call-parser kimi_k2 \
-    --reasoning-parser kimi_k2" \
-  --pre-launch-cmds "pip install \"sglang @ git+https://github.com/sgl-project/sglang.git#subdirectory=python\" && pip install nvidia-cudnn-cu12==9.16.0.29 blobfile"
+    --reasoning-parser kimi_k2" 
 ```
 
 </details>
