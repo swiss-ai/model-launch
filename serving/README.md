@@ -296,7 +296,7 @@ python serving/submit_job.py \
     --speculative-eagle-topk 1 \
     --speculative-num-draft-tokens 4 \
     --mem-fraction-static 0.85 \
-    --disable-cuda-graph"
+    --disable-cuda-graph"  # tempoary. causes slowing down the inter-GPU communication. to be fixed soon.
 ```
 
 </details>
@@ -324,7 +324,7 @@ python serving/submit_job.py \
     --speculative-eagle-topk 1 \
     --speculative-num-draft-tokens 4 \
     --mem-fraction-static 0.85 \
-    --disable-cuda-graph"
+    --disable-cuda-graph"  # tempoary. causes slowing down the inter-GPU communication. to be fixed soon.
 ```
 
 </details>
