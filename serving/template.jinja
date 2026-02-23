@@ -110,7 +110,11 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         # Build the framework command with expanded variables
         case "$FRAMEWORK" in
             sglang)
-                FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
                 ;;
             vllm)
                 FRAMEWORK_DIST_ARGS_EXPANDED=""
@@ -155,14 +159,26 @@ if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
     srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
         --container-writable \
         --environment="$ROUTER_ENVIRONMENT" \
-        --cpus-per-task=50 \
         --overlap \
         --output=${LOG_DIR}/router_${router_host_node}.out \
         --error=${LOG_DIR}/router_${router_host_node}.err \
         bash --norc --noprofile -c "\
 set -ex
-export no_proxy=\"0.0.0.0,\$no_proxy\"
-export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+# 1. Unconditionally bypass the proxy for the Rust router
+export no_proxy=\"*\"
+export NO_PROXY=\"*\"
+
+echo \"Waiting for all workers to load the model before starting router...\"
+for worker_ip in ${worker_head_ips[*]}; do
+    echo \"Checking worker at \$worker_ip...\"
+    while ! curl --noproxy \"*\" -s http://\${worker_ip}:${WORKER_PORT}/v1/models | grep -q 'id'; do
+        sleep 10
+    done
+    echo \"Worker \$worker_ip is ready!\"
+done
+echo \"All workers are ready! Launching router...\"
+
+# 3. Launch the router
 $ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
 
     echo ""
