@@ -165,16 +165,15 @@ if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
         bash --norc --noprofile -c "\
 set -ex
 # 1. Unconditionally bypass the proxy for the Rust router
-export no_proxy=\"*\"
-export NO_PROXY=\"*\"
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
 
-echo \"Waiting for all workers to load the model before starting router...\"
+echo \"Waiting for all workers to fully initialize the GPU engine before starting router...\"
 for worker_ip in ${worker_head_ips[*]}; do
     echo \"Checking worker at \$worker_ip...\"
-    while ! curl --noproxy \"*\" -s http://\${worker_ip}:${WORKER_PORT}/v1/models | grep -q 'id'; do
+    while [ \"\$(curl --noproxy \"*\" -s -o /dev/null -w '%{http_code}' http://\${worker_ip}:${WORKER_PORT}/health)\" != \"200\" ]; do
         sleep 10
     done
-    echo \"Worker \$worker_ip is ready!\"
+    echo \"Worker \$worker_ip is fully ready!\"
 done
 echo \"All workers are ready! Launching router...\"
 
