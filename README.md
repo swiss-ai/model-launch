@@ -37,7 +37,7 @@ For detailed single/multi-node deployment examples including:
 - **DeepSeek V3.1** (4 nodes, TP16)
 - **Kimi-k2** (4 nodes, TP16)
 - **Multiple workers with router**
-- **OCF configuration**
+- **OpenTela configuration**
 - **Pre-launch commands**
 
 See the comprehensive documentation in [serving/](serving/)
@@ -45,7 +45,7 @@ See the comprehensive documentation in [serving/](serving/)
 ## Features
 
 - **Framework Agnostic**: Supports both SGLang and vLLM
-- **OCF Integration**: Service discovery and health monitoring enabled by default
+- **OpenTela Integration**: Service discovery and health monitoring enabled by default
 - **Multi-Node Support**: Distributed inference across multiple nodes
 - **Router Support**: Load balancing across multiple workers
 - **Architecture Detection**: Automatically detects ARM64 vs x86_64
