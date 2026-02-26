@@ -1,6 +1,6 @@
 # Swiss AI Model Launch
 
-Framework-agnostic SLURM job submission for distributed inference servers (SGLang, vLLM) with OCF (Open Compute Framework) integration.
+Framework-agnostic SLURM job submission for distributed inference servers (SGLang, vLLM) with [OpenTela](https://github.com/eth-easl/OpenTela) integration.
 
 ## Overview
 
