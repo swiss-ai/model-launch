@@ -117,11 +117,50 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
                 fi
                 ;;
             vllm)
-                FRAMEWORK_DIST_ARGS_EXPANDED=""
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --distributed-executor-backend mp --master-addr ${worker_host_ip} --master-port 5757"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
                 ;;
         esac
 
-        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
+        # For vLLM multi-node with Ray: only the head node runs the API server,
+        # follower nodes just run a Ray worker and sleep.
+        if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
+            RAY_PORT=6379
+            NUM_GPUS=4
+
+            if [ $local_rank -eq 0 ]; then
+                # Head node: start Ray head, wait for all workers, then launch vLLM
+                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
+RAY_HEAD_PID=\$!
+
+echo 'Waiting for all Ray worker nodes to connect...'
+EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
+while true; do
+    AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
+    echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
+    if [ \"\${AVAILABLE_GPUS}\" -ge \"\${EXPECTED_GPUS}\" ]; then
+        echo 'All Ray workers connected!'
+        break
+    fi
+    sleep 5
+done
+
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+            else
+                # Follower node: join Ray cluster and sleep forever
+                FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
+            fi
+        fi
+
+        # Use override if set (vLLM multi-node), otherwise build normally
+        if [ -n "${FRAMEWORK_CMD_OVERRIDE:-}" ]; then
+            FRAMEWORK_CMD="$FRAMEWORK_CMD_OVERRIDE"
+        else
+            FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
+        fi
 
         # Wrap with OCF if enabled (only on master node - rank 0)
         if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
@@ -142,6 +181,9 @@ if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     eval \"$PRE_LAUNCH_CMDS\"
 fi
 $FRAMEWORK_CMD" &
+
+        # Reset override for next iteration
+        FRAMEWORK_CMD_OVERRIDE=""
     done
 done
 
