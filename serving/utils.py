@@ -132,7 +132,6 @@ def generate_job_script(template_path, output_path, **kwargs):
 
 
 def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", time="04:00:00", account="infra01", environment=None):
-    # RESERVATION = "PA-2338-RL"
     if interactive:
         # Build srun command for interactive session
         cmd = [
@@ -141,7 +140,6 @@ def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", 
             f"--partition={partition}",
             f"--time={time}",
             f"--account={account}",
-            # f"--reservation={RESERVATION}", # Hardcoded reservation
             "--exclusive",
             "--pty"
         ]
@@ -170,7 +168,6 @@ def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", 
         try:
             result = subprocess.run(
                 ["sbatch", job_script_path], capture_output=True, text=True, check=True
-                # ["sbatch", f"--reservation={RESERVATION}", job_script_path], capture_output=True, text=True, check=True
             )
             output_lines = result.stdout.strip().split("\n")
 
