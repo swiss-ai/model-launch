@@ -54,6 +54,78 @@ python serving/submit_job.py \
 
 </details>
 
+#### `Ministral-3-3B-Instruct-2512`
+
+<details>
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/envs/vllm.toml \
+    --framework-args "--model mistralai/Ministral-3-3B-Instruct-2512\
+      --served-model-name mistralai/Ministral-3-3B-Instruct-2512-$(whoami) \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --data-parallel-size 4 \
+      --tokenizer_mode mistral \
+      --load_format mistral \
+      --config_format mistral \
+      --tool-call-parser mistral \
+      --enable-auto-tool-choice"
+```
+
+</details>
+
+#### `Ministral-3-8B-Instruct-2512`
+
+<details>
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/envs/vllm.toml \
+    --framework-args "--model mistralai/Ministral-3-8B-Instruct-2512 \
+      --served-model-name mistralai/Ministral-3-8B-Instruct-2512-$(whoami) \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --data-parallel-size 4 \
+      --tokenizer_mode mistral \
+      --load_format mistral \
+      --config_format mistral \
+      --tool-call-parser mistral \
+      --enable-auto-tool-choice"
+```
+
+</details>
+
+#### `Ministral-3-14B-Instruct-2512`
+
+<details>
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/envs/vllm.toml \
+    --framework-args "--model mistralai/Ministral-3-14B-Instruct-2512 \
+      --served-model-name mistralai/Ministral-3-14B-Instruct-2512-$(whoami) \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --data-parallel-size 4 \
+      --tokenizer_mode mistral \
+      --load_format mistral \
+      --config_format mistral \
+      --tool-call-parser mistral \
+      --enable-auto-tool-choice"
+```
+
+</details>
+
 ### Snowflake
 
 #### `snowflake-arctic-embed-l-v2.0`
@@ -325,6 +397,128 @@ python serving/submit_job.py \
     --speculative-num-draft-tokens 4 \
     --mem-fraction-static 0.85 \
     --disable-cuda-graph"  # tempoary. causes slowing down the inter-GPU communication. to be fixed soon.
+```
+
+</details>
+
+### Hugging Face
+
+#### `SmolLM3-3B`
+
+<details>
+<summary>SGLang (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/envs/sglang.toml \
+    --framework-args "--model HuggingFaceTB/SmolLM3-3B \
+      --served-model-name HuggingFaceTB/SmolLM3-3B-$(whoami) \
+      --dp-size 4 \
+      --host 0.0.0.0 \
+      --port 8080"
+```
+
+</details>
+
+### Utter
+
+#### `EuroLLM-1.7B-Instruct`
+
+<details>
+<summary>SGLang (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/envs/sglang.toml \
+    --framework-args "--model utter-project/EuroLLM-1.7B-Instruct \
+      --served-model-name utter-project/EuroLLM-1.7B-Instruct-$(whoami) \
+      --dp-size 4 \
+      --host 0.0.0.0 \
+      --port 8080"
+```
+
+</details>
+
+#### `utter-project/EuroLLM-9B-Instruct-2512`
+
+<details>
+<summary>SGLang (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/envs/sglang.toml \
+    --framework-args "--model utter-project/EuroLLM-9B-Instruct-2512 \
+      --served-model-name utter-project/EuroLLM-9B-Instruct-2512-$(whoami) \
+      --dp-size 4 \
+      --host 0.0.0.0 \
+      --port 8080"
+```
+
+</details>
+
+#### `utter-project/EuroLLM-22B-Instruct-2512`
+
+<details>
+<summary>SGLang (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework sglang \
+    --slurm-environment $(pwd)/serving/envs/sglang.toml \
+    --framework-args "--model utter-project/EuroLLM-22B-Instruct-2512 \
+      --served-model-name utter-project/EuroLLM-22B-Instruct-2512-$(whoami) \
+      --dp-size 4 \
+      --host 0.0.0.0 \
+      --port 8080"
+```
+
+</details>
+
+
+### Arcee AI
+
+#### `Trinity-Mini`
+
+<details>
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/envs/vllm.toml \
+    --framework-args "--model arcee-ai/Trinity-Mini \
+      --served-model-name arcee-ai/Trinity-Mini-$(whoami) \
+      --host 0.0.0.0 \
+      --port 8080 \
+      --enable-auto-tool-choice \
+      --reasoning-parser deepseek_r1 \
+      --tool-call-parser hermes"
+```
+
+</details>
+
+#### `Trinity-Nano-Preview`
+
+<details>
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+    --slurm-nodes 1 \
+    --serving-framework vllm \
+    --slurm-environment $(pwd)/serving/envs/vllm.toml \
+    --framework-args "--model arcee-ai/Trinity-Nano-Preview\
+      --served-model-name arcee-ai/Trinity-Nano-Preview-$(whoami) \
+      --host 0.0.0.0 \
+      --port 8080"
 ```
 
 </details>
