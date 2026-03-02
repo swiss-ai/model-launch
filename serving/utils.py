@@ -132,20 +132,6 @@ def generate_job_script(template_path, output_path, **kwargs):
 
 
 def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", time="04:00:00", account="infra01", environment=None):
-    """Submit a job to SLURM either as a batch job or interactively.
-
-    Args:
-        job_script_path: Path to the job script
-        interactive: If True, launch an interactive session instead of batch job
-        nodes: Number of nodes to allocate (for interactive mode)
-        partition: SLURM partition (for interactive mode)
-        time: Time limit (for interactive mode)
-        account: SLURM account (for interactive mode)
-        environment: Container environment to use (for interactive mode)
-
-    Returns:
-        Job ID if batch mode, None if interactive mode
-    """
     if interactive:
         # Build srun command for interactive session
         cmd = [

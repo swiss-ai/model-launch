@@ -57,14 +57,15 @@ case "$FRAMEWORK" in
     sglang)
         FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
         FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
-        ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
         ;;
     vllm)
         FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
         FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
-        ROUTER_LAUNCH="python3 -m vllm.entrypoints.router"
         ;;
 esac
+
+# Router always uses sglang_router (works with any OpenAI-compatible backend)
+ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
 
 # Validate configuration
 EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
@@ -110,14 +111,57 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         # Build the framework command with expanded variables
         case "$FRAMEWORK" in
             sglang)
-                FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
                 ;;
             vllm)
-                FRAMEWORK_DIST_ARGS_EXPANDED=""
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --distributed-executor-backend mp --master-addr ${worker_host_ip} --master-port 5757"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
                 ;;
         esac
 
-        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
+        # For vLLM multi-node with Ray: only the head node runs the API server,
+        # follower nodes just run a Ray worker and sleep.
+        if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
+            RAY_PORT=6379
+            NUM_GPUS=4
+
+            if [ $local_rank -eq 0 ]; then
+                # Head node: start Ray head, wait for all workers, then launch vLLM
+                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
+RAY_HEAD_PID=\$!
+
+echo 'Waiting for all Ray worker nodes to connect...'
+EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
+while true; do
+    AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
+    echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
+    if [ \"\${AVAILABLE_GPUS}\" -ge \"\${EXPECTED_GPUS}\" ]; then
+        echo 'All Ray workers connected!'
+        break
+    fi
+    sleep 5
+done
+
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+            else
+                # Follower node: join Ray cluster and sleep forever
+                FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
+            fi
+        fi
+
+        # Use override if set (vLLM multi-node), otherwise build normally
+        if [ -n "${FRAMEWORK_CMD_OVERRIDE:-}" ]; then
+            FRAMEWORK_CMD="$FRAMEWORK_CMD_OVERRIDE"
+        else
+            FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
+        fi
 
         # Wrap with OCF if enabled (only on master node - rank 0)
         if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
@@ -138,6 +182,9 @@ if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     eval \"$PRE_LAUNCH_CMDS\"
 fi
 $FRAMEWORK_CMD" &
+
+        # Reset override for next iteration
+        FRAMEWORK_CMD_OVERRIDE=""
     done
 done
 
@@ -155,14 +202,25 @@ if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
     srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
         --container-writable \
         --environment="$ROUTER_ENVIRONMENT" \
-        --cpus-per-task=50 \
         --overlap \
         --output=${LOG_DIR}/router_${router_host_node}.out \
         --error=${LOG_DIR}/router_${router_host_node}.err \
         bash --norc --noprofile -c "\
 set -ex
-export no_proxy=\"0.0.0.0,\$no_proxy\"
-export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+# 1. Unconditionally bypass the proxy for the Rust router
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
+
+echo \"Waiting for all workers to fully initialize the GPU engine before starting router...\"
+for worker_ip in ${worker_head_ips[*]}; do
+    echo \"Checking worker at \$worker_ip...\"
+    while [ \"\$(curl --noproxy \"*\" -s -o /dev/null -w '%{http_code}' http://\${worker_ip}:${WORKER_PORT}/health)\" != \"200\" ]; do
+        sleep 10
+    done
+    echo \"Worker \$worker_ip is fully ready!\"
+done
+echo \"All workers are ready! Launching router...\"
+
+# 3. Launch the router
 $ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
 
     echo ""
