@@ -16,7 +16,6 @@ workdir = "/opt"
 [env]
 # NCCL_DEBUG = "INFO"  # uncomment for debugging
 # NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
-LD_LIBRARY_PATH = "/opt/cscs/aws-ofi-ccl-plugin/cuda12:/opt/cray/libfabric/lib64:/usr/lib:${LD_LIBRARY_PATH:-}"
 NCCL_NET_PLUGIN = "/opt/cscs/aws-ofi-ccl-plugin/cuda12/libnccl-net.so"
 NCCL_NET = "AWS Libfabric"
 NCCL_CROSS_NIC = "1"

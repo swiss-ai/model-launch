@@ -1,4 +1,4 @@
-image = "/iopsstor/scratch/cscs/ahadinia/sglang_glm.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_glm5_nightly.sqsh"
 
 # "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
 mounts = [
