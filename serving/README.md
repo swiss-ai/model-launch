@@ -126,6 +126,71 @@ python serving/submit_job.py \
 
 </details>
 
+#### `Mistral-Small-24B-Instruct-2501`
+
+<details>
+
+<summary>SGLang, vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 1 \
+  --serving-framework sglang \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+    --framework-args "--model-path mistralai/Mistral-Small-24B-Instruct-2501 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name mistralai/Mistral-Small-24B-Instruct-2501-$(whoami) \
+    --dp-size 4"
+```
+
+</details>
+
+#### `Mistral-Large-3-675B-Instruct-2512`
+
+<details>
+
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 4 \
+  --serving-framework vllm \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/vllm.toml \
+  --disable-ocf \
+  --framework-args "--model mistralai/Mistral-Large-3-675B-Instruct-2512 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name mistralai/Mistral-Large-3-675B-Instruct-2512-$(whoami) \
+    --tensor-parallel-size 16"
+```
+
+</details>
+
+#### `Mixtral-8x22B-Instruct-v0.1`
+
+<details>
+
+<summary>SGLang, vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 2 \
+  --serving-framework sglang \
+  --disable-ocf \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+  --framework-args "--model mistralai/Mixtral-8x22B-Instruct-v0.1 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --tp-size 8 \
+    --served-model-name mistralai/Mixtral-8x22B-Instruct-v0.1-$(whoami)"
+```
+
+</details>
+
 ### Snowflake
 
 #### `snowflake-arctic-embed-l-v2.0`
@@ -149,6 +214,48 @@ python serving/submit_job.py \
 
 ### Qwen
 
+#### `Qwen3-8B`
+
+<details>
+
+<summary>SGLang, vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 1 \
+  --serving-framework sglang \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+  --framework-args "--model-path Qwen/Qwen3-8B \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name Qwen/Qwen3-8B-$(whoami) \
+    --dp-size 4"
+```
+
+</details>
+
+#### `Qwen3-32B`
+
+<details>
+
+<summary>SGLang, vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 1 \
+  --serving-framework sglang \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+  --framework-args "--model-path Qwen/Qwen3-32B \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name Qwen/Qwen3-32B-$(whoami) \
+    --dp-size 4"
+```
+
+</details>
+
 #### `Qwen3-Next-80B-A3B-Instruct`
 
 <details>
@@ -164,6 +271,50 @@ python serving/submit_job.py \
       --host 0.0.0.0 \
       --port 8080 \
       --tp-size 4"
+```
+
+</details>
+
+#### `Qwen3-235B-A22B-Instruct-2507`
+
+<details>
+
+<summary>SGLang, vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 2 \
+  --serving-framework sglang \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/sglang.toml \
+  --disable-ocf \
+  --framework-args "--model-path Qwen/Qwen3-235B-A22B-Instruct-2507 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name Qwen/Qwen3-235B-A22B-Instruct-2507-$(whoami) \
+    --tp-size 8"
+```
+
+</details>
+
+#### `Qwen3.5-397B-A17B`
+
+<details>
+
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+python serving/submit_job.py \
+  --slurm-nodes 4 \
+  --serving-framework vllm \
+  --disable-ocf \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/vllm_qwen35.toml \
+  --framework-args "--model Qwen/Qwen3.5-397B-A17B \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --tensor-parallel-size 16 \
+    --served-model-name Qwen/Qwen3.5-397B-A17B-$(whoami)"
 ```
 
 </details>
