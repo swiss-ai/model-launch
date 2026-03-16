@@ -1,4 +1,4 @@
-image = "/iopsstor/scratch/cscs/dmelikidze/sglang_cuda13.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_cuda13.sqsh"
 
 mounts = [
   "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
