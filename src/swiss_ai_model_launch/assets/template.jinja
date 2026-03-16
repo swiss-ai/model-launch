@@ -1,0 +1,238 @@
+#!/bin/bash
+#SBATCH --job-name={{ job_name }}
+#SBATCH --account={{ account }}
+#SBATCH --time={{ time }}
+#SBATCH --exclusive
+#SBATCH --nodes={{ nodes }}
+#SBATCH --partition={{ partition }}
+#SBATCH --reservation=PA-2338-RL
+#SBATCH --output=logs/%j/log.out
+#SBATCH --error=logs/%j/log.out
+
+FRAMEWORK="{{ framework }}"
+ENVIRONMENT="{{ environment }}"
+FRAMEWORK_ARGS="{{ framework_args }}"
+PRE_LAUNCH_CMDS="{{ pre_launch_cmds }}"
+WORKERS={{ workers }}
+NODES_PER_WORKER={{ nodes_per_worker }}
+WORKER_PORT={{ worker_port }}
+USE_ROUTER={{ "true" if use_router else "false" }}
+ROUTER_ENVIRONMENT="{{ environment }}"
+ROUTER_PORT=30000
+ROUTER_ARGS="{{ router_args }}"
+USE_OCF={{ "false" if disable_ocf else "true" }}
+OCF_SERVICE_NAME="llm"
+OCF_SERVICE_PORT=8080
+
+{% raw %}
+OCF_BOOTSTRAP_ADDR=$(curl -sf http://148.187.108.172:8092/v1/dnt/bootstraps \
+    | jq -r '.bootstraps[0]' \
+    || echo "/ip4/148.187.108.173/tcp/43905/p2p/Qme8Zwse3PyXxDRgHzqk7KyubJbx4f1kFqpwTG3C2SzTzb")
+
+
+# Architecture detection
+ARCH=$(uname -m)
+if [[ "$ARCH" == "aarch64" ]]; then
+    echo "Running on ARM64 (aarch64)"
+    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/
+    export OCF_BIN=/ocfbin/ocf-arm
+elif [[ "$ARCH" == "x86_64" ]]; then
+    echo "Running on x86_64"
+    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/
+    export OCF_BIN=/ocfbin/ocf-amd64
+else
+    echo "Unknown architecture: $ARCH"
+    exit 1
+fi
+
+# Node setup
+nodes=($(scontrol show hostnames $SLURM_NODELIST))
+TOTAL_NODES=${#nodes[@]}
+
+echo "Total nodes allocated: $TOTAL_NODES"
+for i in "${!nodes[@]}"; do
+    echo "Node $i: ${nodes[$i]}"
+done
+
+# Build the launch command based on framework
+case "$FRAMEWORK" in
+    sglang)
+        FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
+        FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
+        ;;
+    vllm)
+        FRAMEWORK_ENV_SETUP="export RAY_CGRAPH_get_timeout=1800; export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
+        FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
+        ;;
+esac
+
+# Router always uses sglang_router (works with any OpenAI-compatible backend)
+ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
+
+# Validate configuration
+EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
+if [ $TOTAL_NODES -ne $EXPECTED_NODES ]; then
+    echo "Warning: Total nodes ($TOTAL_NODES) doesn't match WORKERS($WORKERS) * NODES_PER_WORKER($NODES_PER_WORKER) = $EXPECTED_NODES"
+    echo "Adjusting to use all available nodes with WORKERS workers"
+    NODES_PER_WORKER=$((TOTAL_NODES / WORKERS))
+fi
+
+# Collect worker head IPs
+worker_head_ips=()
+worker_urls=()
+
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    start_node=$((worker_id * NODES_PER_WORKER))
+    worker_host_node=${nodes[$start_node]}
+    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w ${worker_host_node} hostname -i)
+
+    if [ -z "$worker_host_ip" ]; then
+        echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}"
+        exit 1
+    fi
+
+    echo "Worker $worker_id host IP: $worker_host_ip"
+    worker_head_ips+=("$worker_host_ip")
+    worker_urls+=("http://${worker_host_ip}:${WORKER_PORT}")
+done
+
+echo "All worker URLs: ${worker_urls[@]}"
+
+# Launch workers
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    echo "Launching worker $worker_id"
+    start_node=$((worker_id * NODES_PER_WORKER))
+    end_node=$((start_node + NODES_PER_WORKER - 1))
+
+    worker_host_ip=${worker_head_ips[$worker_id]}
+
+    for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
+        global_node_idx=$((start_node + local_rank))
+        node=${nodes[$global_node_idx]}
+
+        # Build the framework command with expanded variables
+        case "$FRAMEWORK" in
+            sglang)
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
+                ;;
+            vllm)
+                if [ "$NODES_PER_WORKER" -gt 1 ]; then
+                    FRAMEWORK_DIST_ARGS_EXPANDED="--nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --distributed-executor-backend mp --master-addr ${worker_host_ip} --master-port 5757"
+                else
+                    FRAMEWORK_DIST_ARGS_EXPANDED=""
+                fi
+                ;;
+        esac
+
+        # For vLLM multi-node with Ray: only the head node runs the API server,
+        # follower nodes just run a Ray worker and sleep.
+        if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
+            RAY_PORT=6379
+            NUM_GPUS=4
+
+            if [ $local_rank -eq 0 ]; then
+                # Head node: start Ray head, wait for all workers, then launch vLLM
+                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
+RAY_HEAD_PID=\$!
+
+echo 'Waiting for all Ray worker nodes to connect...'
+EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
+while true; do
+    AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
+    echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
+    if [ \"\${AVAILABLE_GPUS}\" -ge \"\${EXPECTED_GPUS}\" ]; then
+        echo 'All Ray workers connected!'
+        break
+    fi
+    sleep 5
+done
+
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+            else
+                # Follower node: join Ray cluster and sleep forever
+                FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
+            fi
+        fi
+
+        # Use override if set (vLLM multi-node), otherwise build normally
+        if [ -n "${FRAMEWORK_CMD_OVERRIDE:-}" ]; then
+            FRAMEWORK_CMD="$FRAMEWORK_CMD_OVERRIDE"
+        else
+            FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
+        fi
+
+        # Wrap with OCF if enabled (only on master node - rank 0)
+        if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
+            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
+        fi
+
+        srun --nodes=1 --ntasks=1 --nodelist=$node \
+            --container-writable \
+            --environment="$ENVIRONMENT" \
+            bash --norc --noprofile -c "\
+set -ex
+$FRAMEWORK_ENV_SETUP
+# Run pre-launch commands if provided
+if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
+    echo \"Running pre-launch commands...\"
+    eval \"$PRE_LAUNCH_CMDS\"
+fi
+$FRAMEWORK_CMD" &
+
+        # Reset override for next iteration
+        FRAMEWORK_CMD_OVERRIDE=""
+    done
+done
+
+# Optional router launch
+if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
+    router_host_node=${nodes[0]}
+    router_host_ip=${worker_head_ips[0]}
+
+    # Build worker URLs string
+    worker_urls_str="${worker_urls[@]}"
+
+    echo "Starting router on ${router_host_node} (${router_host_ip}:${ROUTER_PORT})"
+    echo "Router worker URLs: ${worker_urls_str}"
+
+    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
+        --container-writable \
+        --environment="$ROUTER_ENVIRONMENT" \
+        --overlap \
+        bash --norc --noprofile -c "\
+set -ex
+# 1. Unconditionally bypass the proxy for the Rust router
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
+
+echo \"Waiting for all workers to fully initialize the GPU engine before starting router...\"
+for worker_ip in ${worker_head_ips[*]}; do
+    echo \"Checking worker at \$worker_ip...\"
+    while [ \"\$(curl --noproxy \"*\" -s -o /dev/null -w '%{http_code}' http://\${worker_ip}:${WORKER_PORT}/health)\" != \"200\" ]; do
+        sleep 10
+    done
+    echo \"Worker \$worker_ip is fully ready!\"
+done
+echo \"All workers are ready! Launching router...\"
+
+# 3. Launch the router
+$ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
+
+    echo ""
+    echo "Router URL: http://${router_host_ip}:${ROUTER_PORT}"
+fi
+
+echo ""
+echo "To connect to the host node:"
+echo "srun --jobid $SLURM_JOB_ID -w ${nodes[0]} --overlap --pty bash"
+
+echo ""
+echo "Make sure to cancel the job at the end:"
+echo "scancel $SLURM_JOB_ID"
+
+wait
+echo "Script finished at $(date)"
+{% endraw %}

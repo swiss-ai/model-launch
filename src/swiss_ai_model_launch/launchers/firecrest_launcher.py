@@ -1,0 +1,188 @@
+import json
+import tempfile
+from datetime import datetime
+from importlib.resources import files
+from pathlib import Path
+
+import firecrest as f7t
+from jinja2 import Template
+
+from .launch_args import LaunchArgs
+from .launch_request import LaunchRequest
+from .launcher import JobStatus, Launcher
+from .utils import create_salt
+
+_REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
+
+_SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
+_VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
+
+_PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
+_TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
+
+_APP_WORKING_DIRECTORY = ".sml"
+
+
+def render_job_script(launch_args: LaunchArgs) -> str:
+    template = Template(_TEMPLATE_PATH.read_text())
+    return template.render(**launch_args.model_dump())  # type: ignore
+
+
+class FirecRESTLauncher(Launcher):
+    def __init__(
+        self,
+        client: f7t.v2.AsyncFirecrest,
+        system_name: str,
+        username: str,
+        account: str,
+        partition: str,
+    ):
+        super().__init__()
+        self.client = client
+        self.system_name = system_name
+        self.username = username
+        self.account = account
+        self.partition = partition
+
+    def _get_user_dir(self) -> str:
+        return f"/users/{self.username}"
+
+    def _get_working_dir(self) -> str:
+        return str(Path(self._get_user_dir()) / _APP_WORKING_DIRECTORY)
+
+    def _get_laucnh_args_from_request(
+        self,
+        launch_request: LaunchRequest,
+    ) -> LaunchArgs:
+        vendor = launch_request.vendor
+        model_name = launch_request.model_name
+        job_name = f"{vendor}_{model_name}_{self.username}_{create_salt(8)}"
+        served_model_name = (
+            launch_request.served_model_name
+            or f"{vendor}/{model_name}-{create_salt(4)}"
+        )
+        return LaunchArgs(
+            job_name=job_name,
+            account=self.account,
+            partition=self.partition,
+            workers=launch_request.workers,
+            nodes_per_worker=launch_request.nodes_per_worker,
+            time=launch_request.time,
+            environment=launch_request.environment,
+            framework=launch_request.framework,
+            served_model_name=served_model_name,
+            framework_args=(
+                f"--model {str(_REMOTE_MODEL_REGISTRY / vendor / model_name)} "
+                f"--served-model-name {served_model_name} "
+                "--host 0.0.0.0 "
+                "--port 8080 "
+            ),
+        )
+
+    def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
+        if launch_request.environment is not None:
+            return launch_request.environment
+        elif launch_request.framework == "sglang":
+            return str(_SGLANG_ENVIRONMENT)
+        elif launch_request.framework == "vllm":
+            return str(_VLLM_ENVIRONMENT)
+        else:
+            raise ValueError(
+                "`envionment` is not provided in the launch request, "
+                "and no default environment is available for the specified framework."
+            )
+
+    async def _create_remote_env_file_path(self, launch_request: LaunchRequest) -> str:
+        working_dir = self._get_working_dir()
+
+        await self.client.mkdir(
+            system_name=self.system_name,
+            path=working_dir,
+            create_parents=True,
+        )
+
+        local_env_path = self._get_local_env_file_path(launch_request)
+        remote_env_filename = "env_{}_{}_{}.toml".format(
+            launch_request.framework,
+            datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+            create_salt(8),
+        )
+
+        await self.client.upload(
+            system_name=self.system_name,
+            local_file=local_env_path,
+            directory=working_dir,
+            filename=remote_env_filename,
+            account=self.account,
+            blocking=True,
+        )
+
+        return str(Path(working_dir) / remote_env_filename)
+
+    async def get_preconfigured_models(self) -> list[LaunchRequest]:
+        return [
+            LaunchRequest(**item)
+            for item in json.loads(_PRECONFIGURED_MODELS.read_text())
+        ]
+
+    async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
+        remote_env_path = await self._create_remote_env_file_path(launch_request)
+
+        launch_args = self._get_laucnh_args_from_request(
+            LaunchRequest.model_copy(
+                launch_request,
+                update={"environment": remote_env_path},
+            )
+        )
+
+        script_str = render_job_script(launch_args)
+        job_submission_report = await self.client.submit(
+            system_name=self.system_name,
+            working_dir=self._get_working_dir(),
+            script_str=script_str,
+            account=self.account,
+        )
+
+        return int(job_submission_report["jobId"]), launch_args.served_model_name
+
+    async def get_job_status(self, job_id: int) -> JobStatus:
+        job_info = await self.client.job_info(
+            system_name=self.system_name,
+            jobid=job_id,
+            # account=self.account,  # TODO
+        )
+        return JobStatus(str(job_info[0]["status"]["state"]))
+
+    async def get_job_logs(self, job_id: int) -> tuple[str, str]:
+        log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)
+
+        with tempfile.TemporaryDirectory(prefix=f"sml_logs_{job_id}_") as target_dir:
+            target_dir_path = Path(target_dir)
+
+            try:
+                await self.client.download(
+                    system_name=self.system_name,
+                    source_path=str(log_dir / "log.out"),
+                    target_path=target_dir_path / "log.out",
+                    account=self.account,
+                    blocking=True,
+                )
+                with open(target_dir_path / "log.out") as out_f:
+                    out_log = out_f.read()
+            except FileNotFoundError:
+                out_log = ""
+
+            try:
+                await self.client.download(
+                    system_name=self.system_name,
+                    source_path=str(log_dir / "log.err"),
+                    target_path=target_dir_path / "log.err",
+                    account=self.account,
+                    blocking=True,
+                )
+                with open(target_dir_path / "log.err") as err_f:
+                    err_log = err_f.read()
+            except FileNotFoundError:
+                err_log = ""
+
+            return out_log, err_log

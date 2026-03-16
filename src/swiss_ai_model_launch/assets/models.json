@@ -1,0 +1,56 @@
+[
+  {
+    "vendor": "swiss-ai",
+    "model_name": "Apertus-8B-Instruct-2509",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  },
+  {
+    "vendor": "swiss-ai",
+    "model_name": "Apertus-8B-Instruct-2509",
+    "framework": "vllm",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  },
+  {
+    "vendor": "swiss-ai",
+    "model_name": "Apertus-70B-Instruct-2509",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  },
+  {
+    "vendor": "swiss-ai",
+    "model_name": "Apertus-70B-Instruct-2509",
+    "framework": "vllm",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  },
+  {
+    "vendor": "zai-org",
+    "model_name": "GLM-4.7-Flash",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  },
+  {
+    "vendor": "zai-org",
+    "model_name": "GLM-4.7-Flash",
+    "framework": "vllm",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "00:30:00"
+  }
+]
