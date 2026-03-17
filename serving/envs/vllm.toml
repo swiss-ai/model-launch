@@ -30,6 +30,6 @@ OFI_NCCL_DISABLE_DMABUF = "1"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
 
 [annotations]
-com.hooks.aws_ofi_nccl.enabled = "replace_all"
+com.hooks.aws_ofi_nccl.enabled = "true"
 com.hooks.aws_ofi_nccl.variant = "cuda13"
 com.hooks.cxi.enabled = "true"
