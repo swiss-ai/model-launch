@@ -78,6 +78,11 @@ class FirecRESTLauncher(Launcher):
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
                 "--port 8080 "
+                + (
+                    launch_request.framework_args
+                    if launch_request.framework_args
+                    else ""
+                )
             ),
             telemetry_endpoint=self.telemetry_endpoint,
         )

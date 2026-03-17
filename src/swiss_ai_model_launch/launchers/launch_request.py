@@ -12,3 +12,4 @@ class LaunchRequest(BaseModel):
     nodes_per_worker: int
     time: str
     served_model_name: str | None = None
+    framework_args: str | None = None
