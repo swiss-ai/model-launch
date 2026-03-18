@@ -35,6 +35,8 @@ OCF_BOOTSTRAP_ADDR=$(curl -sf http://148.187.108.172:8092/v1/dnt/bootstraps \
     || echo "/ip4/148.187.108.172/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9")
 
 
+unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
+
 # Architecture detection
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
