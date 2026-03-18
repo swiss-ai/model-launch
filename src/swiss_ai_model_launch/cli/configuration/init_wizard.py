@@ -93,37 +93,15 @@ class InitConfig(ChainConfiguration):
                     prompt="What is your CSCS API key? "
                     "(https://serving.swissai.svc.cscs.ch)",
                 ),
-                BranchConfiguration(
-                    name="telemetry_configuration",
-                    head_configuration=OptionsConfiguration(
-                        name="telemetry",
-                        prompt="Do you want to enable telemetry to help us improve "
-                        "the product? (you can change this later in the config file)",
-                        options={
-                            "default": (
-                                "Yes",
-                                "Anonymized data will be sent to telemetry endpoint.",
-                            ),
-                            "disabled": (
-                                "No",
-                                "No data will be recorded out of your usage.",
-                            ),
-                        },
-                    ),
-                    branches={
-                        "default": ChainConfiguration(
-                            name="telemetry_endpoint_configuration",
-                            chain=[
-                                TextConfiguration(
-                                    name="telemetry_endpoint",
-                                    prompt="What is the endpoint to which telemetry "
-                                    "data should be sent?",
-                                    default="https://sml-dev.swissai.svc.cscs.ch/launches",
-                                ),
-                            ],
+                ChainConfiguration(
+                    name="telemetry_endpoint_configuration",
+                    chain=[
+                        TextConfiguration(
+                            name="telemetry_endpoint",
+                            prompt="Where to send telemetry reports?",
+                            default="https://sml-dev.swissai.svc.cscs.ch/launches",
                         ),
-                        "disabled": None,
-                    },
+                    ],
                 ),
             ],
         )

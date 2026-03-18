@@ -227,11 +227,7 @@ async def _main() -> None:
     launcher_type = config.get_non_none_value("launcher")
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
-        telemetry_endpoint = (
-            config.get_value("telemetry_endpoint")
-            if config.get_non_none_value("telemetry") == "default"
-            else None
-        )
+        telemetry_endpoint = config.get_non_none_value("telemetry_endpoint")
         launcher = await _get_firecrest_launcher_with_client(
             firecrest_client,
             telemetry_endpoint=telemetry_endpoint,
