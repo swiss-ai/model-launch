@@ -327,7 +327,7 @@ python serving/submit_job.py \
   --serving-framework vllm \
   --disable-ocf \
   --worker-port 8080 \
-  --slurm-environment $(pwd)/serving/envs/vllm_qwen35.toml \
+  --slurm-environment $(pwd)/serving/envs/vllm.toml \
   --framework-args "--model Qwen/Qwen3.5-397B-A17B \
     --host 0.0.0.0 \
     --port 8080 \
