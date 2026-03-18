@@ -6,7 +6,8 @@
     "environment": null,
     "workers": 1,
     "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "time": "00:30:00",
+    "framework_args": ""
   },
   {
     "vendor": "swiss-ai",
@@ -15,7 +16,8 @@
     "environment": null,
     "workers": 1,
     "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "time": "00:30:00",
+    "framework_args": ""
   },
   {
     "vendor": "swiss-ai",
@@ -24,7 +26,8 @@
     "environment": null,
     "workers": 1,
     "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "time": "00:30:00",
+    "framework_args": ""
   },
   {
     "vendor": "swiss-ai",
@@ -33,24 +36,37 @@
     "environment": null,
     "workers": 1,
     "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "time": "00:30:00",
+    "framework_args": ""
   },
   {
-    "vendor": "zai-org",
-    "model_name": "GLM-4.7-Flash",
+    "vendor": "Qwen",
+    "model_name": "Qwen3-235B-A22B-Instruct-2507",
     "framework": "sglang",
     "environment": null,
     "workers": 1,
-    "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "nodes_per_worker": 2,
+    "time": "00:30:00",
+    "framework_args": "--tp-size 8"
   },
   {
-    "vendor": "zai-org",
-    "model_name": "GLM-4.7-Flash",
-    "framework": "vllm",
+    "vendor": "moonshotai",
+    "model_name": "Kimi-K2.5",
+    "framework": "sglang",
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang_kimi.toml",
+    "workers": 1,
+    "nodes_per_worker": 4,
+    "time": "03:00:00",
+    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2"
+  },
+  {
+    "vendor": "MiniMaxAI",
+    "model_name": "MiniMax-M2",
+    "framework": "sglang",
     "environment": null,
     "workers": 1,
-    "nodes_per_worker": 1,
-    "time": "00:30:00"
+    "nodes_per_worker": 4,
+    "time": "03:00:00",
+    "framework_args": "--tp-size 4 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85"
   }
 ]

@@ -185,9 +185,11 @@ class OptionsConfiguration(_ResolvableConfiguration):
         return await cast(Callable[[], Awaitable[OptionsDict]], self.options_factory)()
 
     async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
-        self.value = await self._build_question(
-            await self._resolve_options(get_value)
-        ).ask_async()
+        options = await self._resolve_options(get_value)
+        if len(options) == 1:
+            self.value = next(iter(options))
+        else:
+            self.value = await self._build_question(options).ask_async()
         self._on_answer()
 
 

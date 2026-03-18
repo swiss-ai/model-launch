@@ -23,6 +23,8 @@ async def check_model_health(served_model_name: str, api_key: str) -> ModelHealt
                 },
                 timeout=_TIMEOUT_SECONDS,
             )
-        return ModelHealth.HEALTHY if response.is_success else ModelHealth.ERROR
+        return (
+            ModelHealth.HEALTHY if response.is_success else ModelHealth.NOT_RESPONDING
+        )
     except (httpx.TransportError, httpx.TimeoutException):
-        return ModelHealth.NOT_RESPONDING
+        return ModelHealth.ERROR
