@@ -1,66 +1,100 @@
-# Swiss AI Model Launch
+# `sml`: Swiss AI Model Launch
 
-Framework-agnostic SLURM job submission for distributed inference servers (SGLang, vLLM) with [OpenTela](https://github.com/eth-easl/OpenTela) integration.
+A CLI tool for launching AI models on HPC systems via FirecREST, a remote launcher, or SLURM commands.
 
-## Overview
+## Install
 
-This repository contains several sub-directories for different components of the model launch process.
+1. Create a virtual environment and install the package.
 
-- [`download/`](./download/): This directory contains scripts for downloading and storing the models in the cluster. It is strongly recommended to do so to avoid repeated downloads every time you want to launch a model.
-- [`images/`](./images/): This directory contains the instructions and Dockerfiles for building custom container images for the SLURM nodes. The images will be passed on the top of the `.toml` environment configuration file for SLURM job submission, ensuring consistency and compatibility across all nodes in the SLURM cluster.
-- [`serving/`](./serving/): This directory contains the main code and instructions for launching the models on the SLURM cluster.
+   ```bash
+   uv venv --python 3.12
+   source .venv/bin/activate
+   ```
 
-## Setup
+2. Install the package.
 
-### Prerequisites
+   - For regular use:
 
-1. Git
-2. Python
-3. UV
+     ```bash
+     uv pip install -e .
+     ```
 
-   You can install it by `curl -LsSf https://astral.sh/uv/install.sh | sh`. See [uv](https://github.com/astral-sh/uv) for more details.
+   - For development (includes dev dependencies):
 
-### Installation
+      ```bash
+      uv pip install -e ".[dev]"
+      pre-commit install
+      ```
 
-```bash
-git clone https://github.com/swiss-ai/model-launch
-cd model-launch
-uv venv --python 3.12
-source .venv/bin/activate
-uv pip install -r requirements.txt
+## Usage
+
+### Initialization
+
+The first time you run `sml` command, you will be prompted to do the initialization, which includes providing necessary credentials and configurations.
+
+There is three ways to initialize the mean of launching commands for the CLI as listed below.
+
+- FirecREST: You will be able to run the CLI on your local machine and the CLI will use FirecREST to submit jobs. You will need to provide your FirecREST credentials during the initialization. If you don't have the credentials, you can follow the instructions in the [Appendix](#acquiring-firecrest-credentials) to acquire them.
+- Remote Launcher: Not operational yet.
+- SLURM: Not operational yet.
+
+For health check, you will be prompted to provide your CSCS API key. If you don't have the API key, you can follow the instructions in the [Appendix](#acquiring-cscs-api-key) to acquire it.
+
+### Launching a Model
+
+After completing the initialization, you can simply run the `sml` command. The CLI will guide you through the process of launching a model, which includes selecting a model, providing necessary information for the launch, and confirming the launch.
+
+## Development
+
+### Testing Environment
+
+For writing the unit tests, you have to create a `.test.sh` file in the root of the repository with the following content:
+
+```shell
+export FIRECREST_URL=<your-firecrest-url>
+export FIRECREST_TOKEN_URI=<your-token-uri>
+export FIRECREST_CLIENT_ID=<your-client-id>
+export FIRECREST_CLIENT_SECRET=<your-client-secret>
+export FIRECREST_SYSTEM=clariden
+export FIRECREST_ACCOUNT=<your-account>
+export FIRECREST_PARTITION=normal
+export CSCS_API_KEY=<your-api-key>
 ```
 
-## Examples
+### Common Commands
 
-For detailed single/multi-node deployment examples including:
+There is a `Makefile` with common development commands.
 
-- **DeepSeek V3.1** (4 nodes, TP16)
-- **Kimi-k2** (4 nodes, TP16)
-- **Multiple workers with router**
-- **OpenTela configuration**
-- **Pre-launch commands**
+1. To format code, you can run:
 
-See the comprehensive documentation in [serving/](serving/)
+   ```bash
+   make format
+   ```
 
-## Features
+2. To run tests, you can run:
 
-- **Framework Agnostic**: Supports both SGLang and vLLM
-- **OpenTela Integration**: Service discovery and health monitoring enabled by default
-- **Multi-Node Support**: Distributed inference across multiple nodes
-- **Router Support**: Load balancing across multiple workers
-- **Architecture Detection**: Automatically detects ARM64 vs x86_64
-- **Pre-Launch Commands**: Install packages or run setup before framework launch
-- **Flexible Configuration**: Pass-through framework arguments for complete control
+   ```bash
+   make test
+   ```
 
-## Contributing
+3. To clean up cache files, you can run:
 
-GitHub issues are welcome! Feel free to:
+   ```bash
+   make clean-cache
+   ```
 
-- Report bugs or issues
-- Suggest new features
-- Propose model support additions
-- Ask questions about usage
+4. To clean up the env and cache, you can run:
 
-## Acknowledgements
+   ```bash
+   make clean-dev
+   ```
 
-This repo was inspired by Nathan's [torrent](https://github.com/swiss-ai/torrent/) repo on Swiss AI.
+## Appendix
+
+### Acquiring FirecREST Credentials
+
+Please follow the instructions in the [FirecREST documentation](https://docs.cscs.ch/services/devportal/#manage-your-applications) to acquire the necessary credentials for authentication.
+
+### Acquiring CSCS API Key
+
+Please proceed to [serving platform](https://serving.swissai.svc.cscs.ch) and login using your institutional account. Then, navigate to the "View API Keys" section. You will see your API key listed there.
