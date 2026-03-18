@@ -1,4 +1,4 @@
-image = "/iopsstor/scratch/cscs/edebened/ce-images/large_model_serving.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_cuda13.sqsh"
 
 mounts = [
   "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
@@ -7,16 +7,14 @@ mounts = [
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
   "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
   "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
-  "/opt/cray/libfabric/1.22.0/lib64:/opt/cray/libfabric/lib64",
-  "/opt/cscs/aws-ofi-ccl-plugin/cuda12:/opt/cscs/aws-ofi-ccl-plugin/cuda12",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
 ]
 
-workdir = "/opt" 
+workdir = "/opt"
 
 [env]
 # NCCL_DEBUG = "INFO"  # uncomment for debugging
 # NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
-NCCL_NET_PLUGIN = "/opt/cscs/aws-ofi-ccl-plugin/cuda12/libnccl-net.so"
 NCCL_NET = "AWS Libfabric"
 NCCL_CROSS_NIC = "1"
 NCCL_NET_GDR_LEVEL = "PHB"
@@ -34,4 +32,5 @@ VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
 
 [annotations]
 com.hooks.aws_ofi_nccl.enabled = "true"
-com.hooks.aws_ofi_nccl.variant = "cuda12"
+com.hooks.aws_ofi_nccl.variant = "cuda13"
+com.hooks.cxi.enabled = "true"

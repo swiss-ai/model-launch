@@ -6,8 +6,9 @@
 #SBATCH --nodes={{ nodes }}
 #SBATCH --partition={{ partition }}
 #SBATCH --output=logs/%j/log.out
-#SBATCH --error=logs/%j/log.out
+#SBATCH --error=logs/%j/log.err
 
+LOG_DIR="${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}"
 FRAMEWORK="{{ framework }}"
 ENVIRONMENT="{{ environment }}"
 FRAMEWORK_ARGS="{{ framework_args }}"
@@ -16,24 +17,19 @@ WORKERS={{ workers }}
 NODES_PER_WORKER={{ nodes_per_worker }}
 WORKER_PORT={{ worker_port }}
 USE_ROUTER={{ "true" if use_router else "false" }}
-ROUTER_ENVIRONMENT="{{ environment }}"
-ROUTER_PORT=30000
+ROUTER_ENVIRONMENT="{{ router_environment }}"
+ROUTER_PORT={{ router_port }}
 ROUTER_ARGS="{{ router_args }}"
-USE_OCF={{ "false" if disable_ocf else "true" }}
-OCF_SERVICE_NAME="llm"
-OCF_SERVICE_PORT=8080
-
-{% if telemetry_endpoint %}
-curl -sf -X POST "{{ telemetry_endpoint }}" \
-    -H "Content-Type: application/json" \
-    -d '{"user": "aryan", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": {{ nodes }}, "slurm_job_name": "{{ job_name }}", "slurm_partition": "{{ partition }}", "slurm_time": "{{ time }}", "slurm_account": "{{ account }}", "slurm_environment": "{{ environment }}", "interactive": false, "serving_framework": "{{ framework }}", "framework_args": "{{ framework_args }}", "pre_launch_cmds": "{{ pre_launch_cmds }}", "model_name": "string", "model_path": "string", "tp_size": 0, "host": "string", "port": 0, "workers": {{ workers }}, "nodes_per_worker": {{ nodes_per_worker }}, "worker_port": {{ worker_port }}, "use_router": {{ "true" if use_router else "false" }}, "router_environment": "{{ environment }}", "router_port": 30000, "router_args": "{{ router_args }}", "ocf_enabled": {{ "false" if disable_ocf else "true" }}, "ocf_bootstrap_addr": "string", "ocf_service_name": "llm", "ocf_service_port": 8080, "extra": {"additionalProp1": {}}, "raw_command": "string"}' || true
-{% endif %}
+USE_OCF={{ "true" if use_ocf else "false" }}
+OCF_BOOTSTRAP_ADDR="{{ ocf_bootstrap_addr }}"
+OCF_SERVICE_NAME="{{ ocf_service_name }}"
+OCF_SERVICE_PORT={{ ocf_service_port }}
 
 {% raw %}
-OCF_BOOTSTRAP_ADDR=$(curl -sf http://148.187.108.172:8092/v1/dnt/bootstraps \
-    | jq -r '.bootstraps[0]' \
-    || echo "/ip4/148.187.108.172/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9")
+mkdir -p "${LOG_DIR}"
 
+# Clear inherited CPU binding from parent Slurm environment (e.g. when submitting from a compute node)
+unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
 
 # Architecture detection
 ARCH=$(uname -m)
@@ -178,6 +174,8 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
         srun --nodes=1 --ntasks=1 --nodelist=$node \
             --container-writable \
             --environment="$ENVIRONMENT" \
+            --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out \
+            --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err \
             bash --norc --noprofile -c "\
 set -ex
 $FRAMEWORK_ENV_SETUP
@@ -204,10 +202,12 @@ if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
     echo "Starting router on ${router_host_node} (${router_host_ip}:${ROUTER_PORT})"
     echo "Router worker URLs: ${worker_urls_str}"
 
-    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
+    srun --nodes=1 --ntasks=1 --cpus-per-task=40 --nodelist=$router_host_node \
         --container-writable \
         --environment="$ROUTER_ENVIRONMENT" \
         --overlap \
+        --output=${LOG_DIR}/router_${router_host_node}.out \
+        --error=${LOG_DIR}/router_${router_host_node}.err \
         bash --norc --noprofile -c "\
 set -ex
 # 1. Unconditionally bypass the proxy for the Rust router
