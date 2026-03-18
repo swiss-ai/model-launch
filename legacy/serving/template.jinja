@@ -28,6 +28,9 @@ OCF_SERVICE_PORT={{ ocf_service_port }}
 {% raw %}
 mkdir -p "${LOG_DIR}"
 
+# Clear inherited CPU binding from parent Slurm environment (e.g. when submitting from a compute node)
+unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
+
 # Architecture detection
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
@@ -199,7 +202,7 @@ if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
     echo "Starting router on ${router_host_node} (${router_host_ip}:${ROUTER_PORT})"
     echo "Router worker URLs: ${worker_urls_str}"
 
-    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
+    srun --nodes=1 --ntasks=1 --cpus-per-task=40 --nodelist=$router_host_node \
         --container-writable \
         --environment="$ROUTER_ENVIRONMENT" \
         --overlap \

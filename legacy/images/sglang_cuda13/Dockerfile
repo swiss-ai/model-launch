@@ -79,9 +79,6 @@ RUN pip install --no-cache-dir --no-deps --force-reinstall \
 # Install nvidia-cublas for torch compile compatibility.
 RUN pip install --no-cache-dir nvidia-cublas
 
-# Upgrade CuDNN to 9.16 — SGLang requires >= 9.15 with PyTorch 2.9.1.
-RUN pip install --no-cache-dir nvidia-cudnn-cu12==9.16.0.29
-
 # Install curl for router health checks and sglang-router for load balancing.
 RUN conda install -y curl && conda clean -ya
 RUN pip install --no-cache-dir sglang-router

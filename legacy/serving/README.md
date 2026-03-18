@@ -281,6 +281,8 @@ python serving/submit_job.py \
 
 <summary>SGLang, vLLM (tested ✅)</summary>
 
+##### SGLang
+
 ```bash
 python serving/submit_job.py \
   --slurm-nodes 2 \
@@ -293,6 +295,22 @@ python serving/submit_job.py \
     --port 8080 \
     --served-model-name Qwen/Qwen3-235B-A22B-Instruct-2507-$(whoami) \
     --tp-size 8"
+```
+
+##### vLLM
+
+```
+python serving/submit_job.py \
+  --slurm-nodes 2 \
+  --serving-framework vllm \
+  --worker-port 8080 \
+  --slurm-environment $(pwd)/serving/envs/vllm.toml \
+  --disable-ocf \
+  --framework-args "--model Qwen/Qwen3-235B-A22B-Instruct-2507 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name Qwen/Qwen3-235B-A22B-Instruct-2507-$(whoami) \
+    --tensor-parallel-size 8"
 ```
 
 </details>
@@ -309,7 +327,7 @@ python serving/submit_job.py \
   --serving-framework vllm \
   --disable-ocf \
   --worker-port 8080 \
-  --slurm-environment $(pwd)/serving/envs/vllm_qwen35.toml \
+  --slurm-environment $(pwd)/serving/envs/vllm.toml \
   --framework-args "--model Qwen/Qwen3.5-397B-A17B \
     --host 0.0.0.0 \
     --port 8080 \
