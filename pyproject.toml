@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swiss-ai-model-launch"
+version = "26.3.0a1"
+description = "Swiss AI Model Launch"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "httpx>=0.28",
+    "jinja2>=3.0",
+    "keyring>=25.0",
+    "pydantic>=2.0",
+    "pyfirecrest>=3.7.1",
+    "pyyaml>=6.0",
+    "questionary>=2.0",
+    "textual>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.15",
+    "mypy>=1.0",
+    "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=7.0",
+    "pytest-xdist>=3.0",
+    "pre-commit>=4.0",
+    "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+sml = "swiss_ai_model_launch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+swiss_ai_model_launch = ["assets/**"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+src = ["src"]
+line-length = 88
+exclude = ["legacy"]  # TODO
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "I",  # isort
+    "N",  # naming conventions
+    "B",  # bugbear
+    "UP", # pyupgrade
+    "S",  # security (bandit)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+files = ["src"]
+strict = true
+python_version = "3.10"
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 0  # TODO
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.3.0",
+    "pytest-xdist>=3.8.0",
+]
