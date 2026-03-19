@@ -1,6 +1,5 @@
 import asyncio
 import re
-from collections.abc import Awaitable, Callable
 
 import firecrest as f7t
 
@@ -87,11 +86,18 @@ async def _get_firecrest_launcher_with_client(
     )
 
 
+def _split_vendor_model(combined: str) -> tuple[str, str]:
+    vendor, model_name = combined.split("::", 1)
+    return vendor, model_name
+
+
 async def _get_preconfigured_default(
     get_value_from_context: GetValueFn, preconfigured: list[LaunchRequest], field: str
 ) -> str | None:
-    vendor = get_value_from_context("model_vendor")
-    model_name = get_value_from_context("model_name")
+    combined = get_value_from_context("model_vendor_model")
+    if combined is None:
+        return None
+    vendor, model_name = _split_vendor_model(combined)
     framework = get_value_from_context("framework")
     match = next(
         (
@@ -108,43 +114,36 @@ async def _get_preconfigured_default(
     return str(getattr(match, field))
 
 
-def _make_served_model_name_default(
-    preconfigured: list[LaunchRequest],
-) -> Callable[[GetValueFn], Awaitable[str]]:
-    async def _default(get_value: GetValueFn) -> str:
-        value = await _get_preconfigured_default(
-            get_value, preconfigured, "served_model_name"
-        )
-        if value and value != "None":
-            return value
-        return f"{get_value('model_vendor')}/{get_value('model_name')}-{create_salt(4)}"
-
-    return _default
+async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
+    workers = get_value("workers")
+    if workers is not None and int(workers) > 1:
+        return {
+            "yes": ("Yes", "Use router to load balance across workers"),
+            "no": ("No", "Do not use router"),
+        }
+    return {
+        "no": ("No", "Do not use router"),
+    }
 
 
 async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
     preconfigured_launch_requests = await launcher.get_preconfigured_models()
 
-    async def _get_vendors() -> dict[str, tuple[str, str]]:
-        return {
-            lr.vendor: (lr.vendor, lr.vendor) for lr in preconfigured_launch_requests
-        }
-
-    async def _get_models(
-        get_value_from_context: GetValueFn,
-    ) -> dict[str, tuple[str, str]]:
-        vendor = get_value_from_context("model_vendor")
-        return {
-            lr.model_name: (lr.model_name, lr.model_name)
-            for lr in preconfigured_launch_requests
-            if lr.vendor == vendor
-        }
+    async def _get_vendor_models() -> dict[str, tuple[str, str]]:
+        seen: dict[str, tuple[str, str]] = {}
+        for lr in preconfigured_launch_requests:
+            key = f"{lr.vendor}::{lr.model_name}"
+            if key not in seen:
+                seen[key] = (lr.model_name, lr.vendor)
+        return seen
 
     async def _get_frameworks(
         get_value_from_context: GetValueFn,
     ) -> dict[str, tuple[str, str]]:
-        vendor = get_value_from_context("model_vendor")
-        model_name = get_value_from_context("model_name")
+        combined = get_value_from_context("model_vendor_model")
+        if combined is None:
+            return {}
+        vendor, model_name = _split_vendor_model(combined)
         return {
             lr.framework: (lr.framework, lr.framework)
             for lr in preconfigured_launch_requests
@@ -155,14 +154,9 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
         name="launcher_request_configuration",
         chain=[
             OptionsConfiguration(
-                name="model_vendor",
-                prompt="Choose the model vendor.",
-                options_factory=_get_vendors,
-            ),
-            OptionsConfiguration(
-                name="model_name",
+                name="model_vendor_model",
                 prompt="Choose the model to launch.",
-                options_factory=_get_models,
+                options_factory=_get_vendor_models,
             ),
             OptionsConfiguration(
                 name="framework",
@@ -177,13 +171,10 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
                     get_value, preconfigured_launch_requests, "workers"
                 ),
             ),
-            TextConfiguration(
-                name="nodes_per_worker",
-                prompt="Number of nodes to use per worker for running the model.",
-                validator=lambda v: v.isdigit() and int(v) > 0,
-                default_factory=lambda get_value: _get_preconfigured_default(
-                    get_value, preconfigured_launch_requests, "nodes_per_worker"
-                ),
+            OptionsConfiguration(
+                name="use_router",
+                prompt="Use router to load balance across workers.",
+                options_factory=lambda get_value: _get_router_options(get_value),
             ),
             TextConfiguration(
                 name="time",
@@ -195,26 +186,35 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
                     get_value, preconfigured_launch_requests, "time"
                 ),
             ),
-            TextConfiguration(
-                name="served_model_name",
-                prompt="Served model name.",
-                validator=lambda s: len(s) > 0,
-                default_factory=_make_served_model_name_default(
-                    preconfigured_launch_requests
-                ),
-            ),
         ],
     )
     await launch_req_config.aconfigure()
 
+    vendor, model_name = _split_vendor_model(
+        launch_req_config.get_non_none_value("model_vendor_model")
+    )
+    framework = launch_req_config.get_non_none_value("framework")
+    preconfigured = next(
+        (
+            lr
+            for lr in preconfigured_launch_requests
+            if lr.vendor == vendor
+            and lr.model_name == model_name
+            and lr.framework == framework
+        ),
+        None,
+    )
     return LaunchRequest(
-        vendor=launch_req_config.get_non_none_value("model_vendor"),
-        model_name=launch_req_config.get_non_none_value("model_name"),
-        framework=launch_req_config.get_non_none_value("framework"),
+        vendor=vendor,
+        model_name=model_name,
+        framework=framework,
+        environment=preconfigured.environment if preconfigured else None,
         workers=int(launch_req_config.get_non_none_value("workers")),
-        nodes_per_worker=int(launch_req_config.get_non_none_value("nodes_per_worker")),
+        nodes_per_worker=preconfigured.nodes_per_worker if preconfigured else 1,
         time=launch_req_config.get_non_none_value("time"),
-        served_model_name=launch_req_config.get_non_none_value("served_model_name"),
+        served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
+        framework_args=preconfigured.framework_args if preconfigured else None,
+        use_router=launch_req_config.get_non_none_value("use_router") == "yes",
     )
 
 
@@ -262,3 +262,7 @@ async def _main() -> None:
 
 def main() -> None:
     asyncio.run(_main())
+
+
+if __name__ == "__main__":
+    main()
