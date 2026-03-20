@@ -14,7 +14,7 @@ A CLI tool for launching AI models on HPC systems via FirecREST, a remote launch
    pip install git+https://github.com/swiss-ai/model-launch.git
    ```
 
-1. Development
+2. Development
 
    ```bash
    uv venv --python 3.12
