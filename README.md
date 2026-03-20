@@ -4,27 +4,27 @@ A CLI tool for launching AI models on HPC systems via FirecREST, a remote launch
 
 ## Install
 
-1. Create a virtual environment and install the package.
+1. Regular use
+   - SSH
+   ```bash
+   pip install git+ssh://git@github.com/swiss-ai/model-launch.git
+   ```
+   - HTTPS (once public)
+   ```bash
+   pip install git+https://github.com/swiss-ai/model-launch.git
+   ```
+
+1. Development
 
    ```bash
    uv venv --python 3.12
    source .venv/bin/activate
    ```
-
-2. Install the package.
-
-   - For regular use:
-
-     ```bash
-     uv pip install -e .
-     ```
-
-   - For development (includes dev dependencies):
-
-      ```bash
-      uv pip install -e ".[dev]"
-      pre-commit install
-      ```
+   ```bash
+   git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
+   uv pip install -e ".[dev]"
+   pre-commit install
+   ```
 
 ## Usage
 
