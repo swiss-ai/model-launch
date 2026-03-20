@@ -2,7 +2,7 @@ image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_kimi_k2.5_c
 
 # "src_path:trg_path" mounts the src_path on the host inside the container at the trg_path.
 mounts = [
-  "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
   "/capstor",
   "/iopsstor",
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",

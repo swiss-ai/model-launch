@@ -1,7 +1,7 @@
 image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_glm5_cuda13.sqsh"
 
 mounts = [
-  "/iopsstor/store/cscs/swissai/a09/xyao/bin:/ocfbin",
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
   "/capstor",
   "/iopsstor",
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
