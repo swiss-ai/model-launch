@@ -6,10 +6,13 @@ A CLI tool for launching AI models on HPC systems via FirecREST, a remote launch
 
 1. Regular use
    - SSH
+
    ```bash
    pip install git+ssh://git@github.com/swiss-ai/model-launch.git
    ```
+
    - HTTPS (once public)
+
    ```bash
    pip install git+https://github.com/swiss-ai/model-launch.git
    ```
@@ -17,11 +20,9 @@ A CLI tool for launching AI models on HPC systems via FirecREST, a remote launch
 2. Development
 
    ```bash
+   git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
    uv venv --python 3.12
    source .venv/bin/activate
-   ```
-   ```bash
-   git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
    uv pip install -e ".[dev]"
    pre-commit install
    ```
