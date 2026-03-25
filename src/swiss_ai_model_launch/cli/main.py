@@ -214,6 +214,7 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
         framework_args=preconfigured.framework_args if preconfigured else None,
+        pre_launch_cmds=preconfigured.pre_launch_cmds if preconfigured else None,
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
     )
 

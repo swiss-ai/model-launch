@@ -84,6 +84,7 @@ class FirecRESTLauncher(Launcher):
                     else ""
                 )
             ),
+            pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
             use_router=launch_request.use_router,
         )
