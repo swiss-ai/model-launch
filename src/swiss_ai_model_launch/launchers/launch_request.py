@@ -13,4 +13,5 @@ class LaunchRequest(BaseModel):
     time: str
     served_model_name: str | None = None
     framework_args: str | None = None
+    pre_launch_cmds: str | None = None
     use_router: bool = False

@@ -50,6 +50,17 @@
     "framework_args": "--tp-size 8"
   },
   {
+    "vendor": "Qwen",
+    "model_name": "Qwen3.5-397B-A17B",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 4,
+    "time": "02:00:00",
+    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2",
+    "pre_launch_cmds": "pip install nvidia-cudnn-cu12==9.16.0.29"
+  },
+  {
     "vendor": "moonshotai",
     "model_name": "Kimi-K2.5",
     "framework": "sglang",
