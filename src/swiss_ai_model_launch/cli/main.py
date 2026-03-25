@@ -81,7 +81,7 @@ def _make_launch_request_config(
         name="launcher_request_configuration",
         chain=[
             OptionsConfiguration(
-                name="model_vendor_model",
+                name="model",
                 prompt="Choose the model to launch.",
                 options_factory=vendor_models_factory,
                 options=None if vendor_models_factory else _empty,
@@ -202,7 +202,7 @@ def _split_vendor_model(combined: str) -> tuple[str, str]:
 async def _get_preconfigured_default(
     get_value_from_context: GetValueFn, preconfigured: list[LaunchRequest], field: str
 ) -> str | None:
-    combined = get_value_from_context("model_vendor_model")
+    combined = get_value_from_context("model")
     if combined is None:
         return None
     vendor, model_name = _split_vendor_model(combined)
@@ -250,7 +250,7 @@ async def _get_launch_request(
     async def _get_frameworks(
         get_value_from_context: GetValueFn,
     ) -> dict[str, tuple[str, str]]:
-        combined = get_value_from_context("model_vendor_model")
+        combined = get_value_from_context("model")
         if combined is None:
             return {}
         vendor, model_name = _split_vendor_model(combined)
@@ -274,7 +274,7 @@ async def _get_launch_request(
     await launch_req_config.aconfigure(args=args)
 
     vendor, model_name = _split_vendor_model(
-        launch_req_config.get_non_none_value("model_vendor_model")
+        launch_req_config.get_non_none_value("model")
     )
     framework = launch_req_config.get_non_none_value("framework")
     preconfigured = next(
