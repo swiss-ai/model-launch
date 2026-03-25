@@ -1,6 +1,7 @@
+import argparse
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 import keyring
 import questionary
@@ -20,7 +21,14 @@ class _Configuration(BaseModel):
 
     name: str
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        raise NotImplementedError  # pragma: no cover
+
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
         raise NotImplementedError  # pragma: no cover
 
     def get_value(self, name: str) -> str | None:
@@ -46,7 +54,17 @@ class _ResolvableConfiguration(_Configuration):
     def _on_answer(self) -> None:
         pass
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        if args is not None:
+            arg_value = getattr(args, self.name, None)
+            if arg_value is not None:
+                self.value = arg_value
+                self._on_answer()
+                return
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -65,7 +83,9 @@ class TextConfiguration(_ResolvableConfiguration):
     type: Literal["text"] = "text"
     default: str | None = None
     default_factory: (
-        Callable[[], Awaitable[str]] | Callable[[GetValueFn], Awaitable[str]] | None
+        Callable[[], Awaitable[str | None]]
+        | Callable[[GetValueFn], Awaitable[str | None]]
+        | None
     ) = Field(default=None, exclude=True)
     validator: ValidatorFn | Callable[[str, GetValueFn], bool] | None = Field(
         default=None, exclude=True
@@ -87,9 +107,9 @@ class TextConfiguration(_ResolvableConfiguration):
                     "context but no get_value was provided."
                 )
             return await cast(
-                Callable[[GetValueFn], Awaitable[str]], self.default_factory
+                Callable[[GetValueFn], Awaitable[str | None]], self.default_factory
             )(get_value)
-        return await cast(Callable[[], Awaitable[str]], self.default_factory)()
+        return await cast(Callable[[], Awaitable[str | None]], self.default_factory)()
 
     def _resolve_validator(self, get_value: GetValueFn | None) -> ValidatorFn | None:
         if self.validator is None:
@@ -104,7 +124,26 @@ class TextConfiguration(_ResolvableConfiguration):
             return lambda value: validator(value, get_value)
         return cast(ValidatorFn, self.validator)
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            f"--{self.name.replace('_', '-')}",
+            dest=self.name,
+            default=None,
+            metavar=self.name.upper(),
+            help=self.prompt or self.name,
+        )
+
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        if args is not None:
+            arg_value = getattr(args, self.name, None)
+            if arg_value is not None:
+                self.value = arg_value
+                self._on_answer()
+                return
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -125,6 +164,15 @@ class PasswordConfiguration(_ResolvableConfiguration):
         if self.value == _KEYRING_PLACEHOLDER:
             self.value = keyring.get_password(_KEYRING_SERVICE, self.name)
         return self
+
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            f"--{self.name.replace('_', '-')}",
+            dest=self.name,
+            default=None,
+            metavar="PASSWORD",
+            help=self.prompt or self.name,
+        )
 
     def _get_question(self) -> Question:
         return questionary.password(self.prompt or self.name)
@@ -184,7 +232,31 @@ class OptionsConfiguration(_ResolvableConfiguration):
             )(get_value)
         return await cast(Callable[[], Awaitable[OptionsDict]], self.options_factory)()
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        kwargs: dict[str, Any] = {
+            "dest": self.name,
+            "default": None,
+            "help": self.prompt or self.name,
+        }
+        if self.options:
+            kwargs["choices"] = list(self.options.keys())
+        else:
+            kwargs["metavar"] = self.name.upper()
+        parser.add_argument(f"--{self.name.replace('_', '-')}", **kwargs)
+
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        if args is not None:
+            arg_value = getattr(args, self.name, None)
+            if arg_value is not None:
+                options = await self._resolve_options(get_value)
+                if not options or arg_value in options:
+                    self.value = arg_value
+                    self._on_answer()
+                    return
         options = await self._resolve_options(get_value)
         if len(options) == 1:
             self.value = next(iter(options))
@@ -197,9 +269,17 @@ class ChainConfiguration(_Configuration):
     type: Literal["chain"] = "chain"
     chain: list["Configuration"]
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
         for configuration in self.chain:
-            await configuration.aconfigure(get_value or self.get_value)
+            configuration.add_to_parser(parser)
+
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        for configuration in self.chain:
+            await configuration.aconfigure(get_value or self.get_value, args)
 
     def get_value(self, name: str) -> str | None:
         for configuration in self.chain:
@@ -233,11 +313,21 @@ class BranchConfiguration(_Configuration):
             )
         return self.branches[branch_key]
 
-    async def aconfigure(self, get_value: GetValueFn | None = None) -> None:
-        await self.head_configuration.aconfigure(get_value)
+    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.head_configuration.add_to_parser(parser)
+        for branch in self.branches.values():
+            if branch is not None:
+                branch.add_to_parser(parser)
+
+    async def aconfigure(
+        self,
+        get_value: GetValueFn | None = None,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        await self.head_configuration.aconfigure(get_value, args)
         branch = self._resolve_branch()
         if branch is not None:
-            await branch.aconfigure(get_value)
+            await branch.aconfigure(get_value, args)
 
     def get_value(self, name: str) -> str | None:
         try:

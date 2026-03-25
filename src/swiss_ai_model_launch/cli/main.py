@@ -1,5 +1,7 @@
+import argparse
 import asyncio
 import re
+from collections.abc import Awaitable, Callable
 
 import firecrest as f7t
 
@@ -8,6 +10,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
     ChainConfiguration,
     GetValueFn,
     OptionsConfiguration,
+    OptionsDict,
     TextConfiguration,
 )
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
@@ -16,10 +19,125 @@ from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
 
+_OptionsFactory = (
+    Callable[[], Awaitable[OptionsDict]]
+    | Callable[[GetValueFn], Awaitable[OptionsDict]]
+    | None
+)
+_DefaultFactory = (
+    Callable[[], Awaitable[str | None]]
+    | Callable[[GetValueFn], Awaitable[str | None]]
+    | None
+)
 
-async def _run_initial_configuration_wizard() -> None:
+
+def _make_firecrest_launcher_config(
+    systems_factory: _OptionsFactory = None,
+    partitions_factory: _OptionsFactory = None,
+) -> ChainConfiguration:
+    """Build the FirecREST launcher config.
+
+    Pass factories for interactive/runtime use; omit them to get a static shell
+    suitable only for parser registration (options={} marks dynamic choices).
+    """
+    _empty: OptionsDict = {}
+    return ChainConfiguration(
+        name="firecrest_launcher_configuration",
+        chain=[
+            OptionsConfiguration(
+                name="firecrest_system",
+                prompt="Choose the target system to launch the model on.",
+                options_factory=systems_factory,
+                options=None if systems_factory else _empty,
+            ),
+            OptionsConfiguration(
+                name="firecrest_partition",
+                prompt="Choose the partition to launch the model on.",
+                options_factory=partitions_factory,
+                options=None if partitions_factory else _empty,
+            ),
+        ],
+    )
+
+
+def _make_launch_request_config(
+    vendor_models_factory: _OptionsFactory = None,
+    frameworks_factory: _OptionsFactory = None,
+    workers_default_factory: _DefaultFactory = None,
+    use_router_factory: _OptionsFactory = None,
+    time_default_factory: _DefaultFactory = None,
+) -> ChainConfiguration:
+    """Build the launch request config.
+
+    Pass factories for interactive/runtime use; omit them to get a static shell
+    suitable only for parser registration.
+    """
+    _empty: OptionsDict = {}
+    _router_options: OptionsDict = {
+        "yes": ("Yes", "Use router to load balance across workers"),
+        "no": ("No", "Do not use router"),
+    }
+    return ChainConfiguration(
+        name="launcher_request_configuration",
+        chain=[
+            OptionsConfiguration(
+                name="model_vendor_model",
+                prompt="Choose the model to launch.",
+                options_factory=vendor_models_factory,
+                options=None if vendor_models_factory else _empty,
+            ),
+            OptionsConfiguration(
+                name="framework",
+                prompt="Choose the framework to run the model with.",
+                options_factory=frameworks_factory,
+                options=None if frameworks_factory else _empty,
+            ),
+            TextConfiguration(
+                name="workers",
+                prompt="Number of workers to use for running the model.",
+                validator=(
+                    (lambda v: v.isdigit() and int(v) > 0)
+                    if workers_default_factory
+                    else None
+                ),
+                default_factory=workers_default_factory,
+            ),
+            OptionsConfiguration(
+                name="use_router",
+                prompt="Use router to load balance across workers.",
+                options_factory=use_router_factory,
+                options=None if use_router_factory else _router_options,
+            ),
+            TextConfiguration(
+                name="time",
+                prompt="Time duration for running the model (in format HH:MM:SS).",
+                validator=(
+                    lambda v: (
+                        bool(re.fullmatch(r"[0-9]{2}:[0-5][0-9]:[0-5][0-9]", v))
+                        if time_default_factory
+                        else None
+                    )
+                ),
+                default_factory=time_default_factory,
+            ),
+        ],
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="sml",
+        description="Swiss AI Model Launcher",
+    )
+    InitConfig().add_to_parser(parser)
+    _make_firecrest_launcher_config().add_to_parser(parser)
+    _make_launch_request_config().add_to_parser(parser)
+    return parser
+
+
+async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
     config = InitConfig()
-    await config.aconfigure()
+    await config.aconfigure(args=args)
     config.save()
     print("SML is configured and ready to use! Please restart the program.")
 
@@ -38,6 +156,7 @@ def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFi
 async def _get_firecrest_launcher_with_client(
     client: f7t.v2.AsyncFirecrest,
     telemetry_endpoint: str | None = None,
+    args: argparse.Namespace | None = None,
 ) -> FirecRESTLauncher:
     async def _get_systems() -> dict[str, tuple[str, str]]:
         return {
@@ -56,22 +175,11 @@ async def _get_firecrest_launcher_with_client(
             for part in await client.partitions(system)
         }
 
-    launcher_config = ChainConfiguration(
-        name="firecrest_launcher_configuration",
-        chain=[
-            OptionsConfiguration(
-                name="firecrest_system",
-                prompt="Choose the target system to launch the model on.",
-                options_factory=_get_systems,
-            ),
-            OptionsConfiguration(
-                name="firecrest_partition",
-                prompt="Choose the partition to launch the model on.",
-                options_factory=_get_partitions,
-            ),
-        ],
+    launcher_config = _make_firecrest_launcher_config(
+        systems_factory=_get_systems,
+        partitions_factory=_get_partitions,
     )
-    await launcher_config.aconfigure()
+    await launcher_config.aconfigure(args=args)
 
     system_name = launcher_config.get_non_none_value("firecrest_system")
     user_info = await client.userinfo(system_name)
@@ -126,7 +234,9 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
     }
 
 
-async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
+async def _get_launch_request(
+    launcher: Launcher, args: argparse.Namespace | None = None
+) -> LaunchRequest:
     preconfigured_launch_requests = await launcher.get_preconfigured_models()
 
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
@@ -150,45 +260,18 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
             if lr.model_name == model_name and lr.vendor == vendor
         }
 
-    launch_req_config = ChainConfiguration(
-        name="launcher_request_configuration",
-        chain=[
-            OptionsConfiguration(
-                name="model_vendor_model",
-                prompt="Choose the model to launch.",
-                options_factory=_get_vendor_models,
-            ),
-            OptionsConfiguration(
-                name="framework",
-                prompt="Choose the framework to run the model with.",
-                options_factory=_get_frameworks,
-            ),
-            TextConfiguration(
-                name="workers",
-                prompt="Number of workers to use for running the model.",
-                validator=lambda v: v.isdigit() and int(v) > 0,
-                default_factory=lambda get_value: _get_preconfigured_default(
-                    get_value, preconfigured_launch_requests, "workers"
-                ),
-            ),
-            OptionsConfiguration(
-                name="use_router",
-                prompt="Use router to load balance across workers.",
-                options_factory=lambda get_value: _get_router_options(get_value),
-            ),
-            TextConfiguration(
-                name="time",
-                prompt="Time duration for running the model (in format HH:MM:SS).",
-                validator=lambda v: bool(
-                    re.fullmatch(r"[0-9]{2}:[0-5][0-9]:[0-5][0-9]", v)
-                ),
-                default_factory=lambda get_value: _get_preconfigured_default(
-                    get_value, preconfigured_launch_requests, "time"
-                ),
-            ),
-        ],
+    launch_req_config = _make_launch_request_config(
+        vendor_models_factory=_get_vendor_models,
+        frameworks_factory=_get_frameworks,
+        workers_default_factory=lambda get_value: _get_preconfigured_default(
+            get_value, preconfigured_launch_requests, "workers"
+        ),
+        use_router_factory=lambda get_value: _get_router_options(get_value),
+        time_default_factory=lambda get_value: _get_preconfigured_default(
+            get_value, preconfigured_launch_requests, "time"
+        ),
     )
-    await launch_req_config.aconfigure()
+    await launch_req_config.aconfigure(args=args)
 
     vendor, model_name = _split_vendor_model(
         launch_req_config.get_non_none_value("model_vendor_model")
@@ -219,9 +302,9 @@ async def _get_launch_request(launcher: Launcher) -> LaunchRequest:
     )
 
 
-async def _main() -> None:
+async def _main(args: argparse.Namespace) -> None:
     if not InitConfig.exists():
-        await _run_initial_configuration_wizard()
+        await _run_initial_configuration_wizard(args)
         return
 
     config = InitConfig.load()
@@ -232,12 +315,13 @@ async def _main() -> None:
         launcher = await _get_firecrest_launcher_with_client(
             firecrest_client,
             telemetry_endpoint=telemetry_endpoint,
+            args=args,
         )
     else:
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
     cscs_api_key = config.get_non_none_value("cscs_api_key")
-    launch_request = await _get_launch_request(launcher)
+    launch_request = await _get_launch_request(launcher, args)
 
     state = DisplayState()
     state.update(cluster=launcher.system_name, partition=launcher.partition)
@@ -255,14 +339,15 @@ async def _main() -> None:
             state.update(model_health=model_health)
 
             o, e = await launcher.get_job_logs(job_id)
-            state.append_out_log(o)
-            state.append_err_log(e)
+            state.set_out_log(o)
+            state.set_err_log(e)
 
     await LiveDisplay(state).run(_monitor())
 
 
 def main() -> None:
-    asyncio.run(_main())
+    args = _build_parser().parse_args()
+    asyncio.run(_main(args))
 
 
 if __name__ == "__main__":
