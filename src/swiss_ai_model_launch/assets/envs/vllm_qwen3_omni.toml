@@ -7,6 +7,7 @@ mounts = [
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
   "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
   "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
   "/opt/cray/libfabric/1.22.0/lib64:/opt/cray/libfabric/lib64",
   "/opt/cscs/aws-ofi-ccl-plugin/cuda12:/opt/cscs/aws-ofi-ccl-plugin/cuda12",
 ]
