@@ -26,4 +26,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      - run: pytest --cov --cov-report=term-missing -n auto -m "lightweight or full"
+      - run: pytest --cov --cov-report=term-missing -n auto -m full
