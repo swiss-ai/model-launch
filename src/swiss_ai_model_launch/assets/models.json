@@ -7,7 +7,8 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "",
+    "_include_in_lightweight_ci": true
   },
   {
     "vendor": "swiss-ai",
@@ -17,7 +18,8 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "",
+    "_include_in_lightweight_ci": true
   },
   {
     "vendor": "swiss-ai",
