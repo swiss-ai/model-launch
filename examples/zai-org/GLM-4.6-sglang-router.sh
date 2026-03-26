@@ -1,8 +1,6 @@
 #!/bin/bash
 # 2 workers x 4 nodes each. Requires latest sglang env. Experimental.
 # No bundled env available — provide your own
-SGLANG_LATEST_ENV=<path/to/sglang_latest.toml>
-
 sml advanced \
   --slurm-nodes 8 \
   --slurm-workers 2 \
@@ -10,7 +8,7 @@ sml advanced \
   --use-router \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
-  --slurm-environment "$SGLANG_LATEST_ENV" \
+  --slurm-environment <path/to/sglang_latest.toml> \
   --pre-launch-cmds "pip install blobfile" \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.6 \
     --tp-size 16 \
