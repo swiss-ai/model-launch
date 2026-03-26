@@ -70,15 +70,15 @@ After completing initialization, run `sml quickstart` (or just `sml`). The CLI w
 
 All prompts can be pre-filled via CLI arguments to skip interactive prompts:
 
-| Argument                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `--firecrest-system`    | Target HPC system to launch on               |
-| `--firecrest-partition` | SLURM partition to use                       |
-| `--model`               | Model to launch (`<vendor>::<model>`)        |
-| `--framework`           | Inference framework to use                   |
-| `--workers`             | Number of workers                            |
-| `--use-router`          | Load balance across workers (`yes`, `no`)    |
-| `--time`                | Job time limit (`HH:MM:SS`)                  |
+| Argument                | Environment Variable             | Description                                  |
+| ----------------------- | -------------------------------- | -------------------------------------------- |
+| `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target HPC system to launch on               |
+| `--firecrest-partition` | `SML_FIRECREST_PARTITION`        | SLURM partition to use                       |
+| `--model`               |                                  | Model to launch (`<vendor>::<model>`)        |
+| `--framework`           |                                  | Inference framework to use                   |
+| `--workers`             |                                  | Number of workers                            |
+| `--use-router`          |                                  | Load balance across workers (`yes`, `no`)    |
+| `--time`                |                                  | Job time limit (`HH:MM:SS`)                  |
 
 ## Development
 
