@@ -111,14 +111,10 @@ def _make_launch_request_config(
             TextConfiguration(
                 name="time",
                 prompt="Time duration for running the model (in format HH:MM:SS).",
-                validator=(
-                    lambda v: (
-                        bool(re.fullmatch(r"[0-9]{2}:[0-5][0-9]:[0-5][0-9]", v))
-                        if time_default_factory
-                        else None
-                    )
+                validator=lambda v: bool(
+                    re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)
                 ),
-                default_factory=time_default_factory,
+                default_factory=None,
             ),
         ],
     )
