@@ -129,9 +129,19 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="sml",
         description="Swiss AI Model Launcher",
     )
-    InitConfig().add_to_parser(parser)
-    _make_firecrest_launcher_config().add_to_parser(parser)
-    _make_launch_request_config().add_to_parser(parser)
+    subparsers = parser.add_subparsers(dest="subcommand", required=False)
+
+    init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
+    InitConfig().add_to_parser(init_parser)
+
+    quickstart_parser = subparsers.add_parser(
+        "quickstart", help="Launch a model with guided prompts"
+    )
+    _make_firecrest_launcher_config().add_to_parser(quickstart_parser)
+    _make_launch_request_config().add_to_parser(quickstart_parser)
+
+    subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
+
     return parser
 
 
@@ -302,9 +312,9 @@ async def _get_launch_request(
     )
 
 
-async def _main(args: argparse.Namespace) -> None:
+async def _run_quickstart(args: argparse.Namespace) -> None:
     if not InitConfig.exists():
-        await _run_initial_configuration_wizard(args)
+        print("SML is not configured. Run `sml init` first.")
         return
 
     config = InitConfig.load()
@@ -343,6 +353,16 @@ async def _main(args: argparse.Namespace) -> None:
             state.set_err_log(e)
 
     await LiveDisplay(state).run(_monitor())
+
+
+async def _main(args: argparse.Namespace) -> None:
+    subcommand = args.subcommand or ("quickstart" if InitConfig.exists() else "init")
+    if subcommand == "init":
+        await _run_initial_configuration_wizard(args)
+    elif subcommand == "quickstart":
+        await _run_quickstart(args)
+    elif subcommand == "advanced":
+        raise NotImplementedError("Advanced configuration is not yet implemented.")
 
 
 def main() -> None:
