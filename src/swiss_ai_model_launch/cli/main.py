@@ -4,8 +4,8 @@ import getpass
 import grp
 import os
 import re
-from collections.abc import Awaitable, Callable
-from typing import cast
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any, cast
 
 import firecrest as f7t
 
@@ -19,6 +19,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
 )
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
+from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
@@ -436,17 +437,12 @@ async def _get_launch_request(
     )
 
 
-async def _run_preconfigured(args: argparse.Namespace) -> None:
-    if not InitConfig.exists():
-        print("SML is not configured. Run `sml init` first.")
-        return
-
-    config = InitConfig.load()
+async def _create_launcher(config: InitConfig, args: argparse.Namespace) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
     telemetry_endpoint = config.get_value("telemetry_endpoint")
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
-        launcher = cast(
+        return cast(
             Launcher,
             await _get_firecrest_launcher_with_client(
                 firecrest_client,
@@ -455,7 +451,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
             ),
         )
     elif launcher_type == "slurm":
-        launcher = cast(
+        return cast(
             Launcher,
             await _get_slurm_launcher(
                 telemetry_endpoint=telemetry_endpoint,
@@ -465,22 +461,33 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     else:
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
-    launch_request = await _get_launch_request(launcher, args)
 
+async def _run_monitor(
+    launcher: Launcher,
+    launch_coro: Coroutine[Any, Any, tuple[int, str]],
+    cscs_api_key: str,
+) -> None:
     state = DisplayState()
     state.update(cluster=launcher.system_name, partition=launcher.partition)
 
     async def _monitor() -> None:
-        job_id, served_model_name = await launcher.launch_model(launch_request)
-        state.update(job_id=job_id, served_model_name=served_model_name)
+        job_id, served = await launch_coro
+        state.update(
+            job_id=job_id,
+            served_model_name=served,
+            model_health=ModelHealth.NOT_DEPLOYED,
+        )
+        ever_healthy = False
         while True:
             await asyncio.sleep(5)
 
             job_status = await launcher.get_job_status(job_id)
             state.update(job_status=job_status)
 
-            model_health = await check_model_health(served_model_name, cscs_api_key)
+            model_health = await check_model_health(
+                served, cscs_api_key, ever_healthy=ever_healthy
+            )
+            ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
             state.update(model_health=model_health)
 
             o, e = await launcher.get_job_logs(job_id)
@@ -492,36 +499,27 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
         await launcher.cancel_job(state.job_id)
 
 
+async def _run_preconfigured(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    launch_request = await _get_launch_request(launcher, args)
+    await _run_monitor(launcher, launcher.launch_model(launch_request), cscs_api_key)
+
+
 async def _run_advanced(args: argparse.Namespace) -> None:
     if not InitConfig.exists():
         print("SML is not configured. Run `sml init` first.")
         return
 
     config = InitConfig.load()
-    launcher_type = config.get_non_none_value("launcher")
-    telemetry_endpoint = config.get_value("telemetry_endpoint")
-    if launcher_type == "firecrest":
-        firecrest_client = _get_firecrest_client_from_init_config(config)
-        launcher = cast(
-            Launcher,
-            await _get_firecrest_launcher_with_client(
-                firecrest_client,
-                telemetry_endpoint=telemetry_endpoint,
-                args=args,
-            ),
-        )
-    elif launcher_type == "slurm":
-        launcher = cast(
-            Launcher,
-            await _get_slurm_launcher(
-                telemetry_endpoint=telemetry_endpoint,
-                args=args,
-            ),
-        )
-    else:
-        raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
-
+    launcher = await _create_launcher(config, args)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
+
     if args.served_model_name:
         served_model_name = args.served_model_name
     else:
@@ -551,31 +549,10 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
-        telemetry_endpoint=telemetry_endpoint,
+        telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 
-    state = DisplayState()
-    state.update(cluster=launcher.system_name, partition=launcher.partition)
-
-    async def _monitor() -> None:
-        job_id, served = await launcher.launch_with_args(launch_args)
-        state.update(job_id=job_id, served_model_name=served)
-        while True:
-            await asyncio.sleep(5)
-
-            job_status = await launcher.get_job_status(job_id)
-            state.update(job_status=job_status)
-
-            model_health = await check_model_health(served, cscs_api_key)
-            state.update(model_health=model_health)
-
-            o, e = await launcher.get_job_logs(job_id)
-            state.set_out_log(o)
-            state.set_err_log(e)
-
-    kill_job = await LiveDisplay(state).run(_monitor())
-    if kill_job and state.job_id is not None:
-        await launcher.cancel_job(state.job_id)
+    await _run_monitor(launcher, launcher.launch_with_args(launch_args), cscs_api_key)
 
 
 async def _main(args: argparse.Namespace) -> None:

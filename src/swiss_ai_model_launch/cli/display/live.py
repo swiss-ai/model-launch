@@ -22,6 +22,7 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
     ModelHealth.WAITING: "[yellow]WAITING[/yellow]",
     ModelHealth.HEALTHY: "[green]HEALTHY[/green]",
     ModelHealth.ERROR: "[orange]ERROR[/orange]",
+    ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",
     ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
 }
 
