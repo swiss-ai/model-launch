@@ -128,11 +128,11 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
     InitConfig().add_to_parser(init_parser)
 
-    quickstart_parser = subparsers.add_parser(
-        "quickstart", help="Launch a model with guided prompts"
+    preconfigured_parser = subparsers.add_parser(
+        "preconfigured", help="Launch a model with guided prompts"
     )
-    _make_firecrest_launcher_config().add_to_parser(quickstart_parser)
-    _make_launch_request_config().add_to_parser(quickstart_parser)
+    _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
+    _make_launch_request_config().add_to_parser(preconfigured_parser)
 
     advanced_parser = subparsers.add_parser(
         "advanced", help="Launch a model with advanced configuration"
@@ -396,7 +396,7 @@ async def _get_launch_request(
     )
 
 
-async def _run_quickstart(args: argparse.Namespace) -> None:
+async def _run_preconfigured(args: argparse.Namespace) -> None:
     if not InitConfig.exists():
         print("SML is not configured. Run `sml init` first.")
         return
@@ -507,8 +507,8 @@ async def _main(args: argparse.Namespace) -> None:
     subcommand = args.subcommand
     if subcommand == "init":
         await _run_initial_configuration_wizard(args)
-    elif subcommand == "quickstart":
-        await _run_quickstart(args)
+    elif subcommand == "preconfigured":
+        await _run_preconfigured(args)
     elif subcommand == "advanced":
         await _run_advanced(args)
 
@@ -516,10 +516,10 @@ async def _main(args: argparse.Namespace) -> None:
 def main() -> None:
     import sys
 
-    _subcommands = {"init", "quickstart", "advanced"}
+    _subcommands = {"init", "preconfigured", "advanced"}
     positionals = [a for a in sys.argv[1:] if not a.startswith("-")]
     if not any(p in _subcommands for p in positionals):
-        default = "quickstart" if InitConfig.exists() else "init"
+        default = "preconfigured" if InitConfig.exists() else "init"
         sys.argv.insert(1, default)
 
     args = _build_parser().parse_args()
