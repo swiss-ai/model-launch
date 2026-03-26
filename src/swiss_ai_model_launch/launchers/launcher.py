@@ -11,6 +11,13 @@ class JobStatus(Enum):
     TIMEOUT = "TIMEOUT"
     UNKNOWN = "UNKNOWN"
 
+    @classmethod
+    def from_str(cls, state: str) -> "JobStatus":
+        try:
+            return cls(state)
+        except ValueError:
+            return cls.UNKNOWN
+
 
 class Launcher(ABC):
     def __init__(

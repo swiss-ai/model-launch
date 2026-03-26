@@ -170,7 +170,7 @@ class FirecRESTLauncher(Launcher):
             jobid=str(job_id),
             # account=self.account,  # TODO
         )
-        return JobStatus(str(job_info[0]["status"]["state"]))
+        return JobStatus.from_str(str(job_info[0]["status"]["state"]))
 
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)

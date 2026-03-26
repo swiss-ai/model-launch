@@ -19,14 +19,6 @@ _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.j
 
 _APP_WORKING_DIRECTORY = ".sml"
 
-_SLURM_STATE_MAP: dict[str, JobStatus] = {
-    "PENDING": JobStatus.PENDING,
-    "CONFIGURING": JobStatus.PENDING,
-    "RUNNING": JobStatus.RUNNING,
-    "COMPLETING": JobStatus.RUNNING,
-    "TIMEOUT": JobStatus.TIMEOUT,
-}
-
 
 class SlurmLauncher(Launcher):
     def __init__(
@@ -177,7 +169,7 @@ class SlurmLauncher(Launcher):
         state = stdout.decode().strip()
 
         if state:
-            return _SLURM_STATE_MAP.get(state, JobStatus.UNKNOWN)
+            return JobStatus.from_str(state)
 
         # Job not in squeue — check sacct for terminal state
         proc = await asyncio.create_subprocess_exec(
@@ -194,7 +186,7 @@ class SlurmLauncher(Launcher):
         stdout, _ = await proc.communicate()
         lines = [line.strip() for line in stdout.decode().splitlines() if line.strip()]
         if lines:
-            return _SLURM_STATE_MAP.get(lines[0].split()[0], JobStatus.UNKNOWN)
+            return JobStatus.from_str(lines[0].split()[0])
 
         return JobStatus.UNKNOWN
 
