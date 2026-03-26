@@ -80,6 +80,30 @@ All prompts can be pre-filled via CLI arguments to skip interactive prompts:
 | `--use-router`          |                                  | Load balance across workers (`yes`, `no`)    |
 | `--time`                |                                  | Job time limit (`HH:MM:SS`)                  |
 
+### Advanced Launch (`sml advanced`)
+
+For full control over the SLURM job, use `sml advanced`. This bypasses the model catalog and lets you specify all launch parameters directly. See [`examples/`](examples/) for ready-to-use scripts per model.
+
+System and partition are still selected the same way as quickstart (interactive or via args/env vars). `account` and `job_name` are filled in automatically.
+
+| Argument                   | Environment Variable      | Description                                                       |
+| -------------------------- | ------------------------- | ----------------------------------------------------------------- |
+| `--firecrest-system`       | `SML_FIRECREST_SYSTEM`    | Target HPC system to launch on                                    |
+| `--firecrest-partition`    | `SML_FIRECREST_PARTITION` | SLURM partition to use                                            |
+| `--serving-framework`      |                           | Inference framework (`sglang`, `vllm`) — **required**             |
+| `--slurm-environment`      |                           | Local path to the environment `.toml` file — **required**         |
+| `--framework-args`         |                           | Arguments forwarded to the inference framework                    |
+| `--slurm-nodes`            |                           | Total number of nodes (default: `workers × nodes-per-worker`)     |
+| `--slurm-workers`          |                           | Number of workers (default: `1`)                                  |
+| `--slurm-nodes-per-worker` |                           | Nodes per worker (default: `1`)                                   |
+| `--slurm-time`             |                           | Job time limit in `HH:MM:SS` (default: `00:05:00`)                |
+| `--served-model-name`      |                           | Name under which the model is served (auto-generated if omitted)  |
+| `--worker-port`            |                           | Port used by workers (default: `5000`)                            |
+| `--use-router`             |                           | Enable router to load balance across workers                      |
+| `--router-args`            |                           | Arguments forwarded to the router                                 |
+| `--disable-ocf`            |                           | Disable OCF wrapper                                               |
+| `--pre-launch-cmds`        |                           | Shell commands to run before the framework starts                 |
+
 ## Development
 
 ### Setting Up Development Environment
