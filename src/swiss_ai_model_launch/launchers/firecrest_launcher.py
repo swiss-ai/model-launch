@@ -102,22 +102,18 @@ class FirecRESTLauncher(Launcher):
                 "and no default environment is available for the specified framework."
             )
 
-    async def _create_remote_env_file_path(self, launch_request: LaunchRequest) -> str:
+    async def _upload_env_file(self, local_env_path: str, framework: str) -> str:
         working_dir = self._get_working_dir()
-
         await self.client.mkdir(
             system_name=self.system_name,
             path=working_dir,
             create_parents=True,
         )
-
-        local_env_path = self._get_local_env_file_path(launch_request)
         remote_env_filename = "env_{}_{}_{}.toml".format(
-            launch_request.framework,
+            framework,
             datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
             create_salt(8),
         )
-
         await self.client.upload(
             system_name=self.system_name,
             local_file=local_env_path,
@@ -126,8 +122,27 @@ class FirecRESTLauncher(Launcher):
             account=self.account,
             blocking=True,
         )
-
         return str(Path(working_dir) / remote_env_filename)
+
+    async def _create_remote_env_file_path(self, launch_request: LaunchRequest) -> str:
+        return await self._upload_env_file(
+            self._get_local_env_file_path(launch_request),
+            launch_request.framework,
+        )
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        remote_env_path = await self._upload_env_file(
+            launch_args.environment, launch_args.framework
+        )
+        launch_args = launch_args.model_copy(update={"environment": remote_env_path})
+        script_str = render_job_script(launch_args)
+        job_submission_report = await self.client.submit(
+            system_name=self.system_name,
+            working_dir=self._get_working_dir(),
+            script_str=script_str,
+            account=self.account,
+        )
+        return int(job_submission_report["jobId"]), launch_args.served_model_name
 
     async def get_preconfigured_models(self) -> list[LaunchRequest]:
         return [

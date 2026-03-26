@@ -16,6 +16,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
 
@@ -35,11 +36,6 @@ def _make_firecrest_launcher_config(
     systems_factory: _OptionsFactory = None,
     partitions_factory: _OptionsFactory = None,
 ) -> ChainConfiguration:
-    """Build the FirecREST launcher config.
-
-    Pass factories for interactive/runtime use; omit them to get a static shell
-    suitable only for parser registration (options={} marks dynamic choices).
-    """
     _empty: OptionsDict = {}
     return ChainConfiguration(
         name="firecrest_launcher_configuration",
@@ -49,12 +45,14 @@ def _make_firecrest_launcher_config(
                 prompt="Choose the target system to launch the model on.",
                 options_factory=systems_factory,
                 options=None if systems_factory else _empty,
+                env_var="SML_FIRECREST_SYSTEM",
             ),
             OptionsConfiguration(
                 name="firecrest_partition",
                 prompt="Choose the partition to launch the model on.",
                 options_factory=partitions_factory,
                 options=None if partitions_factory else _empty,
+                env_var="SML_FIRECREST_PARTITION",
             ),
         ],
     )
@@ -136,7 +134,97 @@ def _build_parser() -> argparse.ArgumentParser:
     _make_firecrest_launcher_config().add_to_parser(quickstart_parser)
     _make_launch_request_config().add_to_parser(quickstart_parser)
 
-    subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
+    advanced_parser = subparsers.add_parser(
+        "advanced", help="Launch a model with advanced configuration"
+    )
+    _make_firecrest_launcher_config().add_to_parser(advanced_parser)
+    advanced_parser.add_argument(
+        "--serving-framework",
+        dest="framework",
+        required=True,
+        help="Inference framework to use (e.g. sglang, vllm).",
+    )
+    advanced_parser.add_argument(
+        "--slurm-environment",
+        dest="slurm_environment",
+        required=True,
+        metavar="PATH",
+        help="Local path to the environment .toml file.",
+    )
+    advanced_parser.add_argument(
+        "--framework-args",
+        dest="framework_args",
+        default="",
+        metavar="ARGS",
+        help="Arguments forwarded to the inference framework.",
+    )
+    advanced_parser.add_argument(
+        "--slurm-workers",
+        dest="workers",
+        type=int,
+        default=1,
+        help="Number of workers (default: 1).",
+    )
+    advanced_parser.add_argument(
+        "--slurm-nodes-per-worker",
+        dest="nodes_per_worker",
+        type=int,
+        default=1,
+        help="Number of nodes per worker (default: 1).",
+    )
+    advanced_parser.add_argument(
+        "--slurm-nodes",
+        dest="nodes",
+        type=int,
+        default=None,
+        help="Total number of nodes. Defaults to workers * nodes-per-worker.",
+    )
+    advanced_parser.add_argument(
+        "--slurm-time",
+        dest="time",
+        default="00:05:00",
+        metavar="HH:MM:SS",
+        help="Job time limit (default: 00:05:00).",
+    )
+    advanced_parser.add_argument(
+        "--served-model-name",
+        dest="served_model_name",
+        default=None,
+        help="Name under which the model will be served. Auto-generated if omitted.",
+    )
+    advanced_parser.add_argument(
+        "--worker-port",
+        dest="worker_port",
+        type=int,
+        default=5000,
+        help="Port used by workers (default: 5000).",
+    )
+    advanced_parser.add_argument(
+        "--use-router",
+        dest="use_router",
+        action="store_true",
+        help="Enable router to load balance across workers.",
+    )
+    advanced_parser.add_argument(
+        "--router-args",
+        dest="router_args",
+        default="",
+        metavar="ARGS",
+        help="Arguments forwarded to the router.",
+    )
+    advanced_parser.add_argument(
+        "--disable-ocf",
+        dest="disable_ocf",
+        action="store_true",
+        help="Disable OCF.",
+    )
+    advanced_parser.add_argument(
+        "--pre-launch-cmds",
+        dest="pre_launch_cmds",
+        default="",
+        metavar="CMDS",
+        help="Commands to run before launching the model.",
+    )
 
     return parser
 
@@ -351,17 +439,89 @@ async def _run_quickstart(args: argparse.Namespace) -> None:
     await LiveDisplay(state).run(_monitor())
 
 
+async def _run_advanced(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher_type = config.get_non_none_value("launcher")
+    if launcher_type == "firecrest":
+        firecrest_client = _get_firecrest_client_from_init_config(config)
+        telemetry_endpoint = config.get_non_none_value("telemetry_endpoint")
+        launcher = await _get_firecrest_launcher_with_client(
+            firecrest_client,
+            telemetry_endpoint=telemetry_endpoint,
+            args=args,
+        )
+    else:
+        raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
+
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    served_model_name = args.served_model_name or f"model-{create_salt(4)}"
+    job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
+
+    launch_args = LaunchArgs(
+        job_name=job_name,
+        served_model_name=served_model_name,
+        account=launcher.account,
+        partition=launcher.partition,
+        workers=args.workers,
+        nodes_per_worker=args.nodes_per_worker,
+        nodes=args.nodes,
+        time=args.time,
+        environment=args.slurm_environment,
+        framework=args.framework,
+        framework_args=args.framework_args,
+        pre_launch_cmds=args.pre_launch_cmds,
+        worker_port=args.worker_port,
+        use_router=args.use_router,
+        router_args=args.router_args,
+        disable_ocf=args.disable_ocf,
+        telemetry_endpoint=telemetry_endpoint,
+    )
+
+    state = DisplayState()
+    state.update(cluster=launcher.system_name, partition=launcher.partition)
+
+    async def _monitor() -> None:
+        job_id, served = await launcher.launch_with_args(launch_args)
+        state.update(job_id=job_id, served_model_name=served)
+        while True:
+            await asyncio.sleep(5)
+
+            job_status = await launcher.get_job_status(job_id)
+            state.update(job_status=job_status)
+
+            model_health = await check_model_health(served, cscs_api_key)
+            state.update(model_health=model_health)
+
+            o, e = await launcher.get_job_logs(job_id)
+            state.set_out_log(o)
+            state.set_err_log(e)
+
+    await LiveDisplay(state).run(_monitor())
+
+
 async def _main(args: argparse.Namespace) -> None:
-    subcommand = args.subcommand or ("quickstart" if InitConfig.exists() else "init")
+    subcommand = args.subcommand
     if subcommand == "init":
         await _run_initial_configuration_wizard(args)
     elif subcommand == "quickstart":
         await _run_quickstart(args)
     elif subcommand == "advanced":
-        raise NotImplementedError("Advanced configuration is not yet implemented.")
+        await _run_advanced(args)
 
 
 def main() -> None:
+    import sys
+
+    _subcommands = {"init", "quickstart", "advanced"}
+    positionals = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if not any(p in _subcommands for p in positionals):
+        default = "quickstart" if InitConfig.exists() else "init"
+        sys.argv.insert(1, default)
+
     args = _build_parser().parse_args()
     asyncio.run(_main(args))
 

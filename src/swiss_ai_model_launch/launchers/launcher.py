@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 
 
@@ -17,6 +18,9 @@ class Launcher(ABC):
 
     @abstractmethod
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]: ...
+
+    @abstractmethod
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]: ...
 
     @abstractmethod
     async def get_job_status(self, job_id: int) -> JobStatus: ...
