@@ -64,10 +64,14 @@ class InitConfig(ChainConfiguration):
                                 PasswordConfiguration(
                                     name="firecrest_client_id",
                                     prompt="What is your FirecREST client ID?",
+                                    env_var="SML_FIRECREST_CLIENT_ID",
+                                    expose_as_arg=False,
                                 ),
                                 PasswordConfiguration(
                                     name="firecrest_client_secret",
                                     prompt="What is your FirecREST client secret?",
+                                    env_var="SML_FIRECREST_CLIENT_SECRET",
+                                    expose_as_arg=False,
                                 ),
                             ],
                         ),
@@ -82,6 +86,8 @@ class InitConfig(ChainConfiguration):
                                     name="remote_launcher_auth_token",
                                     prompt="What is your token for authenticating in "
                                     "remote launcher?",
+                                    env_var="SML_REMOTE_LAUNCHER_AUTH_TOKEN",
+                                    expose_as_arg=False,
                                 ),
                             ],
                         ),
@@ -92,6 +98,8 @@ class InitConfig(ChainConfiguration):
                     name="cscs_api_key",
                     prompt="What is your CSCS API key? "
                     "(https://serving.swissai.svc.cscs.ch)",
+                    env_var="SML_CSCS_API_KEY",
+                    expose_as_arg=False,
                 ),
                 ChainConfiguration(
                     name="telemetry_endpoint_configuration",

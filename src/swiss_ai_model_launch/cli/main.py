@@ -114,7 +114,7 @@ def _make_launch_request_config(
                 validator=lambda v: bool(
                     re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)
                 ),
-                default_factory=None,
+                default_factory=time_default_factory,
             ),
         ],
     )

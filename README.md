@@ -50,19 +50,19 @@ There are three ways to initialize the launcher:
 
 For health check, you will be prompted to provide your CSCS API key. If you don't have the API key, follow the instructions in the [Appendix](#acquiring-cscs-api-key).
 
-All prompts can be pre-filled via CLI arguments to skip interactive prompts:
+All prompts can be pre-filled to skip interactive prompts:
 
-| Argument                       | Description                                            |
-| ------------------------------ | ------------------------------------------------------ |
-| `--launcher`                   | Job submission method (`firecrest`, `remote`, `slurm`) |
-| `--firecrest-url`              | FirecREST API URL                                      |
-| `--firecrest-token-uri`        | FirecREST token URI                                    |
-| `--firecrest-client-id`        | FirecREST client ID                                    |
-| `--firecrest-client-secret`    | FirecREST client secret                                |
-| `--remote-launcher-address`    | Remote launcher address (if using `remote`)            |
-| `--remote-launcher-auth-token` | Remote launcher auth token (if using `remote`)         |
-| `--cscs-api-key`               | CSCS API key for health checks                         |
-| `--telemetry-endpoint`         | Endpoint for telemetry reports                         |
+| CLI Argument                | Environment Variable             | Description                                            |
+| --------------------------- | -------------------------------- | ------------------------------------------------------ |
+| `--launcher`                |                                  | Job submission method (`firecrest`, `remote`, `slurm`) |
+| `--firecrest-url`           |                                  | FirecREST API URL                                      |
+| `--firecrest-token-uri`     |                                  | FirecREST token URI                                    |
+|                             | `SML_FIRECREST_CLIENT_ID`        | FirecREST client ID                                    |
+|                             | `SML_FIRECREST_CLIENT_SECRET`    | FirecREST client secret                                |
+| `--remote-launcher-address` |                                  | Remote launcher address (if using `remote`)            |
+|                             | `SML_REMOTE_LAUNCHER_AUTH_TOKEN` | Auth token for remote launcher (if using `remote`)     |
+|                             | `SML_CSCS_API_KEY`               | CSCS API key for health checks                         |
+| `--telemetry-endpoint`      |                                  | Endpoint for telemetry reports                         |
 
 ### Launching a Model (`sml quickstart`)
 

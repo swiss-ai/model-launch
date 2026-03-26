@@ -1,5 +1,6 @@
 import argparse
 import inspect
+import os
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Literal, cast
 
@@ -47,6 +48,8 @@ class _Configuration(BaseModel):
 class _ResolvableConfiguration(_Configuration):
     value: str | None = None
     prompt: str | None = Field(default=None, exclude=True)
+    env_var: str | None = Field(default=None, exclude=True)
+    expose_as_arg: bool = Field(default=True, exclude=True)
 
     def _get_question(self) -> Question:
         raise NotImplementedError  # pragma: no cover
@@ -54,17 +57,29 @@ class _ResolvableConfiguration(_Configuration):
     def _on_answer(self) -> None:
         pass
 
+    def _try_resolve_without_prompt(
+        self, args: argparse.Namespace | None
+    ) -> str | None:
+        if self.expose_as_arg and args is not None:
+            arg_value = getattr(args, self.name, None)
+            if arg_value is not None:
+                return str(arg_value)
+        if self.env_var is not None:
+            env_value = os.environ.get(self.env_var)
+            if env_value is not None:
+                return env_value
+        return None
+
     async def aconfigure(
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
     ) -> None:
-        if args is not None:
-            arg_value = getattr(args, self.name, None)
-            if arg_value is not None:
-                self.value = arg_value
-                self._on_answer()
-                return
+        resolved = self._try_resolve_without_prompt(args)
+        if resolved is not None:
+            self.value = resolved
+            self._on_answer()
+            return
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -125,6 +140,8 @@ class TextConfiguration(_ResolvableConfiguration):
         return cast(ValidatorFn, self.validator)
 
     def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        if not self.expose_as_arg:
+            return
         parser.add_argument(
             f"--{self.name.replace('_', '-')}",
             dest=self.name,
@@ -138,12 +155,11 @@ class TextConfiguration(_ResolvableConfiguration):
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
     ) -> None:
-        if args is not None:
-            arg_value = getattr(args, self.name, None)
-            if arg_value is not None:
-                self.value = arg_value
-                self._on_answer()
-                return
+        resolved = self._try_resolve_without_prompt(args)
+        if resolved is not None:
+            self.value = resolved
+            self._on_answer()
+            return
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -166,6 +182,8 @@ class PasswordConfiguration(_ResolvableConfiguration):
         return self
 
     def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        if not self.expose_as_arg:
+            return
         parser.add_argument(
             f"--{self.name.replace('_', '-')}",
             dest=self.name,
@@ -233,6 +251,8 @@ class OptionsConfiguration(_ResolvableConfiguration):
         return await cast(Callable[[], Awaitable[OptionsDict]], self.options_factory)()
 
     def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
+        if not self.expose_as_arg:
+            return
         kwargs: dict[str, Any] = {
             "dest": self.name,
             "default": None,
@@ -249,14 +269,13 @@ class OptionsConfiguration(_ResolvableConfiguration):
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
     ) -> None:
-        if args is not None:
-            arg_value = getattr(args, self.name, None)
-            if arg_value is not None:
-                options = await self._resolve_options(get_value)
-                if not options or arg_value in options:
-                    self.value = arg_value
-                    self._on_answer()
-                    return
+        resolved = self._try_resolve_without_prompt(args)
+        if resolved is not None:
+            options = await self._resolve_options(get_value)
+            if not options or resolved in options:
+                self.value = resolved
+                self._on_answer()
+                return
         options = await self._resolve_options(get_value)
         if len(options) == 1:
             self.value = next(iter(options))
