@@ -24,6 +24,7 @@ jobs:
       FIRECREST_URL: ${{ secrets.FIRECREST_URL }}
       FIRECREST_USERNAME: ${{ secrets.FIRECREST_USERNAME }}
     steps:
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           python-version: ${{ matrix.python-version }}
