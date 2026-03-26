@@ -85,6 +85,13 @@ If you want to skip the interactive prompts and launch a pre-configured model di
 | `--use-router`          |                                  | Load balance across workers (`yes`, `no`)                              |
 | `--time`                |                                  | Job time limit (`HH:MM:SS`)                                            |
 
+For simplicity of usage, it is strongly advided to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_FIRECREST_PARTITION`, as these are required for every job submission and they are usually constant for a user.
+
+```bash
+export SML_FIRECREST_SYSTEM=clariden
+export SML_FIRECREST_PARTITION=normal
+```
+
 If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
 
 Once the job is submitted, `sml` opens a TUI displaying the job status and live logs.
@@ -110,6 +117,13 @@ For full control over the SLURM job, use `sml advanced`. This bypasses the model
 | `--router-args`            |                           | Arguments forwarded to the router                                 |
 | `--disable-ocf`            |                           | Disable OCF wrapper                                               |
 | `--pre-launch-cmds`        |                           | Shell commands to run before the framework starts                 |
+
+Again, For simplicity of usage, it is strongly advided to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_FIRECREST_PARTITION`, as these are required for every job submission and they are usually constant for a user.
+
+```bash
+export SML_FIRECREST_SYSTEM=clariden
+export SML_FIRECREST_PARTITION=normal
+```
 
 ## Development
 
