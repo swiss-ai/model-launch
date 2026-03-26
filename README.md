@@ -1,8 +1,10 @@
 # `sml`: Swiss AI Model Launch
 
-A CLI tool for launching AI models on HPC systems via FirecREST or SLURM commands.
+A CLI app for launching AI models on clusters.
 
-## Install
+## Installation
+
+Requires Python 3.12 or later.
 
 - SSH
 
@@ -16,75 +18,80 @@ A CLI tool for launching AI models on HPC systems via FirecREST or SLURM command
   pip install git+https://github.com/swiss-ai/model-launch.git
   ```
 
-## Usage
+If you want to contribute to the project, please follow the instructions in the [Development](#development) section to set up the development environment instead of the above installation.
 
-### Quick Start
+## Before You Begin
 
-Just run:
+Before diving into the documentation, take a moment to determine where you fit in the SML ecosystem.
+
+### Where Will You Run SML?
+
+You can run SML on your local machine and it will submit jobs to the cluster via FirecREST. Or, you can SSH into the cluster and directly run SML there. You can choose the option that best suits your needs and preferences. Your choice will only affect the initialization process, but not the rest of the usage. This choice will affect how you initialize SML and which credentials you need to provide. The two options are:
+
+1. FirecREST
+2. SLURM (not operational yet)
+
+### What Is My Use Case?
+
+SML is designed for users at different levels of expertise, from those who only want to launch a pre-configured model with a few clicks, to those who want to have full control over the model and serving configuration.
+
+![Levels of Expertise and Use Cases](docs/levels-of-expertise.png)
+
+Before proceeding to the next sections, please take a moment to identify which user level you belong to. This will help you navigate the documentation and find the most relevant information for your needs. Then you can follow the instructions in the [Usage](#usage) section that best suits your needs.
+
+## Initialization
+
+Before using `sml`, you need to initialize it with your credentials and configurations. This is a one-time setup that will allow `sml` to authenticate and interact with the necessary services for launching models on the cluster. To do the first-time initialization, simply run
 
 ```bash
 sml
 ```
 
-That's it. On first run, SML will guide you through a one-time setup. After that, running `sml` again will take you straight to launching a model.
-
-The rest of this section documents subcommands and CLI arguments for advanced or automated use cases.
-
-### Subcommands
-
-| Command          | Description                                              |
-| ---------------- | -------------------------------------------------------- |
-| `sml init`       | Initialize SML configuration                             |
-| `sml quickstart` | Launch a model with guided prompts                       |
-| `sml advanced`   | Launch a model with advanced configuration (coming soon) |
-
-### Initialization (`sml init`)
-
-Run `sml init` to configure SML. You will be prompted to provide necessary credentials and configurations.
-
-There are three ways to initialize the launcher:
-
-- FirecREST: Run the CLI on your local machine; jobs are submitted via FirecREST. You will need to provide your FirecREST credentials. If you don't have them, follow the instructions in the [Appendix](#acquiring-firecrest-credentials).
-- Remote Launcher: Not operational yet.
-- SLURM: Not operational yet.
-
-For health check, you will be prompted to provide your CSCS API key. If you don't have the API key, follow the instructions in the [Appendix](#acquiring-cscs-api-key).
-
-All prompts can be pre-filled to skip interactive prompts:
+And proceed with the interactive prompts. You can also pre-fill the prompts with CLI arguments or environment variables to skip the interactive setup. Please refer to the table below for the available options for pre-filling the initialization prompts:
 
 | CLI Argument                | Environment Variable             | Description                                            |
 | --------------------------- | -------------------------------- | ------------------------------------------------------ |
-| `--launcher`                |                                  | Job submission method (`firecrest`, `remote`, `slurm`) |
-| `--firecrest-url`           |                                  | FirecREST API URL                                      |
-| `--firecrest-token-uri`     |                                  | FirecREST token URI                                    |
+| `--launcher`                |                                  | Job submission method (`firecrest` or `slurm`)         |
+| `--firecrest-url`           |                                  | FirecREST API URL (default: CSCS endpoint)             |
+| `--firecrest-token-uri`     |                                  | FirecREST token URI (default: CSCS auth endpoint)      |
 |                             | `SML_FIRECREST_CLIENT_ID`        | FirecREST client ID                                    |
 |                             | `SML_FIRECREST_CLIENT_SECRET`    | FirecREST client secret                                |
-| `--remote-launcher-address` |                                  | Remote launcher address (if using `remote`)            |
-|                             | `SML_REMOTE_LAUNCHER_AUTH_TOKEN` | Auth token for remote launcher (if using `remote`)     |
 |                             | `SML_CSCS_API_KEY`               | CSCS API key for health checks                         |
 | `--telemetry-endpoint`      |                                  | Endpoint for telemetry reports                         |
 
-### Launching a Model (`sml quickstart`)
+Please note that FirecREST related fields (`--firecrest-url`, `--firecrest-token-uri`, `SML_FIRECREST_CLIENT_ID`, `SML_FIRECREST_CLIENT_SECRET`) are only required if you choose `firecrest` as the launcher method. The CSCS API key (`SML_CSCS_API_KEY`) is required regardless of the launcher method.
 
-After completing initialization, run `sml quickstart` (or just `sml`). The CLI will guide you through selecting a model and providing the necessary launch configuration.
+The configuration is saved to `~/.sml/config.yml`. You can override the config directory by setting the `SML_CONFIG_DIR` environment variable.
 
-All prompts can be pre-filled via CLI arguments to skip interactive prompts:
+For re-doing the initialization, you can simply run the `sml init` command, which will guide you through the initialization process again and overwrite the previous configuration.
 
-| Argument                | Environment Variable             | Description                                  |
-| ----------------------- | -------------------------------- | -------------------------------------------- |
-| `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target HPC system to launch on               |
-| `--firecrest-partition` | `SML_FIRECREST_PARTITION`        | SLURM partition to use                       |
-| `--model`               |                                  | Model to launch (`<vendor>::<model>`)        |
-| `--framework`           |                                  | Inference framework to use                   |
-| `--workers`             |                                  | Number of workers                            |
-| `--use-router`          |                                  | Load balance across workers (`yes`, `no`)    |
-| `--time`                |                                  | Job time limit (`HH:MM:SS`)                  |
+## Usage
 
-### Advanced Launch (`sml advanced`)
+Once you have figured out the answer to the question [What Is My Use Case?](#what-is-my-use-case), you can follow the instructions in the corresponding section below ([Entry-level and Basic Usage](#entry-level-and-basic-usage) or [Advanced Usage](#advanced-usage)) to learn how to use `sml` for your specific use case.
 
-For full control over the SLURM job, use `sml advanced`. This bypasses the model catalog and lets you specify all launch parameters directly. See [`examples/`](examples/) for ready-to-use scripts per model.
+### Entry-level and Basic Usage
 
-System and partition are still selected the same way as quickstart (interactive or via args/env vars). `account` and `job_name` are filled in automatically.
+Once you have done the initialization, you can simply use `sml` (or `sml preconfigured`) to launch a model with a few clicks. This will guide you through selecting a pre-configured model and providing the necessary launch configuration in an interactive manner. This is the recommended option for users who want to quickly launch a model without worrying about the details of the configuration.
+
+If you want to skip the interactive prompts and launch a pre-configured model directly, you can use CLI arguments to pre-fill the necessary information. Please refer to the table below for the available options for pre-filling the launch configuration prompts:
+
+| Argument                | Environment Variable             | Description                                                            |
+| ----------------------- | -------------------------------- | ---------------------------------------------------------------------- |
+| `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target system to launch on (required only if using FirecREST launcher) |
+| `--firecrest-partition` | `SML_FIRECREST_PARTITION`        | SLURM partition to use                                                 |
+| `--model`               |                                  | Model to launch (`<vendor>::<model>`)                                  |
+| `--framework`           |                                  | Inference framework to use                                             |
+| `--workers`             |                                  | Number of workers                                                      |
+| `--use-router`          |                                  | Load balance across workers (`yes`, `no`)                              |
+| `--time`                |                                  | Job time limit (`HH:MM:SS`)                                            |
+
+If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
+
+Once the job is submitted, `sml` opens a TUI displaying the job status and live logs.
+
+### Advanced Usage
+
+For full control over the SLURM job, use `sml advanced`. This bypasses the model catalog and lets you specify all launch parameters directly. See [`examples/`](examples/) for ready-to-use scripts per model. System and partition are still selected the same way as before (interactive or via args/env vars).
 
 | Argument                   | Environment Variable      | Description                                                       |
 | -------------------------- | ------------------------- | ----------------------------------------------------------------- |
@@ -118,7 +125,7 @@ pre-commit install
 
 ### Testing Environment
 
-For writing the unit tests, you have to create a `.test.sh` file in the root of the repository with the following content:
+For writing the integration tests, you have to create a `.test.sh` file in the root of the repository with the following content:
 
 ```shell
 export FIRECREST_URL=<your-firecrest-url>
@@ -169,4 +176,4 @@ Please follow the instructions in the [FirecREST documentation](https://docs.csc
 
 ### Acquiring CSCS API Key
 
-Please proceed to [serving platform](https://serving.swissai.svc.cscs.ch) and login using your institutional account. Then, navigate to the "View API Keys" section. You will see your API key listed there.
+Please proceed to [serving platform](https://serving.swissai.svc.cscs.ch) and log in using your institutional account. Then, navigate to the "View API Keys" section. You will see your API key listed there.
