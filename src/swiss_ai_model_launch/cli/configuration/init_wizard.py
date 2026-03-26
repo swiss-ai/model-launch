@@ -35,11 +35,6 @@ class InitConfig(ChainConfiguration):
                                 "FirecREST",
                                 "If you have FirecREST credentials of the cluster.",
                             ),
-                            "remote": (
-                                "Remote Launcher (Not Operational Yet)",
-                                "If you have deployed a launcher elsewhere which is "
-                                "accessible over the network.",
-                            ),
                             "slurm": (
                                 "SLURM Commands (Not Operational Yet)",
                                 "If you are running the CLI on the cluster head node "
@@ -75,22 +70,6 @@ class InitConfig(ChainConfiguration):
                                 ),
                             ],
                         ),
-                        "remote": ChainConfiguration(
-                            name="remote_launcher_configuration",
-                            chain=[
-                                TextConfiguration(
-                                    name="remote_launcher_address",
-                                    prompt="What is your remote launcher address?",
-                                ),
-                                TextConfiguration(
-                                    name="remote_launcher_auth_token",
-                                    prompt="What is your token for authenticating in "
-                                    "remote launcher?",
-                                    env_var="SML_REMOTE_LAUNCHER_AUTH_TOKEN",
-                                    expose_as_arg=False,
-                                ),
-                            ],
-                        ),
                         "slurm": None,
                     },
                 ),
@@ -101,15 +80,10 @@ class InitConfig(ChainConfiguration):
                     env_var="SML_CSCS_API_KEY",
                     expose_as_arg=False,
                 ),
-                ChainConfiguration(
-                    name="telemetry_endpoint_configuration",
-                    chain=[
-                        TextConfiguration(
-                            name="telemetry_endpoint",
-                            prompt="Where to send telemetry reports?",
-                            default="https://sml-dev.swissai.svc.cscs.ch/launches",
-                        ),
-                    ],
+                TextConfiguration(
+                    name="telemetry_endpoint",
+                    prompt="Where to send telemetry reports?",
+                    default="https://sml-dev.swissai.svc.cscs.ch/launches",
                 ),
             ],
         )
