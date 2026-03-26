@@ -48,11 +48,11 @@ def _make_firecrest_launcher_config(
                 env_var="SML_FIRECREST_SYSTEM",
             ),
             OptionsConfiguration(
-                name="firecrest_partition",
+                name="partition",
                 prompt="Choose the partition to launch the model on.",
                 options_factory=partitions_factory,
                 options=None if partitions_factory else _empty,
-                env_var="SML_FIRECREST_PARTITION",
+                env_var="SML_PARTITION",
             ),
         ],
     )
@@ -283,7 +283,7 @@ async def _get_firecrest_launcher_with_client(
         system_name=system_name,
         username=user_info["user"]["name"],
         account=user_info["group"]["name"],
-        partition=launcher_config.get_non_none_value("firecrest_partition"),
+        partition=launcher_config.get_non_none_value("partition"),
         telemetry_endpoint=telemetry_endpoint,
     )
 
