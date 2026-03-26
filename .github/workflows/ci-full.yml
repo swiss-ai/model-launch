@@ -8,7 +8,7 @@ on:
 jobs:
   test-full:
     name: Full Integration Tests (Python ${{ matrix.python-version }})
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-full-tests'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'requires-full-tests'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,9 +24,7 @@ jobs:
       FIRECREST_URL: ${{ secrets.FIRECREST_URL }}
       FIRECREST_USERNAME: ${{ secrets.FIRECREST_USERNAME }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: ./.github/actions/setup
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[dev]"
       - run: pytest --cov --cov-report=term-missing -n auto -m full

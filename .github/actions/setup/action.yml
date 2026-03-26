@@ -1,0 +1,16 @@
+name: Setup Python Environment
+description: Checkout, set up Python, and install dependencies
+
+inputs:
+  python-version:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+    - run: pip install -e ".[dev]"
+      shell: bash
