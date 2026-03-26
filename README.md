@@ -79,7 +79,7 @@ If you want to skip the interactive prompts and launch a pre-configured model di
 | ----------------------- | -------------------------------- | ---------------------------------------------------------------------- |
 | `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target system to launch on (required only if using FirecREST launcher) |
 | `--firecrest-partition` | `SML_FIRECREST_PARTITION`        | SLURM partition to use                                                 |
-| `--model`               |                                  | Model to launch (`<vendor>::<model>`)                                  |
+| `--model`               |                                  | Model to launch (`<vendor>/<model>`)                                   |
 | `--framework`           |                                  | Inference framework to use                                             |
 | `--workers`             |                                  | Number of workers                                                      |
 | `--use-router`          |                                  | Load balance across workers (`yes`, `no`)                              |
@@ -93,6 +93,19 @@ export SML_FIRECREST_PARTITION=normal
 ```
 
 If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
+
+#### Example of Basic Usage
+
+```bash
+export SML_FIRECREST_SYSTEM=clariden
+export SML_FIRECREST_PARTITION=normal
+
+sml preconfigured \
+  --model swiss-ai/Apertus-8B-Instruct-2509 \
+  --framework sglang \
+  --workers 1 \
+  --time 02:00:00
+```
 
 Once the job is submitted, `sml` opens a TUI displaying the job status and live logs.
 
@@ -118,11 +131,22 @@ For full control over the SLURM job, use `sml advanced`. This bypasses the model
 | `--disable-ocf`            |                           | Disable OCF wrapper                                               |
 | `--pre-launch-cmds`        |                           | Shell commands to run before the framework starts                 |
 
-Again, For simplicity of usage, it is strongly advided to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_FIRECREST_PARTITION`, as these are required for every job submission and they are usually constant for a user.
+Again, for simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_FIRECREST_PARTITION`, as these are required for every job submission and they are usually constant for a user.
+
+#### Example of Advanced Usage
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
 export SML_FIRECREST_PARTITION=normal
+
+sml advanced \
+  --slurm-nodes 1 \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 \
+    --port 8080"
 ```
 
 ## Development

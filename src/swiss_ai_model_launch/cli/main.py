@@ -289,7 +289,7 @@ async def _get_firecrest_launcher_with_client(
 
 
 def _split_vendor_model(combined: str) -> tuple[str, str]:
-    vendor, model_name = combined.split("::", 1)
+    vendor, model_name = combined.split("/", 1)
     return vendor, model_name
 
 
@@ -336,7 +336,7 @@ async def _get_launch_request(
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
         seen: dict[str, tuple[str, str]] = {}
         for lr in preconfigured_launch_requests:
-            key = f"{lr.vendor}::{lr.model_name}"
+            key = f"{lr.vendor}/{lr.model_name}"
             if key not in seen:
                 seen[key] = (lr.model_name, lr.vendor)
         return seen
