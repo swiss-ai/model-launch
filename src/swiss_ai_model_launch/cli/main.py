@@ -458,7 +458,16 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
     cscs_api_key = config.get_non_none_value("cscs_api_key")
-    served_model_name = args.served_model_name or f"model-{create_salt(4)}"
+    if args.served_model_name:
+        served_model_name = args.served_model_name
+    else:
+        match = re.search(r"--served-model-name\s+(\S+)", args.framework_args or "")
+        if not match:
+            raise ValueError(
+                "--served-model-name must be provided either as a direct argument "
+                "or via --served-model-name inside --framework-args"
+            )
+        served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
     launch_args = LaunchArgs(
