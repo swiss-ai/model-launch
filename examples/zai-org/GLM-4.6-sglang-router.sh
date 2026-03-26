@@ -8,7 +8,7 @@ sml advanced \
   --use-router \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
-  --slurm-environment <path/to/sglang_latest.toml> \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --pre-launch-cmds "pip install blobfile" \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.6 \
     --tp-size 16 \
