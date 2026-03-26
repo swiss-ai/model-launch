@@ -1,7 +1,11 @@
 import argparse
 import asyncio
+import getpass
+import grp
+import os
 import re
 from collections.abc import Awaitable, Callable
+from typing import cast
 
 import firecrest as f7t
 
@@ -15,7 +19,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
 )
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
-from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher
+from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
@@ -34,7 +38,6 @@ _DefaultFactory = (
 
 def _make_firecrest_launcher_config(
     systems_factory: _OptionsFactory = None,
-    partitions_factory: _OptionsFactory = None,
 ) -> ChainConfiguration:
     _empty: OptionsDict = {}
     return ChainConfiguration(
@@ -47,6 +50,17 @@ def _make_firecrest_launcher_config(
                 options=None if systems_factory else _empty,
                 env_var="SML_FIRECREST_SYSTEM",
             ),
+        ],
+    )
+
+
+def _make_partition_config(
+    partitions_factory: _OptionsFactory = None,
+) -> ChainConfiguration:
+    _empty: OptionsDict = {}
+    return ChainConfiguration(
+        name="partition_configuration",
+        chain=[
             OptionsConfiguration(
                 name="partition",
                 prompt="Choose the partition to launch the model on.",
@@ -132,12 +146,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "preconfigured", help="Launch a model with guided prompts"
     )
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
+    _make_partition_config().add_to_parser(preconfigured_parser)
     _make_launch_request_config().add_to_parser(preconfigured_parser)
 
     advanced_parser = subparsers.add_parser(
         "advanced", help="Launch a model with advanced configuration"
     )
     _make_firecrest_launcher_config().add_to_parser(advanced_parser)
+    _make_partition_config().add_to_parser(advanced_parser)
     advanced_parser.add_argument(
         "--serving-framework",
         dest="framework",
@@ -258,32 +274,56 @@ async def _get_firecrest_launcher_with_client(
             for sys in await client.systems()
         }
 
-    async def _get_partitions(
-        get_value_from_context: GetValueFn,
-    ) -> dict[str, tuple[str, str]]:
-        system = get_value_from_context("firecrest_system")
-        if system is None:
-            raise ValueError("firecrest_system is not set")
+    firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
+    await firecrest_config.aconfigure(args=args)
+    system_name = firecrest_config.get_non_none_value("firecrest_system")
+
+    user_info = await client.userinfo(system_name)
+
+    async def _get_partitions() -> dict[str, tuple[str, str]]:
         return {
             part["name"]: (part["name"], part["name"])
-            for part in await client.partitions(system)
+            for part in await client.partitions(system_name)
         }
 
-    launcher_config = _make_firecrest_launcher_config(
-        systems_factory=_get_systems,
-        partitions_factory=_get_partitions,
-    )
-    await launcher_config.aconfigure(args=args)
-
-    system_name = launcher_config.get_non_none_value("firecrest_system")
-    user_info = await client.userinfo(system_name)
+    partition_config = _make_partition_config(partitions_factory=_get_partitions)
+    await partition_config.aconfigure(args=args)
 
     return FirecRESTLauncher(
         client,
         system_name=system_name,
         username=user_info["user"]["name"],
         account=user_info["group"]["name"],
-        partition=launcher_config.get_non_none_value("partition"),
+        partition=partition_config.get_non_none_value("partition"),
+        telemetry_endpoint=telemetry_endpoint,
+    )
+
+
+async def _get_slurm_launcher(
+    telemetry_endpoint: str | None = None,
+    args: argparse.Namespace | None = None,
+) -> SlurmLauncher:
+    async def _get_partitions() -> dict[str, tuple[str, str]]:
+        proc = await asyncio.create_subprocess_exec(
+            "sinfo",
+            "-h",
+            "-o",
+            "%P",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        partitions = [p.rstrip("*") for p in stdout.decode().split() if p.strip()]
+        return {p: (p, p) for p in partitions}
+
+    partition_config = _make_partition_config(partitions_factory=_get_partitions)
+    await partition_config.aconfigure(args=args)
+
+    return SlurmLauncher(
+        system_name="local",
+        username=getpass.getuser(),
+        account=grp.getgrgid(os.getgid()).gr_name,
+        partition=partition_config.get_non_none_value("partition"),
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -403,13 +443,24 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher_type = config.get_non_none_value("launcher")
+    telemetry_endpoint = config.get_value("telemetry_endpoint")
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
-        telemetry_endpoint = config.get_non_none_value("telemetry_endpoint")
-        launcher = await _get_firecrest_launcher_with_client(
-            firecrest_client,
-            telemetry_endpoint=telemetry_endpoint,
-            args=args,
+        launcher = cast(
+            Launcher,
+            await _get_firecrest_launcher_with_client(
+                firecrest_client,
+                telemetry_endpoint=telemetry_endpoint,
+                args=args,
+            ),
+        )
+    elif launcher_type == "slurm":
+        launcher = cast(
+            Launcher,
+            await _get_slurm_launcher(
+                telemetry_endpoint=telemetry_endpoint,
+                args=args,
+            ),
         )
     else:
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
@@ -446,13 +497,24 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher_type = config.get_non_none_value("launcher")
+    telemetry_endpoint = config.get_value("telemetry_endpoint")
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
-        telemetry_endpoint = config.get_non_none_value("telemetry_endpoint")
-        launcher = await _get_firecrest_launcher_with_client(
-            firecrest_client,
-            telemetry_endpoint=telemetry_endpoint,
-            args=args,
+        launcher = cast(
+            Launcher,
+            await _get_firecrest_launcher_with_client(
+                firecrest_client,
+                telemetry_endpoint=telemetry_endpoint,
+                args=args,
+            ),
+        )
+    elif launcher_type == "slurm":
+        launcher = cast(
+            Launcher,
+            await _get_slurm_launcher(
+                telemetry_endpoint=telemetry_endpoint,
+                args=args,
+            ),
         )
     else:
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")

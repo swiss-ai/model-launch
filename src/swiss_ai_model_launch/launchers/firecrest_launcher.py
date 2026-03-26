@@ -5,12 +5,11 @@ from importlib.resources import files
 from pathlib import Path
 
 import firecrest as f7t
-from jinja2 import Template
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import create_salt, render_job_script
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
@@ -18,14 +17,8 @@ _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglan
 _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
 
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
-_TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
 
 _APP_WORKING_DIRECTORY = ".sml"
-
-
-def render_job_script(launch_args: LaunchArgs) -> str:
-    template = Template(_TEMPLATE_PATH.read_text())
-    return str(template.render(**launch_args.model_dump()))
 
 
 class FirecRESTLauncher(Launcher):
@@ -38,13 +31,14 @@ class FirecRESTLauncher(Launcher):
         partition: str,
         telemetry_endpoint: str | None = None,
     ):
-        super().__init__()
+        super().__init__(
+            system_name=system_name,
+            username=username,
+            account=account,
+            partition=partition,
+            telemetry_endpoint=telemetry_endpoint,
+        )
         self.client = client
-        self.system_name = system_name
-        self.username = username
-        self.account = account
-        self.partition = partition
-        self.telemetry_endpoint = telemetry_endpoint
 
     def _get_user_dir(self) -> str:
         return f"/users/{self.username}"

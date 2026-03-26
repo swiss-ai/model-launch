@@ -13,6 +13,20 @@ class JobStatus(Enum):
 
 
 class Launcher(ABC):
+    def __init__(
+        self,
+        system_name: str,
+        username: str,
+        account: str,
+        partition: str,
+        telemetry_endpoint: str | None = None,
+    ):
+        self.system_name = system_name
+        self.username = username
+        self.account = account
+        self.partition = partition
+        self.telemetry_endpoint = telemetry_endpoint
+
     @abstractmethod
     async def get_preconfigured_models(self) -> list[LaunchRequest]: ...
 

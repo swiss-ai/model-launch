@@ -36,7 +36,7 @@ class InitConfig(ChainConfiguration):
                                 "If you have FirecREST credentials of the cluster.",
                             ),
                             "slurm": (
-                                "SLURM Commands (Not Operational Yet)",
+                                "SLURM Commands",
                                 "If you are running the CLI on the cluster head node "
                                 "and want to directly submit jobs using SLURM.",
                             ),
