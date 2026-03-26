@@ -73,6 +73,10 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "lightweight: lightweight integration tests (triggered automatically)",
+    "full: full integration tests (triggered manually)",
+]
 
 [tool.coverage.run]
 source = ["src"]

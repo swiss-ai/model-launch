@@ -58,4 +58,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      - run: pytest --cov --cov-report=term-missing -n auto
+      - run: pytest --cov --cov-report=term-missing -n auto -m lightweight

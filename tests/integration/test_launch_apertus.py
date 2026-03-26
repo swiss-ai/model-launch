@@ -9,6 +9,8 @@ from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus
 
+pytestmark = pytest.mark.lightweight
+
 _REQUIRED_ENV_VARS = [
     "FIRECREST_URL",
     "FIRECREST_TOKEN_URI",

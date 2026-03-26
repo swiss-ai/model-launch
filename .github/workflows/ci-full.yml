@@ -1,0 +1,29 @@
+name: CI (Full)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-full:
+    name: Full Integration Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    env:
+      CSCS_API_KEY: ${{ secrets.CSCS_API_KEY }}
+      FIRECREST_ACCOUNT: ${{ secrets.FIRECREST_ACCOUNT }}
+      FIRECREST_CLIENT_ID: ${{ secrets.FIRECREST_CLIENT_ID }}
+      FIRECREST_CLIENT_SECRET: ${{ secrets.FIRECREST_CLIENT_SECRET }}
+      FIRECREST_PARTITION: ${{ secrets.FIRECREST_PARTITION }}
+      FIRECREST_SYSTEM: ${{ secrets.FIRECREST_SYSTEM }}
+      FIRECREST_TOKEN_URI: ${{ secrets.FIRECREST_TOKEN_URI }}
+      FIRECREST_URL: ${{ secrets.FIRECREST_URL }}
+      FIRECREST_USERNAME: ${{ secrets.FIRECREST_USERNAME }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: pytest --cov --cov-report=term-missing -n auto -m "lightweight or full"
