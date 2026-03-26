@@ -30,9 +30,12 @@ _OUT_LOG_ID = "out-log"
 _ERR_LOG_ID = "err-log"
 
 
-class _SMLApp(App[None]):
+class _SMLApp(App[bool]):
     TITLE = "SwissAI Model Launch"
-    BINDINGS = [Binding("ctrl+x", "quit", "Quit")]
+    BINDINGS = [
+        Binding("ctrl+x", "quit_resume", "Quit and Resume"),
+        Binding("ctrl+k", "quit_kill", "Quit and Kill"),
+    ]
 
     CSS = """
     #status-label {
@@ -73,7 +76,13 @@ class _SMLApp(App[None]):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state in (WorkerState.SUCCESS, WorkerState.ERROR):
-            self.exit()
+            self.exit(False)
+
+    def action_quit_resume(self) -> None:
+        self.exit(False)
+
+    def action_quit_kill(self) -> None:
+        self.exit(True)
 
     def _render_status(self) -> Table:
         s = self._state
@@ -119,6 +128,6 @@ class LiveDisplay:
     def __init__(self, state: DisplayState) -> None:
         self._state = state
 
-    async def run(self, work: Coroutine[Any, Any, None]) -> None:
+    async def run(self, work: Coroutine[Any, Any, None]) -> bool:
         app = _SMLApp(self._state, work)
-        await app.run_async()
+        return await app.run_async() or False

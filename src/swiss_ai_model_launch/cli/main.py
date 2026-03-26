@@ -487,7 +487,9 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
             state.set_out_log(o)
             state.set_err_log(e)
 
-    await LiveDisplay(state).run(_monitor())
+    kill_job = await LiveDisplay(state).run(_monitor())
+    if kill_job and state.job_id is not None:
+        await launcher.cancel_job(state.job_id)
 
 
 async def _run_advanced(args: argparse.Namespace) -> None:
@@ -571,7 +573,9 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             state.set_out_log(o)
             state.set_err_log(e)
 
-    await LiveDisplay(state).run(_monitor())
+    kill_job = await LiveDisplay(state).run(_monitor())
+    if kill_job and state.job_id is not None:
+        await launcher.cancel_job(state.job_id)
 
 
 async def _main(args: argparse.Namespace) -> None:
