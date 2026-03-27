@@ -27,9 +27,9 @@
     "framework": "sglang",
     "environment": null,
     "workers": 1,
-    "nodes_per_worker": 1,
+    "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "--tp-size 8"
   },
   {
     "vendor": "swiss-ai",
@@ -37,9 +37,9 @@
     "framework": "vllm",
     "environment": null,
     "workers": 1,
-    "nodes_per_worker": 1,
+    "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "--tp-size 8"
   },
   {
     "vendor": "Qwen",
