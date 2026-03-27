@@ -34,6 +34,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: mypy
 
+  shellcheck:
+    name: Shell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make shellcheck
+
   markdownlint:
     name: Markdown Lint
     runs-on: ubuntu-latest

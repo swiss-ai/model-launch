@@ -13,6 +13,12 @@ repos:
         args: ["--config", ".markdownlint.yaml"]
         exclude: ^legacy/
 
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        exclude: ^legacy/
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.15.0
     hooks:

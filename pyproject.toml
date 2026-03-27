@@ -29,6 +29,7 @@ dev = [
     "pytest-cov>=7.0",
     "pytest-xdist>=3.0",
     "pre-commit>=4.0",
+    "shellcheck-py>=0.9",
     "types-PyYAML>=6.0",
 ]
 

@@ -208,25 +208,37 @@ There is a `Makefile` with common development commands.
    make format
    ```
 
-2. To run lightweight integration tests (auto CI subset), you can run:
+2. To lint shell scripts, you can run:
+
+   ```bash
+   make shellcheck
+   ```
+
+3. To lint Markdown files, you can run:
+
+   ```bash
+   make markdownlint
+   ```
+
+4. To run lightweight integration tests (auto CI subset), you can run:
 
    ```bash
    make test-lightweight
    ```
 
-3. To run comprehensive integration tests (full suite), you can run:
+5. To run comprehensive integration tests (full suite), you can run:
 
    ```bash
    make test-comprehensive
    ```
 
-4. To clean up cache files, you can run:
+6. To clean up cache files, you can run:
 
    ```bash
    make clean-cache
    ```
 
-5. To clean up the env and cache, you can run:
+7. To clean up the env and cache, you can run:
 
    ```bash
    make clean-dev
