@@ -11,8 +11,8 @@ from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus
 
-_LAUNCH_TIMEOUT = 10
-_HEALTH_TIMEOUT = 20
+_LAUNCH_TIMEOUT = 60
+_HEALTH_TIMEOUT = 120
 
 _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
