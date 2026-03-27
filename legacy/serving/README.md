@@ -315,6 +315,72 @@ python serving/submit_job.py \
 
 </details>
 
+#### `Qwen3-Omni-30B-A3B-Captioner`
+
+<details>
+
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+  python serving/submit_job.py  \
+   --slurm-nodes 1 \
+   --slurm-time 6:00:00 \
+   --serving-framework vllm \
+   --slurm-environment $(pwd)/legacy/serving/envs/vllm_qwen3_omni.toml \
+   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Qwen/Qwen3-Omni-30B-A3B-Captioner \
+    --served-model-name Qwen/Qwen3-Omni-30B-A3B-Captioner-$(whoami) \
+    --tensor-parallel-size 4 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --dtype bfloat16 --max-model-len 32768 --trust-remote-code"
+```
+
+</details>
+
+#### `Qwen3-Omni-30B-A3B-Thinking`
+
+<details>
+
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+  python serving/submit_job.py  \
+   --slurm-nodes 1 \
+   --slurm-time 6:00:00 \
+   --serving-framework vllm \
+   --slurm-environment $(pwd)/legacy/serving/envs/vllm_qwen3_omni.toml \
+   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Qwen/Qwen3-Omni-30B-A3B-Thinking \
+    --served-model-name Qwen/Qwen3-Omni-30B-A3B-Thinking-$(whoami) \
+    --tensor-parallel-size 4 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --dtype bfloat16 --max-model-len 32768 --trust-remote-code"
+```
+
+</details>
+
+#### `Qwen3-Omni-30B-A3B-Instruct`
+
+<details>
+
+<summary>vLLM (tested ✅)</summary>
+
+```bash
+  python serving/submit_job.py  \
+   --slurm-nodes 1 \
+   --slurm-time 6:00:00 \
+   --serving-framework vllm \
+   --slurm-environment $(pwd)/legacy/serving/envs/vllm_qwen3_omni.toml \
+   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Qwen/Qwen3-Omni-30B-A3B-Instruct \
+    --served-model-name Qwen/Qwen3-Omni-30B-A3B-Instruct-$(whoami) \
+    --tensor-parallel-size 4 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --dtype bfloat16 --max-model-len 32768 --trust-remote-code"
+```
+
+</details>
+
 #### `Qwen3.5-397B-A17B`
 
 <details>
