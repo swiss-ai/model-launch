@@ -28,4 +28,4 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pytest --cov --cov-report=term-missing -n auto -m lightweight
+      - run: pytest --cov --cov-report=term-missing -n 20 -m lightweight
