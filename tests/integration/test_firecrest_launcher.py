@@ -1,4 +1,3 @@
-import asyncio
 import importlib.resources
 import json
 import os
@@ -6,10 +5,9 @@ import os
 import firecrest as f7t
 import pytest
 
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _LAUNCH_TIMEOUT = 60
 _HEALTH_TIMEOUT = 120
@@ -74,42 +72,6 @@ def cscs_api_key(env: dict[str, str]) -> str:
     return env["SML_CSCS_API_KEY"]
 
 
-async def _wait_for_job_running(
-    launcher: FirecRESTLauncher,
-    job_id: int,
-    timeout_min: int,
-    poll_interval_seconds: int = 15,
-) -> None:
-    deadline = asyncio.get_event_loop().time() + timeout_min * 60
-    while asyncio.get_event_loop().time() < deadline:
-        await asyncio.sleep(poll_interval_seconds)
-        status = await launcher.get_job_status(job_id)
-        print(f"[job {job_id}] status: {status.value}")
-        if status == JobStatus.RUNNING:
-            return
-        if status == JobStatus.TIMEOUT:
-            pytest.fail(f"Job {job_id} timed out before becoming RUNNING.")
-    pytest.fail(f"Job {job_id} didn't reach RUNNING within {timeout_min} mins.")
-
-
-async def _wait_for_model_healthy(
-    served_model_name: str,
-    api_key: str,
-    timeout_min: int,
-    poll_interval_seconds: int = 30,
-) -> None:
-    deadline = asyncio.get_event_loop().time() + timeout_min * 60
-    while asyncio.get_event_loop().time() < deadline:
-        await asyncio.sleep(poll_interval_seconds)
-        health = await check_model_health(served_model_name, api_key)
-        print(f"[{served_model_name}] health: {health.value}")
-        if health == ModelHealth.HEALTHY:
-            return
-    pytest.fail(
-        f"Model '{served_model_name}' didn't become HEALTHY within {timeout_min} mins."
-    )
-
-
 @pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS)  # type: ignore[misc]
 async def test_launch_apertus_and_health(
     launcher: FirecRESTLauncher,
@@ -123,7 +85,7 @@ async def test_launch_apertus_and_health(
     assert served_model_name
 
     try:
-        await _wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
-        await _wait_for_model_healthy(served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
+        await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
+        await wait_for_model_healthy(served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
     finally:
         await launcher.cancel_job(job_id)

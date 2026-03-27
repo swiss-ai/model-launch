@@ -11,7 +11,7 @@ class DisplayState:
         self.partition: str | None = None
         self.job_id: int | None = None
         self.job_status: JobStatus | None = None
-        self.model_health: ModelHealth = ModelHealth.WAITING
+        self.model_health: ModelHealth = ModelHealth.NOT_DEPLOYED
         self.served_model_name: str | None = None
         self.out_logs: deque[str] = deque()
         self.err_logs: deque[str] = deque()

@@ -7,9 +7,7 @@ _MESSAGE = {"role": "user", "content": "Say hello."}
 _TIMEOUT_SECONDS = 10
 
 
-async def check_model_health(
-    served_model_name: str, api_key: str, ever_healthy: bool = False
-) -> ModelHealth:
+async def check_model_health(model_name: str, api_key: str) -> ModelHealth:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -19,7 +17,7 @@ async def check_model_health(
                     "Authorization": f"Bearer {api_key}",
                 },
                 json={
-                    "model": served_model_name,
+                    "model": model_name,
                     "messages": [_MESSAGE],
                     "stream": False,
                 },
@@ -27,6 +25,6 @@ async def check_model_health(
             )
         if response.is_success:
             return ModelHealth.HEALTHY
-        return ModelHealth.NOT_RESPONDING if ever_healthy else ModelHealth.NOT_DEPLOYED
+        return ModelHealth.NOT_RESPONDING
     except (httpx.TransportError, httpx.TimeoutException):
         return ModelHealth.ERROR

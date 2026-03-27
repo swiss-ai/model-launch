@@ -23,7 +23,6 @@ _JOB_STATUS_STYLE: dict[JobStatus, str] = {
 }
 
 _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
-    ModelHealth.WAITING: "[yellow]WAITING[/yellow]",
     ModelHealth.HEALTHY: "[green]HEALTHY[/green]",
     ModelHealth.ERROR: "[orange]ERROR[/orange]",
     ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",

@@ -517,9 +517,9 @@ async def _run_monitor(
             job_status = await launcher.get_job_status(job_id)
             state.update(job_status=job_status)
 
-            model_health = await check_model_health(
-                served, cscs_api_key, ever_healthy=ever_healthy
-            )
+            model_health = await check_model_health(served, cscs_api_key)
+            if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
+                model_health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
             state.update(model_health=model_health)
 
