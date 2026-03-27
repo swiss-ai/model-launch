@@ -38,6 +38,7 @@ _REQUIRED_ENV_VARS = [
     "FIRECREST_ACCOUNT",
     "FIRECREST_PARTITION",
     "CSCS_API_KEY",
+    "RESERVATION",
 ]
 
 
@@ -68,6 +69,7 @@ def launcher(env: dict[str, str]) -> FirecRESTLauncher:
         username=env["FIRECREST_USERNAME"],
         account=env["FIRECREST_ACCOUNT"],
         partition=env["FIRECREST_PARTITION"],
+        reservation=env["RESERVATION"] or None,
     )
 
 

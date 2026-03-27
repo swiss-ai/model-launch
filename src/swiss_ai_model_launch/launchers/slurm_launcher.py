@@ -27,6 +27,7 @@ class SlurmLauncher(Launcher):
         username: str,
         account: str,
         partition: str,
+        reservation: str | None = None,
         model_registry: Path = _REMOTE_MODEL_REGISTRY,
         telemetry_endpoint: str | None = None,
     ):
@@ -35,6 +36,7 @@ class SlurmLauncher(Launcher):
             username=username,
             account=account,
             partition=partition,
+            reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
         )
         self.model_registry = model_registry
@@ -59,6 +61,7 @@ class SlurmLauncher(Launcher):
             workers=launch_request.workers,
             nodes_per_worker=launch_request.nodes_per_worker,
             time=launch_request.time,
+            reservation=self.reservation,
             environment=launch_request.environment,
             framework=launch_request.framework,
             served_model_name=served_model_name,
@@ -138,6 +141,7 @@ class SlurmLauncher(Launcher):
         ]
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        launch_args = launch_args.model_copy(update={"reservation": self.reservation})
         job_id = await self._sbatch(launch_args)
         return job_id, launch_args.served_model_name
 

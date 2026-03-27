@@ -29,6 +29,7 @@ class FirecRESTLauncher(Launcher):
         username: str,
         account: str,
         partition: str,
+        reservation: str | None = None,
         telemetry_endpoint: str | None = None,
     ):
         super().__init__(
@@ -36,6 +37,7 @@ class FirecRESTLauncher(Launcher):
             username=username,
             account=account,
             partition=partition,
+            reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
         )
         self.client = client
@@ -64,6 +66,7 @@ class FirecRESTLauncher(Launcher):
             workers=launch_request.workers,
             nodes_per_worker=launch_request.nodes_per_worker,
             time=launch_request.time,
+            reservation=self.reservation,
             environment=launch_request.environment,
             framework=launch_request.framework,
             served_model_name=served_model_name,
@@ -128,7 +131,9 @@ class FirecRESTLauncher(Launcher):
         remote_env_path = await self._upload_env_file(
             launch_args.environment, launch_args.framework
         )
-        launch_args = launch_args.model_copy(update={"environment": remote_env_path})
+        launch_args = launch_args.model_copy(
+            update={"environment": remote_env_path, "reservation": self.reservation}
+        )
         script_str = render_job_script(launch_args)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,

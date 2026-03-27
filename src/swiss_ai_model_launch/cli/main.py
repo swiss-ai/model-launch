@@ -73,6 +73,19 @@ def _make_partition_config(
     )
 
 
+def _make_reservation_config() -> ChainConfiguration:
+    return ChainConfiguration(
+        name="reservation_configuration",
+        chain=[
+            TextConfiguration(
+                name="reservation",
+                prompt="SLURM reservation name (optional, leave blank to skip).",
+                env_var="SML_RESERVATION",
+            ),
+        ],
+    )
+
+
 def _make_launch_request_config(
     vendor_models_factory: _OptionsFactory = None,
     frameworks_factory: _OptionsFactory = None,
@@ -148,6 +161,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
     _make_partition_config().add_to_parser(preconfigured_parser)
+    _make_reservation_config().add_to_parser(preconfigured_parser)
     _make_launch_request_config().add_to_parser(preconfigured_parser)
 
     advanced_parser = subparsers.add_parser(
@@ -202,6 +216,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default="00:05:00",
         metavar="HH:MM:SS",
         help="Job time limit (default: 00:05:00).",
+    )
+    advanced_parser.add_argument(
+        "--slurm-reservation",
+        dest="reservation",
+        default=None,
+        metavar="RESERVATION",
+        help="SLURM reservation name (optional).",
     )
     advanced_parser.add_argument(
         "--served-model-name",
@@ -290,12 +311,16 @@ async def _get_firecrest_launcher_with_client(
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args)
 
+    reservation_config = _make_reservation_config()
+    await reservation_config.aconfigure(args=args)
+
     return FirecRESTLauncher(
         client,
         system_name=system_name,
         username=user_info["user"]["name"],
         account=user_info["group"]["name"],
         partition=partition_config.get_non_none_value("partition"),
+        reservation=reservation_config.get_value("reservation") or None,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -320,11 +345,15 @@ async def _get_slurm_launcher(
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args)
 
+    reservation_config = _make_reservation_config()
+    await reservation_config.aconfigure(args=args)
+
     return SlurmLauncher(
         system_name="local",
         username=getpass.getuser(),
         account=grp.getgrgid(os.getgid()).gr_name,
         partition=partition_config.get_non_none_value("partition"),
+        reservation=reservation_config.get_value("reservation") or None,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -541,6 +570,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         nodes_per_worker=args.nodes_per_worker,
         nodes=args.nodes,
         time=args.time,
+        reservation=args.reservation or None,
         environment=args.slurm_environment,
         framework=args.framework,
         framework_args=args.framework_args,

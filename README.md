@@ -79,6 +79,7 @@ If you want to skip the interactive prompts and launch a pre-configured model di
 | ----------------------- | -------------------------------- | ---------------------------------------------------------------------- |
 | `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target system to launch on (required only if using FirecREST launcher) |
 | `--partition`           | `SML_PARTITION`                  | SLURM partition to use                                                 |
+| `--reservation`         | `SML_RESERVATION`                | SLURM reservation name (optional)                                      |
 | `--model`               |                                  | Model to launch (`<vendor>/<model>`)                                   |
 | `--framework`           |                                  | Inference framework to use                                             |
 | `--workers`             |                                  | Number of workers                                                      |
@@ -117,6 +118,7 @@ For full control over the SLURM job, use `sml advanced`. This bypasses the model
 | -------------------------- | ------------------------- | ----------------------------------------------------------------- |
 | `--firecrest-system`       | `SML_FIRECREST_SYSTEM`    | Target HPC system to launch on                                    |
 | `--partition`              | `SML_PARTITION`           | SLURM partition to use                                            |
+| `--slurm-reservation`      | `SML_RESERVATION`         | SLURM reservation name (optional)                                 |
 | `--serving-framework`      |                           | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`      |                           | Local path to the environment `.toml` file — **required**         |
 | `--framework-args`         |                           | Arguments forwarded to the inference framework                    |
@@ -174,6 +176,7 @@ export FIRECREST_SYSTEM=clariden
 export FIRECREST_ACCOUNT=<your-account>
 export FIRECREST_PARTITION=normal
 export CSCS_API_KEY=<your-api-key>
+export RESERVATION=<your-reservation>
 ```
 
 This file will be sourced when running the tests with `make test`, and the environment variables will be available for the tests.

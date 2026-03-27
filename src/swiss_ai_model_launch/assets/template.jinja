@@ -5,6 +5,7 @@
 #SBATCH --exclusive
 #SBATCH --nodes={{ nodes }}
 #SBATCH --partition={{ partition }}
+{% if reservation %}#SBATCH --reservation={{ reservation }}{% endif %}
 #SBATCH --output=logs/%j/log.out
 #SBATCH --error=logs/%j/log.out
 

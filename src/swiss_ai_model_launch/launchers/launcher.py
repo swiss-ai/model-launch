@@ -26,12 +26,14 @@ class Launcher(ABC):
         username: str,
         account: str,
         partition: str,
+        reservation: str | None = None,
         telemetry_endpoint: str | None = None,
     ):
         self.system_name = system_name
         self.username = username
         self.account = account
         self.partition = partition
+        self.reservation = reservation
         self.telemetry_endpoint = telemetry_endpoint
 
     @abstractmethod

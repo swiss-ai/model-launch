@@ -12,6 +12,7 @@ class LaunchArgs(BaseModel):
     nodes: int | None = None
 
     time: str = "00:05:00"
+    reservation: str | None = None
     environment: str
 
     framework: str
