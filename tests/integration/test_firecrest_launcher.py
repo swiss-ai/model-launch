@@ -79,7 +79,6 @@ async def test_launch_apertus_and_health(
     launch_request: LaunchRequest,
 ) -> None:
     job_id, served_model_name = await launcher.launch_model(launch_request)
-    print(f"Submitted job_id={job_id}, served_model_name={served_model_name}")
 
     assert isinstance(job_id, int)
     assert served_model_name
