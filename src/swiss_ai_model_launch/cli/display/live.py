@@ -114,12 +114,18 @@ class _SMLApp(App[bool]):
 
         out_lines = list(self._state.out_logs)
         out_log = self.query_one(f"#{_OUT_LOG_ID}", RichLog)
+        if len(out_lines) < self._out_written:
+            out_log.clear()
+            self._out_written = 0
         for line in out_lines[self._out_written :]:
             out_log.write(line)
         self._out_written = len(out_lines)
 
         err_lines = list(self._state.err_logs)
         err_log = self.query_one(f"#{_ERR_LOG_ID}", RichLog)
+        if len(err_lines) < self._err_written:
+            err_log.clear()
+            self._err_written = 0
         for line in err_lines[self._err_written :]:
             err_log.write(line)
         self._err_written = len(err_lines)
