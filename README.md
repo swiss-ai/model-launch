@@ -86,7 +86,7 @@ If you want to skip the interactive prompts and launch a pre-configured model di
 | `--use-router`          |                                  | Load balance across workers (`yes`, `no`)                              |
 | `--time`                |                                  | Job time limit (`HH:MM:SS`)                                            |
 
-For simplicity of usage, it is strongly advided to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
+For simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
