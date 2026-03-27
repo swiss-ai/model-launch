@@ -157,6 +157,11 @@ class TextConfiguration(_ResolvableConfiguration):
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
+            validator = self._resolve_validator(get_value)
+            if validator is not None and not validator(resolved):
+                raise ValueError(
+                    f"Invalid value for --{self.name.replace('_', '-')}: {resolved!r}"
+                )
             self.value = resolved
             self._on_answer()
             return
