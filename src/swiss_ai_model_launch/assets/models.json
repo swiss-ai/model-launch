@@ -32,16 +32,6 @@
     "framework_args": "--tp-size 8"
   },
   {
-    "vendor": "swiss-ai",
-    "model_name": "Apertus-70B-Instruct-2509",
-    "framework": "vllm",
-    "environment": null,
-    "workers": 1,
-    "nodes_per_worker": 2,
-    "time": "02:00:00",
-    "framework_args": "--tp-size 8"
-  },
-  {
     "vendor": "Qwen",
     "model_name": "Qwen3-235B-A22B-Instruct-2507",
     "framework": "sglang",
