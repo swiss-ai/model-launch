@@ -197,7 +197,7 @@ export CSCS_API_KEY=<your-api-key>
 export RESERVATION=<your-reservation>
 ```
 
-This file will be sourced when running the tests with `make test`, and the environment variables will be available for the tests.
+This file will be sourced when running the tests with `make test-lightweight` or `make test-comprehensive`, and the environment variables will be available for the tests.
 
 ### Common Commands
 
@@ -209,19 +209,25 @@ There is a `Makefile` with common development commands.
    make format
    ```
 
-2. To run tests, you can run:
+2. To run lightweight integration tests (auto CI subset), you can run:
 
    ```bash
-   make test
+   make test-lightweight
    ```
 
-3. To clean up cache files, you can run:
+3. To run comprehensive integration tests (full suite), you can run:
+
+   ```bash
+   make test-comprehensive
+   ```
+
+4. To clean up cache files, you can run:
 
    ```bash
    make clean-cache
    ```
 
-4. To clean up the env and cache, you can run:
+5. To clean up the env and cache, you can run:
 
    ```bash
    make clean-dev
