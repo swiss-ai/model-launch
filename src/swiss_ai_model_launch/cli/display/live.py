@@ -22,6 +22,7 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
     ModelHealth.WAITING: "[yellow]WAITING[/yellow]",
     ModelHealth.HEALTHY: "[green]HEALTHY[/green]",
     ModelHealth.ERROR: "[orange]ERROR[/orange]",
+    ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",
     ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
 }
 
@@ -30,9 +31,12 @@ _OUT_LOG_ID = "out-log"
 _ERR_LOG_ID = "err-log"
 
 
-class _SMLApp(App[None]):
+class _SMLApp(App[bool]):
     TITLE = "SwissAI Model Launch"
-    BINDINGS = [Binding("ctrl+x", "quit", "Quit")]
+    BINDINGS = [
+        Binding("ctrl+x", "quit_resume", "Quit and Resume"),
+        Binding("ctrl+k", "quit_kill", "Quit and Kill"),
+    ]
 
     CSS = """
     #status-label {
@@ -73,7 +77,13 @@ class _SMLApp(App[None]):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state in (WorkerState.SUCCESS, WorkerState.ERROR):
-            self.exit()
+            self.exit(False)
+
+    def action_quit_resume(self) -> None:
+        self.exit(False)
+
+    def action_quit_kill(self) -> None:
+        self.exit(True)
 
     def _render_status(self) -> Table:
         s = self._state
@@ -104,12 +114,18 @@ class _SMLApp(App[None]):
 
         out_lines = list(self._state.out_logs)
         out_log = self.query_one(f"#{_OUT_LOG_ID}", RichLog)
+        if len(out_lines) < self._out_written:
+            out_log.clear()
+            self._out_written = 0
         for line in out_lines[self._out_written :]:
             out_log.write(line)
         self._out_written = len(out_lines)
 
         err_lines = list(self._state.err_logs)
         err_log = self.query_one(f"#{_ERR_LOG_ID}", RichLog)
+        if len(err_lines) < self._err_written:
+            err_log.clear()
+            self._err_written = 0
         for line in err_lines[self._err_written :]:
             err_log.write(line)
         self._err_written = len(err_lines)
@@ -119,6 +135,6 @@ class LiveDisplay:
     def __init__(self, state: DisplayState) -> None:
         self._state = state
 
-    async def run(self, work: Coroutine[Any, Any, None]) -> None:
+    async def run(self, work: Coroutine[Any, Any, None]) -> bool:
         app = _SMLApp(self._state, work)
-        await app.run_async()
+        return await app.run_async() or False

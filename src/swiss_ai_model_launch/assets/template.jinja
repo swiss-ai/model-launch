@@ -5,6 +5,7 @@
 #SBATCH --exclusive
 #SBATCH --nodes={{ nodes }}
 #SBATCH --partition={{ partition }}
+{% if reservation %}#SBATCH --reservation={{ reservation }}{% endif %}
 #SBATCH --output=logs/%j/log.out
 #SBATCH --error=logs/%j/log.out
 
@@ -23,18 +24,17 @@ USE_OCF={{ "false" if disable_ocf else "true" }}
 OCF_SERVICE_NAME="llm"
 OCF_SERVICE_PORT=8080
 
-{% if telemetry_endpoint %}
-curl -sf -X POST "{{ telemetry_endpoint }}" \
-    -H "Content-Type: application/json" \
-    -d '{"user": "aryan", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": {{ nodes }}, "slurm_job_name": "{{ job_name }}", "slurm_partition": "{{ partition }}", "slurm_time": "{{ time }}", "slurm_account": "{{ account }}", "slurm_environment": "{{ environment }}", "interactive": false, "serving_framework": "{{ framework }}", "framework_args": "{{ framework_args }}", "pre_launch_cmds": "{{ pre_launch_cmds }}", "model_name": "string", "model_path": "string", "tp_size": 0, "host": "string", "port": 0, "workers": {{ workers }}, "nodes_per_worker": {{ nodes_per_worker }}, "worker_port": {{ worker_port }}, "use_router": {{ "true" if use_router else "false" }}, "router_environment": "{{ environment }}", "router_port": 30000, "router_args": "{{ router_args }}", "ocf_enabled": {{ "false" if disable_ocf else "true" }}, "ocf_bootstrap_addr": "string", "ocf_service_name": "llm", "ocf_service_port": 8080, "extra": {"additionalProp1": {}}, "raw_command": "string"}' || true
-{% endif %}
-
-{% raw %}
 OCF_BOOTSTRAP_ADDR=$(curl -sf http://148.187.108.172:8092/v1/dnt/bootstraps \
     | jq -r '.bootstraps[0]' \
     || echo "/ip4/148.187.108.172/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9")
 
+{% if telemetry_endpoint %}
+curl -sf -X POST "{{ telemetry_endpoint }}" \
+    -H "Content-Type: application/json" \
+    -d '{"user": "'"${USER}"'", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": {{ nodes }}, "slurm_job_name": "{{ job_name }}", "slurm_partition": "{{ partition }}", "slurm_time": "{{ time }}", "slurm_account": "{{ account }}", "slurm_environment": "{{ environment }}", "interactive": false, "serving_framework": "{{ framework }}", "framework_args": "{{ framework_args }}", "pre_launch_cmds": "{{ pre_launch_cmds }}", "model_name": "{{ served_model_name }}", "workers": {{ workers }}, "nodes_per_worker": {{ nodes_per_worker }}, "worker_port": {{ worker_port }}, "use_router": {{ "true" if use_router else "false" }}, "router_environment": "{{ environment }}", "router_port": 30000, "router_args": "{{ router_args }}", "ocf_enabled": {{ "false" if disable_ocf else "true" }}, "ocf_bootstrap_addr": "'"${OCF_BOOTSTRAP_ADDR}"'", "ocf_service_name": "llm", "ocf_service_port": 8080}' || true
+{% endif %}
 
+{% raw %}
 unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
 
 # Architecture detection

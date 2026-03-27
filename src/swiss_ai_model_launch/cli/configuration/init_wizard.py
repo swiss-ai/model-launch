@@ -35,13 +35,8 @@ class InitConfig(ChainConfiguration):
                                 "FirecREST",
                                 "If you have FirecREST credentials of the cluster.",
                             ),
-                            "remote": (
-                                "Remote Launcher (Not Operational Yet)",
-                                "If you have deployed a launcher elsewhere which is "
-                                "accessible over the network.",
-                            ),
                             "slurm": (
-                                "SLURM Commands (Not Operational Yet)",
+                                "SLURM Commands",
                                 "If you are running the CLI on the cluster head node "
                                 "and want to directly submit jobs using SLURM.",
                             ),
@@ -64,24 +59,14 @@ class InitConfig(ChainConfiguration):
                                 PasswordConfiguration(
                                     name="firecrest_client_id",
                                     prompt="What is your FirecREST client ID?",
+                                    env_var="SML_FIRECREST_CLIENT_ID",
+                                    expose_as_arg=False,
                                 ),
                                 PasswordConfiguration(
                                     name="firecrest_client_secret",
                                     prompt="What is your FirecREST client secret?",
-                                ),
-                            ],
-                        ),
-                        "remote": ChainConfiguration(
-                            name="remote_launcher_configuration",
-                            chain=[
-                                TextConfiguration(
-                                    name="remote_launcher_address",
-                                    prompt="What is your remote launcher address?",
-                                ),
-                                TextConfiguration(
-                                    name="remote_launcher_auth_token",
-                                    prompt="What is your token for authenticating in "
-                                    "remote launcher?",
+                                    env_var="SML_FIRECREST_CLIENT_SECRET",
+                                    expose_as_arg=False,
                                 ),
                             ],
                         ),
@@ -92,16 +77,13 @@ class InitConfig(ChainConfiguration):
                     name="cscs_api_key",
                     prompt="What is your CSCS API key? "
                     "(https://serving.swissai.svc.cscs.ch)",
+                    env_var="SML_CSCS_API_KEY",
+                    expose_as_arg=False,
                 ),
-                ChainConfiguration(
-                    name="telemetry_endpoint_configuration",
-                    chain=[
-                        TextConfiguration(
-                            name="telemetry_endpoint",
-                            prompt="Where to send telemetry reports?",
-                            default="https://sml-dev.swissai.svc.cscs.ch/launches",
-                        ),
-                    ],
+                TextConfiguration(
+                    name="telemetry_endpoint",
+                    prompt="Where to send telemetry reports?",
+                    default="https://sml-dev.swissai.svc.cscs.ch/launches",
                 ),
             ],
         )

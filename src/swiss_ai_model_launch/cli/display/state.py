@@ -43,12 +43,10 @@ class DisplayState:
             self.served_model_name = served_model_name
         self._notify()
 
-    def append_out_log(self, text: str) -> None:
-        for line in text.splitlines():
-            self.out_logs.append(line)
+    def set_out_log(self, text: str) -> None:
+        self.out_logs = deque(text.splitlines())
         self._notify()
 
-    def append_err_log(self, text: str) -> None:
-        for line in text.splitlines():
-            self.err_logs.append(line)
+    def set_err_log(self, text: str) -> None:
+        self.err_logs = deque(text.splitlines())
         self._notify()

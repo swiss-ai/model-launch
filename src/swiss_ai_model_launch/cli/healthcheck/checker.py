@@ -4,10 +4,12 @@ from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 
 _HEALTH_CHECK_URL = "https://api.swissai.svc.cscs.ch/v1/chat/completions"
 _MESSAGE = {"role": "user", "content": "Say hello."}
-_TIMEOUT_SECONDS = 60
+_TIMEOUT_SECONDS = 10
 
 
-async def check_model_health(served_model_name: str, api_key: str) -> ModelHealth:
+async def check_model_health(
+    served_model_name: str, api_key: str, ever_healthy: bool = False
+) -> ModelHealth:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -23,8 +25,8 @@ async def check_model_health(served_model_name: str, api_key: str) -> ModelHealt
                 },
                 timeout=_TIMEOUT_SECONDS,
             )
-        return (
-            ModelHealth.HEALTHY if response.is_success else ModelHealth.NOT_RESPONDING
-        )
+        if response.is_success:
+            return ModelHealth.HEALTHY
+        return ModelHealth.NOT_RESPONDING if ever_healthy else ModelHealth.NOT_DEPLOYED
     except (httpx.TransportError, httpx.TimeoutException):
         return ModelHealth.ERROR

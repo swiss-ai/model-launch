@@ -7,7 +7,8 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "",
+    "_include_in_lightweight_ci": true
   },
   {
     "vendor": "swiss-ai",
@@ -17,7 +18,8 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "",
+    "_include_in_lightweight_ci": true
   },
   {
     "vendor": "swiss-ai",
@@ -25,19 +27,9 @@
     "framework": "sglang",
     "environment": null,
     "workers": 1,
-    "nodes_per_worker": 1,
+    "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": ""
-  },
-  {
-    "vendor": "swiss-ai",
-    "model_name": "Apertus-70B-Instruct-2509",
-    "framework": "vllm",
-    "environment": null,
-    "workers": 1,
-    "nodes_per_worker": 1,
-    "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "--tp-size 8"
   },
   {
     "vendor": "Qwen",

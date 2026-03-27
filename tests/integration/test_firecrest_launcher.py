@@ -1,4 +1,6 @@
 import asyncio
+import importlib.resources
+import json
 import os
 
 import firecrest as f7t
@@ -8,6 +10,23 @@ from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_healt
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus
+
+_LAUNCH_TIMEOUT = 60
+_HEALTH_TIMEOUT = 120
+
+_ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
+_MODEL_JSON = _ASSERTS.joinpath("models.json")
+_LAUNCH_REQUESTS = [
+    pytest.param(
+        LaunchRequest.model_validate(entry),
+        id=f"{entry['vendor']}/{entry['model_name']}/{entry['framework']}",
+        marks=[pytest.mark.full]
+        + (
+            [pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []
+        ),
+    )
+    for entry in json.loads(_MODEL_JSON.read_text())
+]
 
 _REQUIRED_ENV_VARS = [
     "FIRECREST_URL",
@@ -19,6 +38,7 @@ _REQUIRED_ENV_VARS = [
     "FIRECREST_ACCOUNT",
     "FIRECREST_PARTITION",
     "CSCS_API_KEY",
+    "RESERVATION",
 ]
 
 
@@ -49,6 +69,7 @@ def launcher(env: dict[str, str]) -> FirecRESTLauncher:
         username=env["FIRECREST_USERNAME"],
         account=env["FIRECREST_ACCOUNT"],
         partition=env["FIRECREST_PARTITION"],
+        reservation=env["RESERVATION"] or None,
     )
 
 
@@ -93,45 +114,11 @@ async def _wait_for_model_healthy(
     )
 
 
-@pytest.mark.parametrize(
-    "launch_request,launch_timeout,health_timeout",
-    [
-        pytest.param(
-            LaunchRequest(
-                vendor="swiss-ai",
-                model_name="Apertus-8B-Instruct-2509",
-                framework="sglang",
-                environment=None,
-                workers=1,
-                nodes_per_worker=1,
-                time="00:30:00",
-            ),
-            10,
-            20,
-            id="sglang",
-        ),
-        pytest.param(
-            LaunchRequest(
-                vendor="swiss-ai",
-                model_name="Apertus-8B-Instruct-2509",
-                framework="vllm",
-                environment=None,
-                workers=1,
-                nodes_per_worker=1,
-                time="00:30:00",
-            ),
-            10,
-            20,
-            id="vllm",
-        ),
-    ],
-)  # type: ignore[misc]
+@pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS)  # type: ignore[misc]
 async def test_launch_apertus_and_health(
     launcher: FirecRESTLauncher,
     cscs_api_key: str,
     launch_request: LaunchRequest,
-    launch_timeout: int,
-    health_timeout: int,
 ) -> None:
     job_id, served_model_name = await launcher.launch_model(launch_request)
     print(f"Submitted job_id={job_id}, served_model_name={served_model_name}")
@@ -140,7 +127,7 @@ async def test_launch_apertus_and_health(
     assert served_model_name
 
     try:
-        await _wait_for_job_running(launcher, job_id, launch_timeout)
-        await _wait_for_model_healthy(served_model_name, cscs_api_key, health_timeout)
+        await _wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
+        await _wait_for_model_healthy(served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
     finally:
         await launcher.cancel_job(job_id)

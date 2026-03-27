@@ -5,12 +5,11 @@ from importlib.resources import files
 from pathlib import Path
 
 import firecrest as f7t
-from jinja2 import Template
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import create_salt, render_job_script
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
@@ -18,14 +17,8 @@ _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglan
 _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
 
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
-_TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
 
 _APP_WORKING_DIRECTORY = ".sml"
-
-
-def render_job_script(launch_args: LaunchArgs) -> str:
-    template = Template(_TEMPLATE_PATH.read_text())
-    return str(template.render(**launch_args.model_dump()))
 
 
 class FirecRESTLauncher(Launcher):
@@ -36,15 +29,18 @@ class FirecRESTLauncher(Launcher):
         username: str,
         account: str,
         partition: str,
+        reservation: str | None = None,
         telemetry_endpoint: str | None = None,
     ):
-        super().__init__()
+        super().__init__(
+            system_name=system_name,
+            username=username,
+            account=account,
+            partition=partition,
+            reservation=reservation,
+            telemetry_endpoint=telemetry_endpoint,
+        )
         self.client = client
-        self.system_name = system_name
-        self.username = username
-        self.account = account
-        self.partition = partition
-        self.telemetry_endpoint = telemetry_endpoint
 
     def _get_user_dir(self) -> str:
         return f"/users/{self.username}"
@@ -70,6 +66,7 @@ class FirecRESTLauncher(Launcher):
             workers=launch_request.workers,
             nodes_per_worker=launch_request.nodes_per_worker,
             time=launch_request.time,
+            reservation=self.reservation,
             environment=launch_request.environment,
             framework=launch_request.framework,
             served_model_name=served_model_name,
@@ -102,22 +99,18 @@ class FirecRESTLauncher(Launcher):
                 "and no default environment is available for the specified framework."
             )
 
-    async def _create_remote_env_file_path(self, launch_request: LaunchRequest) -> str:
+    async def _upload_env_file(self, local_env_path: str, framework: str) -> str:
         working_dir = self._get_working_dir()
-
         await self.client.mkdir(
             system_name=self.system_name,
             path=working_dir,
             create_parents=True,
         )
-
-        local_env_path = self._get_local_env_file_path(launch_request)
         remote_env_filename = "env_{}_{}_{}.toml".format(
-            launch_request.framework,
+            framework,
             datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
             create_salt(8),
         )
-
         await self.client.upload(
             system_name=self.system_name,
             local_file=local_env_path,
@@ -126,8 +119,29 @@ class FirecRESTLauncher(Launcher):
             account=self.account,
             blocking=True,
         )
-
         return str(Path(working_dir) / remote_env_filename)
+
+    async def _create_remote_env_file_path(self, launch_request: LaunchRequest) -> str:
+        return await self._upload_env_file(
+            self._get_local_env_file_path(launch_request),
+            launch_request.framework,
+        )
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        remote_env_path = await self._upload_env_file(
+            launch_args.environment, launch_args.framework
+        )
+        launch_args = launch_args.model_copy(
+            update={"environment": remote_env_path, "reservation": self.reservation}
+        )
+        script_str = render_job_script(launch_args)
+        job_submission_report = await self.client.submit(
+            system_name=self.system_name,
+            working_dir=self._get_working_dir(),
+            script_str=script_str,
+            account=self.account,
+        )
+        return int(job_submission_report["jobId"]), launch_args.served_model_name
 
     async def get_preconfigured_models(self) -> list[LaunchRequest]:
         return [
@@ -161,7 +175,7 @@ class FirecRESTLauncher(Launcher):
             jobid=str(job_id),
             # account=self.account,  # TODO
         )
-        return JobStatus(str(job_info[0]["status"]["state"]))
+        return JobStatus.from_str(str(job_info[0]["status"]["state"]))
 
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)
