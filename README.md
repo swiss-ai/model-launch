@@ -29,7 +29,7 @@ Before diving into the documentation, take a moment to determine where you fit i
 You can run SML on your local machine and it will submit jobs to the cluster via FirecREST. Or, you can SSH into the cluster and directly run SML there. You can choose the option that best suits your needs and preferences. Your choice will only affect the initialization process, but not the rest of the usage. This choice will affect how you initialize SML and which credentials you need to provide. The two options are:
 
 1. FirecREST
-2. SLURM (not operational yet)
+2. SLURM
 
 ### What Is My Use Case?
 
