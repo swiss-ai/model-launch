@@ -67,7 +67,7 @@ select = [
 [tool.mypy]
 files = ["src"]
 strict = true
-python_version = "3.10"
+python_version = "3.12"
 plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
