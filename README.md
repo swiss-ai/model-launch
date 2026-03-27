@@ -101,7 +101,7 @@ export SML_PARTITION=normal
 
 If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
 
-#### Example of Basic Usage
+#### Example
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
@@ -141,7 +141,7 @@ For full control over the SLURM job, use `sml advanced`. This bypasses the model
 
 Again, for simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
 
-#### Example of Advanced Usage
+#### Example
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden

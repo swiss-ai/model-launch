@@ -33,3 +33,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: mypy
+
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: |
+            **/*.md
+            !legacy/**/*.md
+          config: .markdownlint.yaml
