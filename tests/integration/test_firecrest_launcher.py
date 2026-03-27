@@ -29,16 +29,14 @@ _LAUNCH_REQUESTS = [
 ]
 
 _REQUIRED_ENV_VARS = [
-    "FIRECREST_URL",
-    "FIRECREST_TOKEN_URI",
-    "FIRECREST_CLIENT_ID",
-    "FIRECREST_CLIENT_SECRET",
-    "FIRECREST_SYSTEM",
-    "FIRECREST_USERNAME",
-    "FIRECREST_ACCOUNT",
-    "FIRECREST_PARTITION",
-    "CSCS_API_KEY",
-    "RESERVATION",
+    "SML_CSCS_API_KEY",
+    "SML_FIRECREST_CLIENT_ID",
+    "SML_FIRECREST_CLIENT_SECRET",
+    "SML_FIRECREST_SYSTEM",
+    "SML_FIRECREST_TOKEN_URI",
+    "SML_FIRECREST_URL",
+    "SML_PARTITION",
+    "SML_RESERVATION",
 ]
 
 
@@ -54,28 +52,26 @@ def env() -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
-def launcher(env: dict[str, str]) -> FirecRESTLauncher:
+async def launcher(env: dict[str, str]) -> FirecRESTLauncher:
     client = f7t.v2.AsyncFirecrest(
-        firecrest_url=env["FIRECREST_URL"],
+        firecrest_url=env["SML_FIRECREST_URL"],
         authorization=f7t.ClientCredentialsAuth(
-            client_id=env["FIRECREST_CLIENT_ID"],
-            client_secret=env["FIRECREST_CLIENT_SECRET"],
-            token_uri=env["FIRECREST_TOKEN_URI"],
+            client_id=env["SML_FIRECREST_CLIENT_ID"],
+            client_secret=env["SML_FIRECREST_CLIENT_SECRET"],
+            token_uri=env["SML_FIRECREST_TOKEN_URI"],
         ),
     )
-    return FirecRESTLauncher(
+    return await FirecRESTLauncher.from_client(
         client=client,
-        system_name=env["FIRECREST_SYSTEM"],
-        username=env["FIRECREST_USERNAME"],
-        account=env["FIRECREST_ACCOUNT"],
-        partition=env["FIRECREST_PARTITION"],
-        reservation=env["RESERVATION"] or None,
+        system_name=env["SML_FIRECREST_SYSTEM"],
+        partition=env["SML_PARTITION"],
+        reservation=env["SML_RESERVATION"] or None,
     )
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
 def cscs_api_key(env: dict[str, str]) -> str:
-    return env["CSCS_API_KEY"]
+    return env["SML_CSCS_API_KEY"]
 
 
 async def _wait_for_job_running(

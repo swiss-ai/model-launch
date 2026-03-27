@@ -186,15 +186,14 @@ pre-commit install
 For writing the integration tests, you have to create a `.test.sh` file in the root of the repository with the following content:
 
 ```shell
-export FIRECREST_URL=<your-firecrest-url>
-export FIRECREST_TOKEN_URI=<your-token-uri>
-export FIRECREST_CLIENT_ID=<your-client-id>
-export FIRECREST_CLIENT_SECRET=<your-client-secret>
-export FIRECREST_SYSTEM=clariden
-export FIRECREST_ACCOUNT=<your-account>
-export FIRECREST_PARTITION=normal
-export CSCS_API_KEY=<your-api-key>
-export RESERVATION=<your-reservation>
+export SML_CSCS_API_KEY=<your-api-key>
+export SML_FIRECREST_CLIENT_ID=<your-client-id>
+export SML_FIRECREST_CLIENT_SECRET=<your-client-secret>
+export SML_FIRECREST_SYSTEM=clariden
+export SML_FIRECREST_TOKEN_URI=<your-token-uri>
+export SML_FIRECREST_URL=<your-firecrest-url>
+export SML_PARTITION=normal
+export SML_RESERVATION=<your-reservation>
 ```
 
 This file will be sourced when running the tests with `make test-lightweight` or `make test-comprehensive`, and the environment variables will be available for the tests.
