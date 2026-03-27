@@ -1,4 +1,4 @@
-name: CI (Full)
+name: Comprehensive CI
 
 on:
   workflow_dispatch:
