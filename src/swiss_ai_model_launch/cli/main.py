@@ -154,6 +154,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _meta = importlib.metadata.metadata("swiss-ai-model-launch")
     parser.add_argument(
+        "-V",
         "--version",
         action="version",
         version=f"sml {_meta['Version']}",
