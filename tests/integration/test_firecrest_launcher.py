@@ -44,7 +44,7 @@ _REQUIRED_ENV_VARS = [
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
 def env() -> dict[str, str]:
-    missing = [v for v in _REQUIRED_ENV_VARS if os.environ.get(v) is None]
+    missing = [v for v in _REQUIRED_ENV_VARS if not os.environ.get(v)]
     if missing:
         pytest.fail(
             "Missing required environment variables: " + ", ".join(missing),
