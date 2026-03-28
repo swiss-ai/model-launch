@@ -18,6 +18,12 @@ Requires Python 3.12 or later.
   pip install git+https://github.com/swiss-ai/model-launch.git
   ```
 
+To verify installation, run:
+
+```bash
+sml --version
+```
+
 If you want to contribute to the project, please follow the instructions in the [Development](#development) section to set up the development environment instead of the above installation.
 
 ## Before You Begin
