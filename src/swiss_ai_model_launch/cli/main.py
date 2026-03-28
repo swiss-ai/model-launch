@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import getpass
 import grp
+import importlib.metadata
 import os
 import re
 from collections.abc import Awaitable, Callable, Coroutine
@@ -150,6 +151,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sml",
         description="Swiss AI Model Launcher",
+    )
+    _meta = importlib.metadata.metadata("swiss-ai-model-launch")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"sml {_meta['Version']}",
     )
     subparsers = parser.add_subparsers(dest="subcommand", required=False)
 
@@ -596,15 +603,11 @@ async def _main(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    import sys
-
-    _subcommands = {"init", "preconfigured", "advanced"}
-    positionals = [a for a in sys.argv[1:] if not a.startswith("-")]
-    if not any(p in _subcommands for p in positionals):
+    parser = _build_parser()
+    args = parser.parse_args()
+    if args.subcommand is None:
         default = "preconfigured" if InitConfig.exists() else "init"
-        sys.argv.insert(1, default)
-
-    args = _build_parser().parse_args()
+        args = parser.parse_args([default])
     asyncio.run(_main(args))
 
 
