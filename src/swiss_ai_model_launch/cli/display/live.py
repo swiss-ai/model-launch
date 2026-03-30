@@ -1,7 +1,11 @@
+import os
 from collections.abc import Coroutine
 from typing import Any
 
+import rich
+from rich.segment import Segments
 from rich.table import Table
+from rich.traceback import Traceback
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, RichLog, TabbedContent, TabPane
@@ -84,6 +88,19 @@ class _SMLApp(App[bool]):
 
     def action_quit_kill(self) -> None:
         self.exit(True)
+
+    def _fatal_error(self) -> None:
+        show_locals = os.environ.get("SML_DEBUG", "").lower() in ("1", "true", "yes")
+        self.bell()
+        self._exit_renderables.append(
+            Segments(
+                self.console.render(
+                    Traceback(show_locals=show_locals, width=None, suppress=[rich]),
+                    self.console.options,
+                )
+            )
+        )
+        self._close_messages_no_wait()
 
     def _render_status(self) -> Table:
         s = self._state
