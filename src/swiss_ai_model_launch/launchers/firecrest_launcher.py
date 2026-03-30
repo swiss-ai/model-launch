@@ -9,7 +9,11 @@ import firecrest as f7t
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
-from swiss_ai_model_launch.launchers.utils import create_salt, render_job_script
+from swiss_ai_model_launch.launchers.utils import (
+    create_salt,
+    decode_log,
+    render_job_script,
+)
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
@@ -211,8 +215,8 @@ class FirecRESTLauncher(Launcher):
                     account=self.account,
                     blocking=True,
                 )
-                with open(target_dir_path / "log.out") as out_f:
-                    out_log = out_f.read()
+                with open(target_dir_path / "log.out", "rb") as out_f:
+                    out_log = decode_log(out_f.read())
             except FileNotFoundError:
                 out_log = ""
 
@@ -224,8 +228,8 @@ class FirecRESTLauncher(Launcher):
                     account=self.account,
                     blocking=True,
                 )
-                with open(target_dir_path / "log.err") as err_f:
-                    err_log = err_f.read()
+                with open(target_dir_path / "log.err", "rb") as err_f:
+                    err_log = decode_log(err_f.read())
             except FileNotFoundError:
                 err_log = ""
 
