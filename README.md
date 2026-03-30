@@ -169,6 +169,8 @@ export SML_DEBUG=1
 
 By default, local variables are hidden from crash reports.
 
+> **Warning:** `SML_DEBUG=1` may expose secrets (such as your CSCS API key) in crash output. Do not share terminal output captured with this flag enabled.
+
 ### Setting Up Development Environment
 
 ```bash
