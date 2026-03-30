@@ -61,7 +61,7 @@ done
 # Build the launch command based on framework
 case "$FRAMEWORK" in
     sglang)
-        FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
+        FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"0\""
         FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
         ;;
     vllm)
