@@ -159,6 +159,16 @@ sml advanced \
 
 ## Development
 
+### Debugging
+
+Set `SML_DEBUG=1` to include local variables in crash tracebacks:
+
+```bash
+export SML_DEBUG=1
+```
+
+By default, local variables are hidden from crash reports.
+
 ### Setting Up Development Environment
 
 ```bash
