@@ -73,6 +73,16 @@
     "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85"
   },
   {
+    "vendor": "deepseek-ai",
+    "model_name": "DeepSeek-V3.2",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 4,
+    "time": "02:00:00",
+    "framework_args": "--tp-size 16 --trust-remote-code"
+  },
+  {
     "vendor": "openai",
     "model_name": "gpt-oss-120b",
     "framework": "sglang",
