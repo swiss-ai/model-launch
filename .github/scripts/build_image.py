@@ -50,8 +50,12 @@ IMAGE_TAG="localhost/{image_name}:${{SLURM_JOB_ID}}"
 FINAL_SQSH="{output_sqsh}"
 TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
 
+# No D-Bus in SLURM batch jobs — use cgroupfs instead of systemd.
+export DBUS_SESSION_BUS_ADDRESS=""
+PODMAN="podman --root ${{PODMAN_ROOT}} --cgroup-manager=cgroupfs"
+
 cleanup() {{
-    podman --root "${{PODMAN_ROOT}}" rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+    ${{PODMAN}} rmi "${{IMAGE_TAG}}" 2>/dev/null || true
     rm -f "${{TEMP_TAR}}" "${{TEMP_SQSH}}" 2>/dev/null || true
     rm -rf "${{PODMAN_ROOT}}" 2>/dev/null || true
 }}
@@ -60,13 +64,13 @@ trap cleanup EXIT
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
 echo "CPUs available: $(nproc)"
 
-podman --root "${{PODMAN_ROOT}}" build \\
+${{PODMAN}} build \\
     --build-arg FA3_MAX_JOBS="$(nproc)" \\
     -t "${{IMAGE_TAG}}" \\
     "{remote_build_dir}"
 
 echo "=== Build complete, exporting as OCI archive ==="
-podman --root "${{PODMAN_ROOT}}" save \\
+${{PODMAN}} save \\
     --format oci-archive \\
     -o "${{TEMP_TAR}}" \\
     "${{IMAGE_TAG}}"
