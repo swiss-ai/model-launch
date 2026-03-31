@@ -1,0 +1,11 @@
+default: true
+
+# Line length is impractical to enforce in markdown (long URLs, badges, tables)
+MD013: false
+
+# Allow duplicate headings in different sections
+MD024:
+  siblings_only: true
+
+# Inline HTML is acceptable in some cases
+MD033: false

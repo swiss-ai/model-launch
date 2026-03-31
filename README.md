@@ -101,7 +101,7 @@ export SML_PARTITION=normal
 
 If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
 
-#### Example of Basic Usage
+#### Example
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
@@ -141,7 +141,7 @@ For full control over the SLURM job, use `sml advanced`. This bypasses the model
 
 Again, for simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
 
-#### Example of Advanced Usage
+#### Example
 
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
@@ -186,18 +186,17 @@ pre-commit install
 For writing the integration tests, you have to create a `.test.sh` file in the root of the repository with the following content:
 
 ```shell
-export FIRECREST_URL=<your-firecrest-url>
-export FIRECREST_TOKEN_URI=<your-token-uri>
-export FIRECREST_CLIENT_ID=<your-client-id>
-export FIRECREST_CLIENT_SECRET=<your-client-secret>
-export FIRECREST_SYSTEM=clariden
-export FIRECREST_ACCOUNT=<your-account>
-export FIRECREST_PARTITION=normal
-export CSCS_API_KEY=<your-api-key>
-export RESERVATION=<your-reservation>
+export SML_CSCS_API_KEY=<your-api-key>
+export SML_FIRECREST_CLIENT_ID=<your-client-id>
+export SML_FIRECREST_CLIENT_SECRET=<your-client-secret>
+export SML_FIRECREST_SYSTEM=clariden
+export SML_FIRECREST_TOKEN_URI=<your-token-uri>
+export SML_FIRECREST_URL=<your-firecrest-url>
+export SML_PARTITION=normal
+export SML_RESERVATION=<your-reservation>
 ```
 
-This file will be sourced when running the tests with `make test`, and the environment variables will be available for the tests.
+This file will be sourced when running the tests with `make test-lightweight` or `make test-comprehensive`, and the environment variables will be available for the tests.
 
 ### Common Commands
 
@@ -209,19 +208,37 @@ There is a `Makefile` with common development commands.
    make format
    ```
 
-2. To run tests, you can run:
+2. To lint shell scripts, you can run:
 
    ```bash
-   make test
+   make shellcheck
    ```
 
-3. To clean up cache files, you can run:
+3. To lint Markdown files, you can run:
+
+   ```bash
+   make markdownlint
+   ```
+
+4. To run lightweight integration tests (auto CI subset), you can run:
+
+   ```bash
+   make test-lightweight
+   ```
+
+5. To run comprehensive integration tests (full suite), you can run:
+
+   ```bash
+   make test-comprehensive
+   ```
+
+6. To clean up cache files, you can run:
 
    ```bash
    make clean-cache
    ```
 
-4. To clean up the env and cache, you can run:
+7. To clean up the env and cache, you can run:
 
    ```bash
    make clean-dev

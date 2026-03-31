@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    name: Detect Changed Images
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.detect.outputs.images }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed image directories
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}" -- images/ \
+              | grep '^images/' \
+              | cut -d/ -f2 \
+              | sort -u)
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+
+            # First push to branch or workflow_dispatch has all-zero before SHA
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+              CHANGED=$(ls images/)
+            else
+              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- images/ \
+                | grep '^images/' \
+                | cut -d/ -f2 \
+                | sort -u)
+            fi
+          fi
+
+          # Keep only entries that are actual image directories
+          VALID=""
+          for dir in $CHANGED; do
+            [ -d "images/$dir" ] && VALID="$VALID $dir"
+          done
+
+          IMAGES=$(echo "$VALID" | tr ' ' '\n' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
+          echo "Detected images: $IMAGES"
+
+  build:
+    name: Build ${{ matrix.image }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+      fail-fast: false
+    env:
+      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
+      SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
+      SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - name: Build image and save sqsh
+        run: python .github/scripts/build_image.py "${{ matrix.image }}"
+        timeout-minutes: 300
+
+  test-lightweight:
+    name: Tests (lightweight)
+    needs: [detect-changes, build]
+    if: always() && needs.build.result != 'failure'
+    runs-on: ubuntu-latest
+    env:
+      SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
+      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
+      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
+      SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make _test-lightweight
+
+  test-comprehensive:
+    name: Tests (comprehensive)
+    needs: [detect-changes, build]
+    if: |
+      always() &&
+      needs.build.result != 'failure' &&
+      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-full-tests'))
+    runs-on: ubuntu-latest
+    env:
+      SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
+      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
+      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
+      SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make _test-comprehensive

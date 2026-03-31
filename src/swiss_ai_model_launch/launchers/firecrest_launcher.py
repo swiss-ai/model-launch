@@ -42,6 +42,26 @@ class FirecRESTLauncher(Launcher):
         )
         self.client = client
 
+    @classmethod
+    async def from_client(
+        cls,
+        client: f7t.v2.AsyncFirecrest,
+        system_name: str,
+        partition: str,
+        reservation: str | None = None,
+        telemetry_endpoint: str | None = None,
+    ) -> "FirecRESTLauncher":
+        user_info = await client.userinfo(system_name)
+        return cls(
+            client=client,
+            system_name=system_name,
+            username=user_info["user"]["name"],
+            account=user_info["group"]["name"],
+            partition=partition,
+            reservation=reservation,
+            telemetry_endpoint=telemetry_endpoint,
+        )
+
     def _get_user_dir(self) -> str:
         return f"/users/{self.username}"
 

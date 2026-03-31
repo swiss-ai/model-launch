@@ -1,11 +1,26 @@
-.PHONY: format test clean-cache clean-dev
+.PHONY: format shellcheck markdownlint _test-lightweight _test-comprehensive test-lightweight test-comprehensive clean-cache clean-dev
 
 format:
 	ruff format .
 	ruff check --fix .
 
-test:
-	. ./.test.sh && pytest --cov --cov-report=term-missing -n auto
+shellcheck:
+	find . -name "*.sh" -not -path "./legacy/*" -not -path "./.venv/*" | xargs shellcheck
+
+markdownlint:
+	npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!legacy/**/*.md" "!.venv/**/*.md"
+
+_test-lightweight:
+	pytest -m lightweight --cov --cov-report=term-missing -n auto
+
+_test-comprehensive:
+	pytest -m full --cov --cov-report=term-missing -n auto
+
+test-lightweight:
+	. ./.test.sh && $(MAKE) _test-lightweight
+
+test-comprehensive:
+	. ./.test.sh && $(MAKE) _test-comprehensive
 
 clean-cache:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

@@ -308,8 +308,6 @@ async def _get_firecrest_launcher_with_client(
     await firecrest_config.aconfigure(args=args)
     system_name = firecrest_config.get_non_none_value("firecrest_system")
 
-    user_info = await client.userinfo(system_name)
-
     async def _get_partitions() -> dict[str, tuple[str, str]]:
         return {
             part["name"]: (part["name"], part["name"])
@@ -322,11 +320,9 @@ async def _get_firecrest_launcher_with_client(
     reservation_config = _make_reservation_config()
     await reservation_config.aconfigure(args=args)
 
-    return FirecRESTLauncher(
-        client,
+    return await FirecRESTLauncher.from_client(
+        client=client,
         system_name=system_name,
-        username=user_info["user"]["name"],
-        account=user_info["group"]["name"],
         partition=partition_config.get_non_none_value("partition"),
         reservation=reservation_config.get_value("reservation") or None,
         telemetry_endpoint=telemetry_endpoint,
@@ -521,9 +517,9 @@ async def _run_monitor(
             job_status = await launcher.get_job_status(job_id)
             state.update(job_status=job_status)
 
-            model_health = await check_model_health(
-                served, cscs_api_key, ever_healthy=ever_healthy
-            )
+            model_health = await check_model_health(served, cscs_api_key)
+            if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
+                model_health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
             state.update(model_health=model_health)
 

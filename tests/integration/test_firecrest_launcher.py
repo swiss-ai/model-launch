@@ -1,4 +1,3 @@
-import asyncio
 import importlib.resources
 import json
 import os
@@ -6,10 +5,9 @@ import os
 import firecrest as f7t
 import pytest
 
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _LAUNCH_TIMEOUT = 60
 _HEALTH_TIMEOUT = 120
@@ -29,16 +27,14 @@ _LAUNCH_REQUESTS = [
 ]
 
 _REQUIRED_ENV_VARS = [
-    "FIRECREST_URL",
-    "FIRECREST_TOKEN_URI",
-    "FIRECREST_CLIENT_ID",
-    "FIRECREST_CLIENT_SECRET",
-    "FIRECREST_SYSTEM",
-    "FIRECREST_USERNAME",
-    "FIRECREST_ACCOUNT",
-    "FIRECREST_PARTITION",
-    "CSCS_API_KEY",
-    "RESERVATION",
+    "SML_CSCS_API_KEY",
+    "SML_FIRECREST_CLIENT_ID",
+    "SML_FIRECREST_CLIENT_SECRET",
+    "SML_FIRECREST_SYSTEM",
+    "SML_FIRECREST_TOKEN_URI",
+    "SML_FIRECREST_URL",
+    "SML_PARTITION",
+    "SML_RESERVATION",
 ]
 
 
@@ -54,64 +50,26 @@ def env() -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
-def launcher(env: dict[str, str]) -> FirecRESTLauncher:
+async def launcher(env: dict[str, str]) -> FirecRESTLauncher:
     client = f7t.v2.AsyncFirecrest(
-        firecrest_url=env["FIRECREST_URL"],
+        firecrest_url=env["SML_FIRECREST_URL"],
         authorization=f7t.ClientCredentialsAuth(
-            client_id=env["FIRECREST_CLIENT_ID"],
-            client_secret=env["FIRECREST_CLIENT_SECRET"],
-            token_uri=env["FIRECREST_TOKEN_URI"],
+            client_id=env["SML_FIRECREST_CLIENT_ID"],
+            client_secret=env["SML_FIRECREST_CLIENT_SECRET"],
+            token_uri=env["SML_FIRECREST_TOKEN_URI"],
         ),
     )
-    return FirecRESTLauncher(
+    return await FirecRESTLauncher.from_client(
         client=client,
-        system_name=env["FIRECREST_SYSTEM"],
-        username=env["FIRECREST_USERNAME"],
-        account=env["FIRECREST_ACCOUNT"],
-        partition=env["FIRECREST_PARTITION"],
-        reservation=env["RESERVATION"] or None,
+        system_name=env["SML_FIRECREST_SYSTEM"],
+        partition=env["SML_PARTITION"],
+        reservation=env["SML_RESERVATION"] or None,
     )
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
 def cscs_api_key(env: dict[str, str]) -> str:
-    return env["CSCS_API_KEY"]
-
-
-async def _wait_for_job_running(
-    launcher: FirecRESTLauncher,
-    job_id: int,
-    timeout_min: int,
-    poll_interval_seconds: int = 15,
-) -> None:
-    deadline = asyncio.get_event_loop().time() + timeout_min * 60
-    while asyncio.get_event_loop().time() < deadline:
-        await asyncio.sleep(poll_interval_seconds)
-        status = await launcher.get_job_status(job_id)
-        print(f"[job {job_id}] status: {status.value}")
-        if status == JobStatus.RUNNING:
-            return
-        if status == JobStatus.TIMEOUT:
-            pytest.fail(f"Job {job_id} timed out before becoming RUNNING.")
-    pytest.fail(f"Job {job_id} didn't reach RUNNING within {timeout_min} mins.")
-
-
-async def _wait_for_model_healthy(
-    served_model_name: str,
-    api_key: str,
-    timeout_min: int,
-    poll_interval_seconds: int = 30,
-) -> None:
-    deadline = asyncio.get_event_loop().time() + timeout_min * 60
-    while asyncio.get_event_loop().time() < deadline:
-        await asyncio.sleep(poll_interval_seconds)
-        health = await check_model_health(served_model_name, api_key)
-        print(f"[{served_model_name}] health: {health.value}")
-        if health == ModelHealth.HEALTHY:
-            return
-    pytest.fail(
-        f"Model '{served_model_name}' didn't become HEALTHY within {timeout_min} mins."
-    )
+    return env["SML_CSCS_API_KEY"]
 
 
 @pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS)  # type: ignore[misc]
@@ -121,13 +79,12 @@ async def test_launch_apertus_and_health(
     launch_request: LaunchRequest,
 ) -> None:
     job_id, served_model_name = await launcher.launch_model(launch_request)
-    print(f"Submitted job_id={job_id}, served_model_name={served_model_name}")
 
     assert isinstance(job_id, int)
     assert served_model_name
 
     try:
-        await _wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
-        await _wait_for_model_healthy(served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
+        await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
+        await wait_for_model_healthy(served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
     finally:
         await launcher.cancel_job(job_id)
