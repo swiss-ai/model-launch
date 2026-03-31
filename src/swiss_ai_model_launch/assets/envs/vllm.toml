@@ -1,4 +1,4 @@
-image = "/capstor/store/cscs/swissai/infra01/container-images/vllm_cuda13.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_cuda13.sqsh"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
