@@ -10,7 +10,7 @@ from pathlib import Path
 
 import firecrest as f7t
 
-_CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images"
+_CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
 _POLL_INTERVAL = 60  # seconds
 _TIMEOUT = 4 * 3600  # 4 hours
 _TERMINAL_STATES = {
@@ -141,15 +141,7 @@ async def main(image_name: str) -> int:
                 blocking=True,
             )
 
-    pr_number = os.environ.get("PR_NUMBER")
-    if pr_number:
-        output_sqsh = f"{_CAPSTOR_IMAGES}/pr-{pr_number}/{image_name}.sqsh"
-        await client.mkdir(
-            system_name, f"{_CAPSTOR_IMAGES}/pr-{pr_number}", create_parents=True
-        )
-        print(f"PR build — staging path: {output_sqsh}")
-    else:
-        output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}.sqsh"
+    output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}.sqsh"
 
     script = _build_slurm_script(
         image_name=image_name,

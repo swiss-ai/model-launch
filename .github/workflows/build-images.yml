@@ -78,5 +78,3 @@ jobs:
       - name: Build image and save sqsh
         run: python .github/scripts/build_image.py "${{ matrix.image }}"
         timeout-minutes: 300
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
