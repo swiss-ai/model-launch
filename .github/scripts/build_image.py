@@ -70,7 +70,14 @@ podman build \\
     "{remote_build_dir}"
 
 echo "=== Converting to sqsh ==="
-enroot import -o "${{TEMP_SQSH}}" "podman://${{IMAGE_TAG}}"
+# Run enroot from the output directory so its internal temp file is on the
+# same filesystem as the output, avoiding a cross-filesystem rename (EXDEV).
+mkdir -p "$(dirname "${{TEMP_SQSH}}")"
+(cd "$(dirname "${{TEMP_SQSH}}")" && enroot import -o "${{TEMP_SQSH}}" "podman://${{IMAGE_TAG}}")
+if [ ! -s "${{TEMP_SQSH}}" ]; then
+    echo "ERROR: enroot import failed — sqsh not created"
+    exit 1
+fi
 
 echo "=== Saving to capstor ==="
 mv "${{TEMP_SQSH}}" "${{FINAL_SQSH}}"
