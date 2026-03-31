@@ -44,39 +44,26 @@ def _build_slurm_script(
 
 set -euo pipefail
 
-PODMAN_ROOT="${{TMPDIR:-/tmp}}/podman-$$"
-TEMP_TAR="${{TMPDIR:-/tmp}}/image-{image_name}-$$.tar"
-IMAGE_TAG="localhost/{image_name}:${{SLURM_JOB_ID}}"
+IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 FINAL_SQSH="{output_sqsh}"
 TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
 
-# No D-Bus in SLURM batch jobs — use cgroupfs instead of systemd.
-export DBUS_SESSION_BUS_ADDRESS=""
-PODMAN="podman --root ${{PODMAN_ROOT}} --cgroup-manager=cgroupfs"
-
 cleanup() {{
-    ${{PODMAN}} rmi "${{IMAGE_TAG}}" 2>/dev/null || true
-    rm -f "${{TEMP_TAR}}" "${{TEMP_SQSH}}" 2>/dev/null || true
-    rm -rf "${{PODMAN_ROOT}}" 2>/dev/null || true
+    podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+    rm -f "${{TEMP_SQSH}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
 
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
 echo "CPUs available: $(nproc)"
 
-${{PODMAN}} build \\
+podman build \\
     --build-arg FA3_MAX_JOBS="$(nproc)" \\
     -t "${{IMAGE_TAG}}" \\
     "{remote_build_dir}"
 
-echo "=== Build complete, exporting as OCI archive ==="
-${{PODMAN}} save \\
-    --format oci-archive \\
-    -o "${{TEMP_TAR}}" \\
-    "${{IMAGE_TAG}}"
-
 echo "=== Converting to sqsh ==="
-enroot import --output "${{TEMP_SQSH}}" "oci-archive://${{TEMP_TAR}}"
+enroot import -o "${{TEMP_SQSH}}" "podman://${{IMAGE_TAG}}"
 
 echo "=== Saving to capstor ==="
 mv "${{TEMP_SQSH}}" "${{FINAL_SQSH}}"
