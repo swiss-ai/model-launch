@@ -66,6 +66,7 @@ echo "=== Building {image_name} on $(hostname) at $(date) ==="
 podman build -t "${{IMAGE_TAG}}" .
 
 echo "=== Converting to sqsh ==="
+rm -f "${{SCRATCH_SQSH}}"
 enroot import -o "${{SCRATCH_SQSH}}" "podman://${{IMAGE_TAG}}" || true
 if [ ! -s "${{SCRATCH_SQSH}}" ]; then
     echo "ERROR: enroot import produced no output"
@@ -74,7 +75,8 @@ fi
 
 echo "=== Saving to capstor ==="
 mkdir -p "$(dirname "{output_sqsh}")"
-cp "${{SCRATCH_SQSH}}" "{output_sqsh}"
+cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
+mv "{output_sqsh}.tmp" "{output_sqsh}"
 
 echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
 """
