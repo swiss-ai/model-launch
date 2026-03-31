@@ -66,7 +66,6 @@ echo "=== Building {image_name} on $(hostname) at $(date) ==="
 echo "CPUs available: $(nproc)"
 
 podman build \\
-    --build-arg FA3_MAX_JOBS="$(nproc)" \\
     -t "${{IMAGE_TAG}}" \\
     "{remote_build_dir}"
 
