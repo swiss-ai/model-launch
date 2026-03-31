@@ -27,9 +27,11 @@ def _build_slurm_script(
     image_name: str,
     account: str,
     partition: str,
+    reservation: str | None,
     remote_logs_dir: str,
     output_sqsh: str,
 ) -> str:
+    reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
     return f"""#!/bin/bash
 #SBATCH --job-name=build-{image_name}
 #SBATCH --nodes=1
@@ -38,6 +40,7 @@ def _build_slurm_script(
 #SBATCH --time=04:00:00
 #SBATCH --account={account}
 #SBATCH --partition={partition}
+{reservation_line}
 #SBATCH --output={remote_logs_dir}/%j.out
 #SBATCH --error={remote_logs_dir}/%j.err
 
@@ -110,6 +113,7 @@ async def main(image_name: str) -> int:
     firecrest_url = os.environ["SML_FIRECREST_URL"]
     system_name = os.environ["SML_FIRECREST_SYSTEM"]
     partition = os.environ["SML_PARTITION"]
+    reservation = os.environ.get("SML_RESERVATION")
 
     auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri)
     client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
@@ -147,6 +151,7 @@ async def main(image_name: str) -> int:
         image_name=image_name,
         account=account,
         partition=partition,
+        reservation=reservation,
         remote_logs_dir=remote_logs_dir,
         output_sqsh=output_sqsh,
     )

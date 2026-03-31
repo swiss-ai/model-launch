@@ -70,6 +70,7 @@ jobs:
       SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
       SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
       SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
