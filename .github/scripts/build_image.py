@@ -44,24 +44,21 @@ def _build_slurm_script(
 
 set -euo pipefail
 
+# Prevent podman from connecting to a stale or inaccessible D-Bus socket.
+# Some compute nodes have /run/user/<uid>/bus created by PAM but with no
+# daemon listening, causing podman to fail with "connection refused".
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
+export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/runtime-$$"
+mkdir -p "${{XDG_RUNTIME_DIR}}"
+
 IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 FINAL_SQSH="{output_sqsh}"
 TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
 
-# Write a containers.conf that forces cgroupfs and file-based events so that
-# podman and all its sub-processes don't require a D-Bus / systemd session,
-# which is not available in SLURM batch jobs.
-CONTAINERS_CONF_FILE="${{TMPDIR:-/tmp}}/containers-$$.conf"
-cat > "${{CONTAINERS_CONF_FILE}}" << 'EOF'
-[engine]
-cgroup_manager = "cgroupfs"
-events_logger = "file"
-EOF
-export CONTAINERS_CONF="${{CONTAINERS_CONF_FILE}}"
-
 cleanup() {{
     podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
-    rm -f "${{TEMP_SQSH}}" "${{CONTAINERS_CONF_FILE}}" 2>/dev/null || true
+    rm -f "${{TEMP_SQSH}}" 2>/dev/null || true
+    rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
 
