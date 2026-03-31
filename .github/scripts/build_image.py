@@ -27,7 +27,6 @@ def _build_slurm_script(
     image_name: str,
     account: str,
     partition: str,
-    remote_build_dir: str,
     remote_logs_dir: str,
     output_sqsh: str,
 ) -> str:
@@ -44,45 +43,26 @@ def _build_slurm_script(
 
 set -euo pipefail
 
-# Prevent podman from connecting to a stale or inaccessible D-Bus socket.
-# Some compute nodes have /run/user/<uid>/bus created by PAM but with no
-# daemon listening, causing podman to fail with "connection refused".
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
-export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/runtime-$$"
-mkdir -p "${{XDG_RUNTIME_DIR}}"
-
 IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
-FINAL_SQSH="{output_sqsh}"
-TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
+SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 
 cleanup() {{
     podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
-    rm -f "${{TEMP_SQSH}}" 2>/dev/null || true
-    rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
+    rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
 
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
-echo "CPUs available: $(nproc)"
-
-podman build \\
-    -t "${{IMAGE_TAG}}" \\
-    "{remote_build_dir}"
+podman build -t "${{IMAGE_TAG}}" .
 
 echo "=== Converting to sqsh ==="
-# Run enroot from the output directory so its internal temp file is on the
-# same filesystem as the output, avoiding a cross-filesystem rename (EXDEV).
-mkdir -p "$(dirname "${{TEMP_SQSH}}")"
-(cd "$(dirname "${{TEMP_SQSH}}")" && enroot import -o "${{TEMP_SQSH}}" "podman://${{IMAGE_TAG}}")
-if [ ! -s "${{TEMP_SQSH}}" ]; then
-    echo "ERROR: enroot import failed — sqsh not created"
-    exit 1
-fi
+enroot import -o "${{SCRATCH_SQSH}}" "podman://${{IMAGE_TAG}}"
 
 echo "=== Saving to capstor ==="
-mv "${{TEMP_SQSH}}" "${{FINAL_SQSH}}"
+mkdir -p "$(dirname "{output_sqsh}")"
+cp "${{SCRATCH_SQSH}}" "{output_sqsh}"
 
-echo "=== Done: {image_name} -> ${{FINAL_SQSH}} at $(date) ==="
+echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
 """
 
 
@@ -164,7 +144,6 @@ async def main(image_name: str) -> int:
         image_name=image_name,
         account=account,
         partition=partition,
-        remote_build_dir=remote_build_dir,
         remote_logs_dir=remote_logs_dir,
         output_sqsh=output_sqsh,
     )
