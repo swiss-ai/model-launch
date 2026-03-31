@@ -48,16 +48,27 @@ IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 FINAL_SQSH="{output_sqsh}"
 TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
 
+# Write a containers.conf that forces cgroupfs and file-based events so that
+# podman and all its sub-processes don't require a D-Bus / systemd session,
+# which is not available in SLURM batch jobs.
+CONTAINERS_CONF_FILE="${{TMPDIR:-/tmp}}/containers-$$.conf"
+cat > "${{CONTAINERS_CONF_FILE}}" << 'EOF'
+[engine]
+cgroup_manager = "cgroupfs"
+events_logger = "file"
+EOF
+export CONTAINERS_CONF="${{CONTAINERS_CONF_FILE}}"
+
 cleanup() {{
-    podman --cgroup-manager=cgroupfs rmi "${{IMAGE_TAG}}" 2>/dev/null || true
-    rm -f "${{TEMP_SQSH}}" 2>/dev/null || true
+    podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+    rm -f "${{TEMP_SQSH}}" "${{CONTAINERS_CONF_FILE}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
 
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
 echo "CPUs available: $(nproc)"
 
-podman --cgroup-manager=cgroupfs build \\
+podman build \\
     --build-arg FA3_MAX_JOBS="$(nproc)" \\
     -t "${{IMAGE_TAG}}" \\
     "{remote_build_dir}"
