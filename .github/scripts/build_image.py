@@ -43,8 +43,11 @@ def _build_slurm_script(
 
 set -euo pipefail
 
-# Batch nodes have no D-Bus session; prevent podman from trying to connect.
+# Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
+# Point podman's runtime dir to a writable temp location.
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
+export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
+mkdir -p "${{XDG_RUNTIME_DIR}}"
 
 IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
@@ -52,6 +55,7 @@ SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 cleanup() {{
     podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
     rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
+    rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
 
