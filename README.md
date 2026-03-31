@@ -1,5 +1,7 @@
 # `sml`: Swiss AI Model Launch
 
+> **Warning:** The legacy scripts are subjected to removal after the notice period on May 1, 2026. Codes under `./legacy` are no longer maintained and the pull requests to the files in this directory are no longer accepted. Please migrate to `sml` as soon as possible.
+
 A CLI app for launching AI models on clusters.
 
 ## Installation
