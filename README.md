@@ -175,8 +175,9 @@ By default, local variables are hidden from crash reports.
 
 ### Setting Up Development Environment
 
+In the root of the repository, run the following commands.
+
 ```bash
-git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
 uv venv --python 3.12
 source .venv/bin/activate
 uv pip install -e ".[dev]"
