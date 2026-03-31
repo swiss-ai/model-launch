@@ -43,6 +43,9 @@ def _build_slurm_script(
 
 set -euo pipefail
 
+# Batch nodes have no D-Bus session; prevent podman from trying to connect.
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
+
 IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 
