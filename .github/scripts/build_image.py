@@ -49,7 +49,7 @@ FINAL_SQSH="{output_sqsh}"
 TEMP_SQSH="${{FINAL_SQSH}}.tmp.${{SLURM_JOB_ID}}"
 
 cleanup() {{
-    podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+    podman --cgroup-manager=cgroupfs rmi "${{IMAGE_TAG}}" 2>/dev/null || true
     rm -f "${{TEMP_SQSH}}" 2>/dev/null || true
 }}
 trap cleanup EXIT
@@ -57,7 +57,7 @@ trap cleanup EXIT
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
 echo "CPUs available: $(nproc)"
 
-podman build \\
+podman --cgroup-manager=cgroupfs build \\
     --build-arg FA3_MAX_JOBS="$(nproc)" \\
     -t "${{IMAGE_TAG}}" \\
     "{remote_build_dir}"
