@@ -1,4 +1,4 @@
-.PHONY: format shellcheck markdownlint _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+.PHONY: format shellcheck markdownlint dockerlint _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
 
 format:
 	ruff format .
@@ -9,6 +9,9 @@ shellcheck:
 
 markdownlint:
 	npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!legacy/**/*.md" "!.venv/**/*.md"
+
+dockerlint:
+	find images/ -name "Dockerfile*" | while read -r f; do echo "--- $$f"; docker run --rm -i docker.io/hadolint/hadolint < "$$f"; done
 
 _test-lightweight:
 	pytest -m lightweight --cov --cov-report=term-missing -n auto

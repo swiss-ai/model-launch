@@ -44,6 +44,16 @@ jobs:
           python-version: "3.12"
       - run: make shellcheck
 
+  dockerlint:
+    name: Docker Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          directory: images
+
   markdownlint:
     name: Markdown Lint
     runs-on: ubuntu-latest
