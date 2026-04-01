@@ -8,7 +8,11 @@ from pathlib import Path
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
-from swiss_ai_model_launch.launchers.utils import create_salt, render_job_script
+from swiss_ai_model_launch.launchers.utils import (
+    create_salt,
+    decode_log,
+    render_job_script,
+)
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
@@ -198,12 +202,12 @@ class SlurmLauncher(Launcher):
         log_dir = self._get_working_dir() / "logs" / str(job_id)
 
         try:
-            out_log = (log_dir / "log.out").read_text()
+            out_log = decode_log((log_dir / "log.out").read_bytes())
         except FileNotFoundError:
             out_log = ""
 
         try:
-            err_log = (log_dir / "log.err").read_text()
+            err_log = decode_log((log_dir / "log.err").read_bytes())
         except FileNotFoundError:
             err_log = ""
 
