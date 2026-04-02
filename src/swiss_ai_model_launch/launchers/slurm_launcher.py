@@ -1,7 +1,5 @@
 import asyncio
 import json
-import shutil
-from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
@@ -87,7 +85,7 @@ class SlurmLauncher(Launcher):
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
         if launch_request.environment is not None:
-            return launch_request.environment
+            return str(Path(launch_request.environment).resolve())
         elif launch_request.framework == "sglang":
             return str(_SGLANG_ENVIRONMENT)
         elif launch_request.framework == "vllm":
@@ -97,20 +95,6 @@ class SlurmLauncher(Launcher):
                 "`environment` is not provided in the launch request, "
                 "and no default environment is available for the specified framework."
             )
-
-    def _create_env_file_path(self, launch_request: LaunchRequest) -> str:
-        working_dir = self._get_working_dir()
-        working_dir.mkdir(parents=True, exist_ok=True)
-
-        local_env_path = self._get_local_env_file_path(launch_request)
-        env_filename = "env_{}_{}_{}.toml".format(
-            launch_request.framework,
-            datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-            create_salt(8),
-        )
-
-        shutil.copy(local_env_path, working_dir / env_filename)
-        return str(working_dir / env_filename)
 
     async def _sbatch(self, launch_args: LaunchArgs) -> int:
         script_str = render_job_script(launch_args)
@@ -145,12 +129,17 @@ class SlurmLauncher(Launcher):
         ]
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        launch_args = launch_args.model_copy(update={"reservation": self.reservation})
+        launch_args = launch_args.model_copy(
+            update={
+                "reservation": self.reservation,
+                "environment": str(Path(launch_args.environment).resolve()),
+            }
+        )
         job_id = await self._sbatch(launch_args)
         return job_id, launch_args.served_model_name
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
-        env_path = self._create_env_file_path(launch_request)
+        env_path = self._get_local_env_file_path(launch_request)
 
         launch_args = self._get_launch_args_from_request(
             LaunchRequest.model_copy(
