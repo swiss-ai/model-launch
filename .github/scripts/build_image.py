@@ -77,6 +77,7 @@ echo "=== Saving to capstor ==="
 mkdir -p "$(dirname "{output_sqsh}")"
 cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
 mv "{output_sqsh}.tmp" "{output_sqsh}"
+chmod o+rx "{output_sqsh}"
 
 echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
 """
