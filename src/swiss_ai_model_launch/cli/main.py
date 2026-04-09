@@ -3,6 +3,7 @@ import asyncio
 import getpass
 import grp
 import importlib.metadata
+import logging
 import os
 import re
 from collections.abc import Awaitable, Callable, Coroutine
@@ -319,7 +320,7 @@ async def _get_firecrest_launcher_with_client(
         }
 
     firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
-    await firecrest_config.aconfigure(args=args)
+    await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
     system_name = firecrest_config.get_non_none_value("firecrest_system")
 
     async def _get_partitions() -> dict[str, tuple[str, str]]:
@@ -329,7 +330,7 @@ async def _get_firecrest_launcher_with_client(
         }
 
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
-    await partition_config.aconfigure(args=args)
+    await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
         reservation = getattr(args, "reservation", None) if args else None
@@ -366,7 +367,7 @@ async def _get_slurm_launcher(
         return {p: (p, p) for p in partitions}
 
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
-    await partition_config.aconfigure(args=args)
+    await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
         reservation = getattr(args, "reservation", None) if args else None
@@ -493,6 +494,9 @@ async def _get_launch_request(
     )
 
 
+_logger = logging.getLogger(__name__)
+
+
 async def _create_launcher(
     config: InitConfig,
     args: argparse.Namespace,
@@ -500,6 +504,12 @@ async def _create_launcher(
 ) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
     telemetry_endpoint = config.get_value("telemetry_endpoint")
+
+    if launcher_type == "slurm" and getattr(args, "firecrest_system", None):
+        _logger.warning(
+            "--firecrest-system is ignored when using the SLURM launcher"
+        )
+
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
         return cast(

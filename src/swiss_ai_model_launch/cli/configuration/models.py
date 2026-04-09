@@ -29,6 +29,7 @@ class _Configuration(BaseModel):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         raise NotImplementedError  # pragma: no cover
 
@@ -74,12 +75,18 @@ class _ResolvableConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
             self.value = resolved
             self._on_answer()
             return
+        if non_interactive:
+            raise ValueError(
+                f"Missing required argument --{self.name.replace('_', '-')} "
+                f"(non-interactive mode)"
+            )
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -154,6 +161,7 @@ class TextConfiguration(_ResolvableConfiguration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
@@ -165,6 +173,11 @@ class TextConfiguration(_ResolvableConfiguration):
             self.value = resolved
             self._on_answer()
             return
+        if non_interactive:
+            raise ValueError(
+                f"Missing required argument --{self.name.replace('_', '-')} "
+                f"(non-interactive mode)"
+            )
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -273,6 +286,7 @@ class OptionsConfiguration(_ResolvableConfiguration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
@@ -281,6 +295,11 @@ class OptionsConfiguration(_ResolvableConfiguration):
                 self.value = resolved
                 self._on_answer()
                 return
+        if non_interactive:
+            raise ValueError(
+                f"Missing required argument --{self.name.replace('_', '-')} "
+                f"(non-interactive mode)"
+            )
         options = await self._resolve_options(get_value)
         if len(options) == 1:
             self.value = next(iter(options))
@@ -301,9 +320,12 @@ class ChainConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         for configuration in self.chain:
-            await configuration.aconfigure(get_value or self.get_value, args)
+            await configuration.aconfigure(
+                get_value or self.get_value, args, non_interactive=non_interactive
+            )
 
     def get_value(self, name: str) -> str | None:
         for configuration in self.chain:
@@ -347,11 +369,16 @@ class BranchConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
-        await self.head_configuration.aconfigure(get_value, args)
+        await self.head_configuration.aconfigure(
+            get_value, args, non_interactive=non_interactive
+        )
         branch = self._resolve_branch()
         if branch is not None:
-            await branch.aconfigure(get_value, args)
+            await branch.aconfigure(
+                get_value, args, non_interactive=non_interactive
+            )
 
     def get_value(self, name: str) -> str | None:
         try:

@@ -2,6 +2,8 @@
 # Note: a model named swiss-ai/Apertus-8B-Instruct-2509 is usually already running.
 # The --served-model-name flag avoids name collisions.
 sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
