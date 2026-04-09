@@ -1,0 +1,13 @@
+image = "/capstor/store/cscs/swissai/infra01/container-images/sglang_0-5-10_rocm.sqsh"
+
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
+  "/capstor",
+  "/iopsstor",
+]
+
+workdir = "/opt"
+
+[env]
+# NCCL_DEBUG = "INFO"  # uncomment for debugging
+# NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
