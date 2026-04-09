@@ -4,7 +4,7 @@ from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
-import firecrest as f7t
+from firecrest import v2 as f7t
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
