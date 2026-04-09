@@ -2,8 +2,8 @@ from swiss_ai_model_launch.launchers import (
     FirecRESTLauncher,
     JobStatus,
     LaunchArgs,
-    LaunchRequest,
     Launcher,
+    LaunchRequest,
     SlurmLauncher,
 )
 

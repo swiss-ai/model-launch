@@ -44,8 +44,7 @@ async def launch_model(launcher: SlurmLauncher, model: dict) -> tuple[str, int]:
             f"--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/{vendor}/{name} "
             f"--served-model-name {served} "
             "--host 0.0.0.0 "
-            "--port 8080 "
-            + model.get("framework_args", "")
+            "--port 8080 " + model.get("framework_args", "")
         ),
         nodes=model.get("nodes", 1),
         time="02:00:00",
@@ -67,9 +66,7 @@ async def main() -> None:
         partition="normal",
     )
 
-    results = await asyncio.gather(
-        *(launch_model(launcher, m) for m in MODELS)
-    )
+    results = await asyncio.gather(*(launch_model(launcher, m) for m in MODELS))
 
     for served_name, job_id in results:
         print(f"  {served_name} -> job {job_id}")

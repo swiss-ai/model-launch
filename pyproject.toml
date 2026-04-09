@@ -44,11 +44,11 @@ swiss_ai_model_launch = ["assets/**"]
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 120
 
 [tool.ruff]
 src = ["src"]
-line-length = 88
+line-length = 120
 exclude = ["legacy"] # TODO
 
 [tool.ruff.lint]

@@ -79,10 +79,7 @@ class FirecRESTLauncher(Launcher):
         vendor = launch_request.vendor
         model_name = launch_request.model_name
         job_name = f"{vendor}_{model_name}_{self.username}_{create_salt(8)}"
-        served_model_name = (
-            launch_request.served_model_name
-            or f"{vendor}/{model_name}-{create_salt(4)}"
-        )
+        served_model_name = launch_request.served_model_name or f"{vendor}/{model_name}-{create_salt(4)}"
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -98,12 +95,7 @@ class FirecRESTLauncher(Launcher):
                 f"--model {str(_REMOTE_MODEL_REGISTRY / vendor / model_name)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
-                "--port 8080 "
-                + (
-                    launch_request.framework_args
-                    if launch_request.framework_args
-                    else ""
-                )
+                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
@@ -152,12 +144,8 @@ class FirecRESTLauncher(Launcher):
         )
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        remote_env_path = await self._upload_env_file(
-            launch_args.environment, launch_args.framework
-        )
-        launch_args = launch_args.model_copy(
-            update={"environment": remote_env_path, "reservation": self.reservation}
-        )
+        remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
+        launch_args = launch_args.model_copy(update={"environment": remote_env_path, "reservation": self.reservation})
         script_str = render_job_script(launch_args)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,
@@ -168,10 +156,7 @@ class FirecRESTLauncher(Launcher):
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
     async def get_preconfigured_models(self) -> list[LaunchRequest]:
-        return [
-            LaunchRequest(**item)
-            for item in json.loads(_PRECONFIGURED_MODELS.read_text())
-        ]
+        return [LaunchRequest(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
         remote_env_path = await self._create_remote_env_file_path(launch_request)
@@ -234,6 +219,9 @@ class FirecRESTLauncher(Launcher):
                 err_log = ""
 
             return out_log, err_log
+
+    def get_log_dir(self, job_id: int) -> str:
+        return str(Path(self._get_working_dir()) / "logs" / str(job_id))
 
     async def cancel_job(self, job_id: int) -> None:
         await self.client.cancel_job(

@@ -46,16 +46,11 @@ class SlurmLauncher(Launcher):
     def _get_working_dir(self) -> Path:
         return Path.home() / _APP_WORKING_DIRECTORY
 
-    def _get_launch_args_from_request(
-        self, launch_request: LaunchRequest
-    ) -> LaunchArgs:
+    def _get_launch_args_from_request(self, launch_request: LaunchRequest) -> LaunchArgs:
         vendor = launch_request.vendor
         model_name = launch_request.model_name
         job_name = f"{vendor}_{model_name}_{self.username}_{create_salt(8)}"
-        served_model_name = (
-            launch_request.served_model_name
-            or f"{vendor}/{model_name}-{create_salt(4)}"
-        )
+        served_model_name = launch_request.served_model_name or f"{vendor}/{model_name}-{create_salt(4)}"
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -71,12 +66,7 @@ class SlurmLauncher(Launcher):
                 f"--model {str(self.model_registry / vendor / model_name)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
-                "--port 8080 "
-                + (
-                    launch_request.framework_args
-                    if launch_request.framework_args
-                    else ""
-                )
+                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
@@ -115,18 +105,13 @@ class SlurmLauncher(Launcher):
         stdout, stderr = await proc.communicate()
 
         if proc.returncode != 0:
-            raise RuntimeError(
-                f"sbatch failed (exit {proc.returncode}): {stderr.decode().strip()}"
-            )
+            raise RuntimeError(f"sbatch failed (exit {proc.returncode}): {stderr.decode().strip()}")
 
         # sbatch prints: "Submitted batch job 12345"
         return int(stdout.decode().strip().split()[-1])
 
     async def get_preconfigured_models(self) -> list[LaunchRequest]:
-        return [
-            LaunchRequest(**item)
-            for item in json.loads(_PRECONFIGURED_MODELS.read_text())
-        ]
+        return [LaunchRequest(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         launch_args = launch_args.model_copy(
@@ -202,6 +187,9 @@ class SlurmLauncher(Launcher):
 
         return out_log, err_log
 
+    def get_log_dir(self, job_id: int) -> str:
+        return str(self._get_working_dir() / "logs" / str(job_id))
+
     async def cancel_job(self, job_id: int) -> None:
         proc = await asyncio.create_subprocess_exec(
             "scancel",
@@ -211,6 +199,4 @@ class SlurmLauncher(Launcher):
         )
         _, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(
-                f"scancel failed (exit {proc.returncode}): {stderr.decode().strip()}"
-            )
+            raise RuntimeError(f"scancel failed (exit {proc.returncode}): {stderr.decode().strip()}")
