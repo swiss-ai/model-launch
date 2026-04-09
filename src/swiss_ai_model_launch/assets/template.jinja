@@ -3,6 +3,7 @@
 #SBATCH --account={{ account }}
 #SBATCH --time={{ time }}
 #SBATCH --exclusive
+#SBATCH --mem=0
 #SBATCH --nodes={{ nodes }}
 #SBATCH --partition={{ partition }}
 {% if reservation %}#SBATCH --reservation={{ reservation }}{% endif %}

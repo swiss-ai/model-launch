@@ -271,6 +271,19 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="CMDS",
         help="Commands to run before launching the model.",
     )
+    advanced_parser.add_argument(
+        "--tui",
+        dest="tui",
+        action="store_true",
+        help="Launch the interactive TUI after submitting the job (off by default).",
+    )
+
+    preconfigured_parser.add_argument(
+        "--no-tui",
+        dest="no_tui",
+        action="store_true",
+        help="Submit the job and exit without launching the interactive TUI.",
+    )
 
     return parser
 
@@ -297,6 +310,7 @@ async def _get_firecrest_launcher_with_client(
     client: f7t.v2.AsyncFirecrest,
     telemetry_endpoint: str | None = None,
     args: argparse.Namespace | None = None,
+    non_interactive: bool = False,
 ) -> FirecRESTLauncher:
     async def _get_systems() -> dict[str, tuple[str, str]]:
         return {
@@ -317,14 +331,18 @@ async def _get_firecrest_launcher_with_client(
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args)
 
-    reservation_config = _make_reservation_config()
-    await reservation_config.aconfigure(args=args)
+    if non_interactive:
+        reservation = getattr(args, "reservation", None) if args else None
+    else:
+        reservation_config = _make_reservation_config()
+        await reservation_config.aconfigure(args=args)
+        reservation = reservation_config.get_value("reservation") or None
 
     return await FirecRESTLauncher.from_client(
         client=client,
         system_name=system_name,
         partition=partition_config.get_non_none_value("partition"),
-        reservation=reservation_config.get_value("reservation") or None,
+        reservation=reservation,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -332,6 +350,7 @@ async def _get_firecrest_launcher_with_client(
 async def _get_slurm_launcher(
     telemetry_endpoint: str | None = None,
     args: argparse.Namespace | None = None,
+    non_interactive: bool = False,
 ) -> SlurmLauncher:
     async def _get_partitions() -> dict[str, tuple[str, str]]:
         proc = await asyncio.create_subprocess_exec(
@@ -349,15 +368,19 @@ async def _get_slurm_launcher(
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args)
 
-    reservation_config = _make_reservation_config()
-    await reservation_config.aconfigure(args=args)
+    if non_interactive:
+        reservation = getattr(args, "reservation", None) if args else None
+    else:
+        reservation_config = _make_reservation_config()
+        await reservation_config.aconfigure(args=args)
+        reservation = reservation_config.get_value("reservation") or None
 
     return SlurmLauncher(
         system_name="local",
         username=getpass.getuser(),
         account=grp.getgrgid(os.getgid()).gr_name,
         partition=partition_config.get_non_none_value("partition"),
-        reservation=reservation_config.get_value("reservation") or None,
+        reservation=reservation,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -470,7 +493,11 @@ async def _get_launch_request(
     )
 
 
-async def _create_launcher(config: InitConfig, args: argparse.Namespace) -> Launcher:
+async def _create_launcher(
+    config: InitConfig,
+    args: argparse.Namespace,
+    non_interactive: bool = False,
+) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
     telemetry_endpoint = config.get_value("telemetry_endpoint")
     if launcher_type == "firecrest":
@@ -481,6 +508,7 @@ async def _create_launcher(config: InitConfig, args: argparse.Namespace) -> Laun
                 firecrest_client,
                 telemetry_endpoint=telemetry_endpoint,
                 args=args,
+                non_interactive=non_interactive,
             ),
         )
     elif launcher_type == "slurm":
@@ -489,6 +517,7 @@ async def _create_launcher(config: InitConfig, args: argparse.Namespace) -> Laun
             await _get_slurm_launcher(
                 telemetry_endpoint=telemetry_endpoint,
                 args=args,
+                non_interactive=non_interactive,
             ),
         )
     else:
@@ -541,7 +570,13 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     launcher = await _create_launcher(config, args)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_request = await _get_launch_request(launcher, args)
-    await _run_monitor(launcher, launcher.launch_model(launch_request), cscs_api_key)
+    launch_coro = launcher.launch_model(launch_request)
+    if args.no_tui:
+        job_id, served = await launch_coro
+        print(f"Job submitted: {job_id}")
+        print(f"Served model name: {served}")
+    else:
+        await _run_monitor(launcher, launch_coro, cscs_api_key)
 
 
 async def _run_advanced(args: argparse.Namespace) -> None:
@@ -550,7 +585,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         return
 
     config = InitConfig.load()
-    launcher = await _create_launcher(config, args)
+    launcher = await _create_launcher(config, args, non_interactive=True)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
 
     if args.served_model_name:
@@ -586,7 +621,13 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 
-    await _run_monitor(launcher, launcher.launch_with_args(launch_args), cscs_api_key)
+    launch_coro = launcher.launch_with_args(launch_args)
+    if args.tui:
+        await _run_monitor(launcher, launch_coro, cscs_api_key)
+    else:
+        job_id, served = await launch_coro
+        print(f"Job submitted: {job_id}")
+        print(f"Served model name: {served}")
 
 
 async def _main(args: argparse.Namespace) -> None:
