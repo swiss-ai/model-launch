@@ -27,16 +27,8 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
 
-_OptionsFactory = (
-    Callable[[], Awaitable[OptionsDict]]
-    | Callable[[GetValueFn], Awaitable[OptionsDict]]
-    | None
-)
-_DefaultFactory = (
-    Callable[[], Awaitable[str | None]]
-    | Callable[[GetValueFn], Awaitable[str | None]]
-    | None
-)
+_OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
+_DefaultFactory = Callable[[], Awaitable[str | None]] | Callable[[GetValueFn], Awaitable[str | None]] | None
 
 
 def _make_firecrest_launcher_config(
@@ -123,11 +115,7 @@ def _make_launch_request_config(
             TextConfiguration(
                 name="workers",
                 prompt="Number of workers to use for running the model.",
-                validator=(
-                    (lambda v: v.isdigit() and int(v) > 0)
-                    if workers_default_factory
-                    else None
-                ),
+                validator=((lambda v: v.isdigit() and int(v) > 0) if workers_default_factory else None),
                 default_factory=workers_default_factory,
             ),
             OptionsConfiguration(
@@ -139,9 +127,7 @@ def _make_launch_request_config(
             TextConfiguration(
                 name="time",
                 prompt="Time duration for running the model (in format HH:MM:SS).",
-                validator=lambda v: bool(
-                    re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)
-                ),
+                validator=lambda v: bool(re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)),
                 default_factory=time_default_factory,
             ),
         ],
@@ -165,17 +151,13 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
     InitConfig().add_to_parser(init_parser)
 
-    preconfigured_parser = subparsers.add_parser(
-        "preconfigured", help="Launch a model with guided prompts"
-    )
+    preconfigured_parser = subparsers.add_parser("preconfigured", help="Launch a model with guided prompts")
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
     _make_partition_config().add_to_parser(preconfigured_parser)
     _make_reservation_config().add_to_parser(preconfigured_parser)
     _make_launch_request_config().add_to_parser(preconfigured_parser)
 
-    advanced_parser = subparsers.add_parser(
-        "advanced", help="Launch a model with advanced configuration"
-    )
+    advanced_parser = subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
     _make_firecrest_launcher_config().add_to_parser(advanced_parser)
     _make_partition_config().add_to_parser(advanced_parser)
     advanced_parser.add_argument(
@@ -274,16 +256,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     advanced_parser.add_argument(
         "--tui",
-        dest="tui",
-        action="store_true",
-        help="Launch the interactive TUI after submitting the job (off by default).",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Launch the interactive TUI after submitting the job.",
     )
 
     preconfigured_parser.add_argument(
-        "--no-tui",
-        dest="no_tui",
-        action="store_true",
-        help="Submit the job and exit without launching the interactive TUI.",
+        "--tui",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Launch the interactive TUI after submitting the job.",
     )
 
     return parser
@@ -314,20 +296,14 @@ async def _get_firecrest_launcher_with_client(
     non_interactive: bool = False,
 ) -> FirecRESTLauncher:
     async def _get_systems() -> dict[str, tuple[str, str]]:
-        return {
-            sys["name"]: (sys["name"], sys["ssh"]["host"])
-            for sys in await client.systems()
-        }
+        return {sys["name"]: (sys["name"], sys["ssh"]["host"]) for sys in await client.systems()}
 
     firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
     await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
     system_name = firecrest_config.get_non_none_value("firecrest_system")
 
     async def _get_partitions() -> dict[str, tuple[str, str]]:
-        return {
-            part["name"]: (part["name"], part["name"])
-            for part in await client.partitions(system_name)
-        }
+        return {part["name"]: (part["name"], part["name"]) for part in await client.partitions(system_name)}
 
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
@@ -403,9 +379,7 @@ async def _get_preconfigured_default(
         (
             lr
             for lr in preconfigured
-            if lr.vendor == vendor
-            and lr.model_name == model_name
-            and lr.framework == framework
+            if lr.vendor == vendor and lr.model_name == model_name and lr.framework == framework
         ),
         None,
     )
@@ -426,9 +400,7 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
     }
 
 
-async def _get_launch_request(
-    launcher: Launcher, args: argparse.Namespace | None = None
-) -> LaunchRequest:
+async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | None = None) -> LaunchRequest:
     preconfigured_launch_requests = await launcher.get_preconfigured_models()
 
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
@@ -465,17 +437,13 @@ async def _get_launch_request(
     )
     await launch_req_config.aconfigure(args=args)
 
-    vendor, model_name = _split_vendor_model(
-        launch_req_config.get_non_none_value("model")
-    )
+    vendor, model_name = _split_vendor_model(launch_req_config.get_non_none_value("model"))
     framework = launch_req_config.get_non_none_value("framework")
     preconfigured = next(
         (
             lr
             for lr in preconfigured_launch_requests
-            if lr.vendor == vendor
-            and lr.model_name == model_name
-            and lr.framework == framework
+            if lr.vendor == vendor and lr.model_name == model_name and lr.framework == framework
         ),
         None,
     )
@@ -506,9 +474,7 @@ async def _create_launcher(
     telemetry_endpoint = config.get_value("telemetry_endpoint")
 
     if launcher_type == "slurm" and getattr(args, "firecrest_system", None):
-        _logger.warning(
-            "--firecrest-system is ignored when using the SLURM launcher"
-        )
+        _logger.warning("--firecrest-system is ignored when using the SLURM launcher")
 
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
@@ -581,12 +547,13 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_request = await _get_launch_request(launcher, args)
     launch_coro = launcher.launch_model(launch_request)
-    if args.no_tui:
+    if args.tui:
+        await _run_monitor(launcher, launch_coro, cscs_api_key)
+    else:
         job_id, served = await launch_coro
         print(f"Job submitted: {job_id}")
         print(f"Served model name: {served}")
-    else:
-        await _run_monitor(launcher, launch_coro, cscs_api_key)
+        print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
 async def _run_advanced(args: argparse.Namespace) -> None:
@@ -638,6 +605,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         job_id, served = await launch_coro
         print(f"Job submitted: {job_id}")
         print(f"Served model name: {served}")
+        print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
 async def _main(args: argparse.Namespace) -> None:

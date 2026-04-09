@@ -75,8 +75,7 @@ class InitConfig(ChainConfiguration):
                 ),
                 PasswordConfiguration(
                     name="cscs_api_key",
-                    prompt="What is your CSCS API key? "
-                    "(https://serving.swissai.svc.cscs.ch)",
+                    prompt="What is your CSCS API key? (https://serving.swissai.svc.cscs.ch)",
                     env_var="SML_CSCS_API_KEY",
                     expose_as_arg=False,
                 ),

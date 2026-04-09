@@ -103,11 +103,7 @@ class _SMLApp(App[bool]):
 
     def _render_status(self) -> Table:
         s = self._state
-        job_status = (
-            _JOB_STATUS_STYLE[s.job_status]
-            if s.job_status is not None
-            else "[dim]—[/dim]"
-        )
+        job_status = _JOB_STATUS_STYLE[s.job_status] if s.job_status is not None else "[dim]—[/dim]"
         table = Table.grid(expand=True, padding=(0, 2))
         table.add_column(ratio=1)
         table.add_column(ratio=1)
