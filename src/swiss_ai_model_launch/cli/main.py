@@ -26,6 +26,7 @@ from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLa
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 _DefaultFactory = Callable[[], Awaitable[str | None]] | Callable[[GetValueFn], Awaitable[str | None]] | None
@@ -267,6 +268,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Launch the interactive TUI after submitting the job.",
     )
+
+    subparsers.add_parser("mcp", help="Start the SML MCP server")
 
     return parser
 
@@ -608,6 +611,10 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
+def _run_mcp() -> None:
+    _mcp.run()
+
+
 async def _main(args: argparse.Namespace) -> None:
     subcommand = args.subcommand
     if subcommand == "init":
@@ -616,6 +623,8 @@ async def _main(args: argparse.Namespace) -> None:
         await _run_preconfigured(args)
     elif subcommand == "advanced":
         await _run_advanced(args)
+    elif subcommand == "mcp":
+        _run_mcp()
 
 
 def main() -> None:

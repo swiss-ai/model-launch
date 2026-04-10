@@ -9,15 +9,16 @@ description = "Swiss AI Model Launch"
 readme = "README.md"
 requires-python = ">=3.10,<=3.14"
 dependencies = [
-  "httpx>=0.28",
-  "jinja2>=3.0",
-  "keyring>=25.0",
-  "keyrings.alt>=5.0",
-  "pydantic>=2.0",
-  "pyfirecrest>=3.7.1",
-  "pyyaml>=6.0",
-  "questionary>=2.0",
-  "textual>=8.1",
+    "fastmcp>=3.2.3",
+    "httpx>=0.28",
+    "jinja2>=3.0",
+    "keyring>=25.0",
+    "keyrings.alt>=5.0",
+    "pydantic>=2.0",
+    "pyfirecrest>=3.7.1",
+    "pyyaml>=6.0",
+    "questionary>=2.0",
+    "textual>=8.1",
 ]
 
 [project.optional-dependencies]
