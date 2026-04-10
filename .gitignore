@@ -357,4 +357,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,pycharm+all,linux,macos,windows
 
 .test.sh
-.claude
+.claude/worktrees
