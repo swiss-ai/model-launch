@@ -23,9 +23,7 @@ class LaunchArgs(BaseModel):
     router_args: str = ""
     disable_ocf: bool = False
     telemetry_endpoint: str | None = None
-    metrics_remote_write_url: str = (
-        "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
-    )
+    metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
     metrics_agent_binary: str = "/ocfbin/vmagent"
 
     @model_validator(mode="after")
