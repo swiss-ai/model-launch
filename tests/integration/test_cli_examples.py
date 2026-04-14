@@ -7,11 +7,14 @@ import firecrest as f7t
 import pytest
 
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
+from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EXAMPLES_DIR = _REPO_ROOT / "examples" / "cli"
 
 _JOB_SUBMISSION_TIMEOUT_SEC = 180
+_LAUNCH_TIMEOUT_MIN = 60
+_HEALTH_TIMEOUT_MIN = 120
 
 # ROCm examples are excluded: there is no FirecREST integration for ROCm targets,
 # so `sml advanced` can't actually submit those jobs from CI.
@@ -71,7 +74,11 @@ async def cancel_launcher(env: dict[str, str]) -> FirecRESTLauncher:
 
 
 @pytest.mark.parametrize("script", _EXAMPLE_SCRIPTS)  # type: ignore[misc]
-async def test_cli_example_submits(script: Path, cancel_launcher: FirecRESTLauncher) -> None:
+async def test_cli_example_launches_and_health(
+    script: Path,
+    cancel_launcher: FirecRESTLauncher,
+    env: dict[str, str],
+) -> None:
     proc = await asyncio.create_subprocess_exec(
         "bash",
         str(script),
@@ -88,11 +95,16 @@ async def test_cli_example_submits(script: Path, cancel_launcher: FirecRESTLaunc
     stdout = stdout_bytes.decode("utf-8", errors="replace")
     assert proc.returncode == 0, f"{script.name} exited {proc.returncode}\n---\n{stdout}"
 
-    match = re.search(r"Job submitted:\s*(\d+)", stdout)
-    assert match, f"{script.name}: no 'Job submitted: <id>' line in output\n---\n{stdout}"
-    job_id = int(match.group(1))
+    job_match = re.search(r"Job submitted:\s*(\d+)", stdout)
+    assert job_match, f"{script.name}: no 'Job submitted: <id>' line in output\n---\n{stdout}"
+    job_id = int(job_match.group(1))
+
+    served_match = re.search(r"Served model name:\s*(\S+)", stdout)
+    assert served_match, f"{script.name}: no 'Served model name: <name>' line in output\n---\n{stdout}"
+    served_model_name = served_match.group(1)
 
     try:
+        await wait_for_job_running(cancel_launcher, job_id, _LAUNCH_TIMEOUT_MIN)
+        await wait_for_model_healthy(served_model_name, env["SML_CSCS_API_KEY"], _HEALTH_TIMEOUT_MIN)
+    finally:
         await cancel_launcher.cancel_job(job_id)
-    except Exception as exc:
-        pytest.fail(f"Failed to cancel job {job_id} for {script.name}: {exc}")
