@@ -18,7 +18,8 @@ _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest.model_validate(entry),
         id=f"{entry['vendor']}/{entry['model_name']}/{entry['framework']}",
-        marks=[pytest.mark.full] + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
+        marks=[pytest.mark.medium, pytest.mark.full]
+        + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
     )
     for entry in json.loads(_MODEL_JSON.read_text())
 ]

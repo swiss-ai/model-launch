@@ -99,6 +99,30 @@ jobs:
           python-version: "3.12"
       - run: make _test-lightweight
 
+  test-medium:
+    name: Tests (medium)
+    needs: [detect-changes, build]
+    if: |
+      always() &&
+      needs.build.result != 'failure' &&
+      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-medium-tests'))
+    runs-on: ubuntu-latest
+    env:
+      SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
+      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
+      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
+      SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make _test-medium
+
   test-comprehensive:
     name: Tests (comprehensive)
     needs: [detect-changes, build]
