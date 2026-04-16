@@ -24,7 +24,7 @@ class LaunchArgs(BaseModel):
     disable_ocf: bool = False
     telemetry_endpoint: str | None = None
     metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
-    metrics_agent_binary: str = "/ocfbin/vmagent"
+    metrics_agent_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent"
 
     @model_validator(mode="after")
     def set_defaults(self) -> "LaunchArgs":

@@ -205,7 +205,7 @@ done
 # would need a per-worker vmagent (future work).
 if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
     "$METRICS_AGENT_BIN" \
-        -promscrape.config=/ocfbin/vmagent-scrape.yaml \
+        -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml \
         -remoteWrite.url="${METRICS_REMOTE_WRITE_URL}" \
         -remoteWrite.label="slurm_job_id=${SLURM_JOB_ID}" \
         -remoteWrite.label="model=${SERVED_MODEL_NAME}" \

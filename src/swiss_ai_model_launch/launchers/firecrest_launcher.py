@@ -202,7 +202,7 @@ class FirecRESTLauncher(Launcher):
                 )
                 with open(target_dir_path / "log.out", "rb") as out_f:
                     out_log = decode_log(out_f.read())
-            except FileNotFoundError:
+            except (FileNotFoundError, f7t.FirecrestException):
                 out_log = ""
 
             try:
@@ -215,7 +215,7 @@ class FirecRESTLauncher(Launcher):
                 )
                 with open(target_dir_path / "log.err", "rb") as err_f:
                     err_log = decode_log(err_f.read())
-            except FileNotFoundError:
+            except (FileNotFoundError, f7t.FirecrestException):
                 err_log = ""
 
             return out_log, err_log

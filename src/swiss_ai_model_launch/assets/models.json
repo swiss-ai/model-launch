@@ -7,7 +7,7 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": "",
+    "framework_args": "--enable-metrics",
     "_include_in_lightweight_ci": true
   },
   {
@@ -29,7 +29,7 @@
     "workers": 1,
     "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": "--tp-size 8"
+    "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
     "vendor": "Qwen",
@@ -39,7 +39,7 @@
     "workers": 1,
     "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": "--tp-size 8"
+    "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
     "vendor": "Qwen",
@@ -49,7 +49,7 @@
     "workers": 1,
     "nodes_per_worker": 4,
     "time": "02:00:00",
-    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2",
+    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --enable-metrics",
     "pre_launch_cmds": "pip install nvidia-cudnn-cu12==9.16.0.29"
   },
   {
@@ -60,7 +60,7 @@
     "workers": 1,
     "nodes_per_worker": 4,
     "time": "02:00:00",
-    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2"
+    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --enable-metrics"
   },
   {
     "vendor": "MiniMaxAI",
@@ -70,7 +70,7 @@
     "workers": 1,
     "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "vendor": "MiniMaxAI",
@@ -80,7 +80,7 @@
     "workers": 1,
     "nodes_per_worker": 2,
     "time": "02:00:00",
-    "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "vendor": "openai",
@@ -90,6 +90,6 @@
     "workers": 1,
     "nodes_per_worker": 1,
     "time": "02:00:00",
-    "framework_args": ""
+    "framework_args": "--enable-metrics"
   }
 ]
