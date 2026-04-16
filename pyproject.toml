@@ -44,11 +44,11 @@ swiss_ai_model_launch = ["assets/**"]
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 120
 
 [tool.ruff]
 src = ["src"]
-line-length = 88
+line-length = 120
 exclude = ["legacy"] # TODO
 
 [tool.ruff.lint]
@@ -76,7 +76,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "lightweight: lightweight integration tests (triggered automatically)",
-    "full: full integration tests (triggered manually)",
+    "medium: full models.json matrix (triggered on label)",
+    "full: medium + examples/cli/*.sh scripts (triggered on label)",
 ]
 
 [tool.coverage.run]

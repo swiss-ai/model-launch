@@ -53,3 +53,6 @@ class Launcher(ABC):
 
     @abstractmethod
     async def cancel_job(self, job_id: int) -> None: ...
+
+    @abstractmethod
+    def get_log_dir(self, job_id: int) -> str: ...

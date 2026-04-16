@@ -29,6 +29,7 @@ class _Configuration(BaseModel):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         raise NotImplementedError  # pragma: no cover
 
@@ -57,9 +58,7 @@ class _ResolvableConfiguration(_Configuration):
     def _on_answer(self) -> None:
         pass
 
-    def _try_resolve_without_prompt(
-        self, args: argparse.Namespace | None
-    ) -> str | None:
+    def _try_resolve_without_prompt(self, args: argparse.Namespace | None) -> str | None:
         if self.expose_as_arg and args is not None:
             arg_value = getattr(args, self.name, None)
             if arg_value is not None:
@@ -74,12 +73,15 @@ class _ResolvableConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
             self.value = resolved
             self._on_answer()
             return
+        if non_interactive:
+            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -97,14 +99,10 @@ class _ResolvableConfiguration(_Configuration):
 class TextConfiguration(_ResolvableConfiguration):
     type: Literal["text"] = "text"
     default: str | None = None
-    default_factory: (
-        Callable[[], Awaitable[str | None]]
-        | Callable[[GetValueFn], Awaitable[str | None]]
-        | None
-    ) = Field(default=None, exclude=True)
-    validator: ValidatorFn | Callable[[str, GetValueFn], bool] | None = Field(
+    default_factory: Callable[[], Awaitable[str | None]] | Callable[[GetValueFn], Awaitable[str | None]] | None = Field(
         default=None, exclude=True
     )
+    validator: ValidatorFn | Callable[[str, GetValueFn], bool] | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def _check_default_source(self) -> "TextConfiguration":
@@ -121,9 +119,7 @@ class TextConfiguration(_ResolvableConfiguration):
                     f"TextConfiguration '{self.name}': `default_factory` requires "
                     "context but no get_value was provided."
                 )
-            return await cast(
-                Callable[[GetValueFn], Awaitable[str | None]], self.default_factory
-            )(get_value)
+            return await cast(Callable[[GetValueFn], Awaitable[str | None]], self.default_factory)(get_value)
         return await cast(Callable[[], Awaitable[str | None]], self.default_factory)()
 
     def _resolve_validator(self, get_value: GetValueFn | None) -> ValidatorFn | None:
@@ -132,8 +128,7 @@ class TextConfiguration(_ResolvableConfiguration):
         if len(inspect.signature(self.validator).parameters) > 1:
             if get_value is None:
                 raise RuntimeError(
-                    f"TextConfiguration '{self.name}': `validator` requires "
-                    "context but no get_value was provided."
+                    f"TextConfiguration '{self.name}': `validator` requires context but no get_value was provided."
                 )
             validator = cast(Callable[[str, GetValueFn], bool], self.validator)
             return lambda value: validator(value, get_value)
@@ -154,17 +149,18 @@ class TextConfiguration(_ResolvableConfiguration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
             validator = self._resolve_validator(get_value)
             if validator is not None and not validator(resolved):
-                raise ValueError(
-                    f"Invalid value for --{self.name.replace('_', '-')}: {resolved!r}"
-                )
+                raise ValueError(f"Invalid value for --{self.name.replace('_', '-')}: {resolved!r}")
             self.value = resolved
             self._on_answer()
             return
+        if non_interactive:
+            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -208,11 +204,9 @@ class PasswordConfiguration(_ResolvableConfiguration):
 class OptionsConfiguration(_ResolvableConfiguration):
     type: Literal["options"] = "options"
     options: OptionsDict | None = None
-    options_factory: (
-        Callable[[], Awaitable[OptionsDict]]
-        | Callable[[GetValueFn], Awaitable[OptionsDict]]
-        | None
-    ) = Field(default=None, exclude=True)
+    options_factory: Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None = (
+        Field(default=None, exclude=True)
+    )
 
     @model_validator(mode="after")
     def _check_options_source(self) -> "OptionsConfiguration":
@@ -234,14 +228,11 @@ class OptionsConfiguration(_ResolvableConfiguration):
     def _factory_wants_context(self) -> bool:
         if self.options_factory is None:
             raise RuntimeError(
-                f"OptionsConfiguration '{self.name}': `_factory_wants_context` called "
-                "but `options_factory` is None."
+                f"OptionsConfiguration '{self.name}': `_factory_wants_context` called but `options_factory` is None."
             )
         return bool(inspect.signature(self.options_factory).parameters)
 
-    async def _resolve_options(
-        self, get_value: GetValueFn | None = None
-    ) -> OptionsDict:
+    async def _resolve_options(self, get_value: GetValueFn | None = None) -> OptionsDict:
         if self.options is not None:
             return self.options
         if self._factory_wants_context():
@@ -250,9 +241,7 @@ class OptionsConfiguration(_ResolvableConfiguration):
                     f"OptionsConfiguration '{self.name}': `options_factory` requires "
                     "context but no get_value was provided."
                 )
-            return await cast(
-                Callable[[GetValueFn], Awaitable[OptionsDict]], self.options_factory
-            )(get_value)
+            return await cast(Callable[[GetValueFn], Awaitable[OptionsDict]], self.options_factory)(get_value)
         return await cast(Callable[[], Awaitable[OptionsDict]], self.options_factory)()
 
     def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -273,6 +262,7 @@ class OptionsConfiguration(_ResolvableConfiguration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         resolved = self._try_resolve_without_prompt(args)
         if resolved is not None:
@@ -281,6 +271,8 @@ class OptionsConfiguration(_ResolvableConfiguration):
                 self.value = resolved
                 self._on_answer()
                 return
+        if non_interactive:
+            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
         options = await self._resolve_options(get_value)
         if len(options) == 1:
             self.value = next(iter(options))
@@ -301,9 +293,10 @@ class ChainConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
         for configuration in self.chain:
-            await configuration.aconfigure(get_value or self.get_value, args)
+            await configuration.aconfigure(get_value or self.get_value, args, non_interactive=non_interactive)
 
     def get_value(self, name: str) -> str | None:
         for configuration in self.chain:
@@ -331,10 +324,7 @@ class BranchConfiguration(_Configuration):
     def _resolve_branch(self) -> "Configuration | None":
         branch_key = self.head_configuration.value
         if branch_key not in self.branches:
-            raise RuntimeError(
-                f"Invalid choice: {branch_key}. "
-                f"Valid choices are: {list(self.branches.keys())}."
-            )
+            raise RuntimeError(f"Invalid choice: {branch_key}. Valid choices are: {list(self.branches.keys())}.")
         return self.branches[branch_key]
 
     def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -347,11 +337,12 @@ class BranchConfiguration(_Configuration):
         self,
         get_value: GetValueFn | None = None,
         args: argparse.Namespace | None = None,
+        non_interactive: bool = False,
     ) -> None:
-        await self.head_configuration.aconfigure(get_value, args)
+        await self.head_configuration.aconfigure(get_value, args, non_interactive=non_interactive)
         branch = self._resolve_branch()
         if branch is not None:
-            await branch.aconfigure(get_value, args)
+            await branch.aconfigure(get_value, args, non_interactive=non_interactive)
 
     def get_value(self, name: str) -> str | None:
         try:
@@ -383,11 +374,7 @@ class BranchConfiguration(_Configuration):
 
 
 Configuration = Annotated[
-    TextConfiguration
-    | PasswordConfiguration
-    | OptionsConfiguration
-    | ChainConfiguration
-    | BranchConfiguration,
+    TextConfiguration | PasswordConfiguration | OptionsConfiguration | ChainConfiguration | BranchConfiguration,
     Field(discriminator="type"),
 ]
 
