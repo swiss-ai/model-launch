@@ -49,7 +49,7 @@
     "workers": 1,
     "nodes_per_worker": 4,
     "time": "02:00:00",
-    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --enable-metrics",
+    "framework_args": "--tp-size 16 --mem-fraction-static 0.8 --context-length 262144 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --enable-metrics",
     "pre_launch_cmds": "pip install nvidia-cudnn-cu12==9.16.0.29"
   },
   {
