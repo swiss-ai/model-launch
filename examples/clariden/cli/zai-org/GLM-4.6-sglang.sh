@@ -1,0 +1,17 @@
+#!/bin/bash
+# Runs with 4 nodes, TP16. Uses custom glm45 reasoning and tool-call parsers.
+sml advanced \
+  --firecrest-system clariden \
+  --slurm-nodes 4 \
+  --slurm-time 6:00:00 \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --pre-launch-cmds "pip install blobfile" \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.6 \
+    --tp-size 16 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --served-model-name zai-org/GLM-4.6-$(whoami) \
+    --trust-remote-code \
+    --tool-call-parser glm45 \
+    --reasoning-parser glm45"

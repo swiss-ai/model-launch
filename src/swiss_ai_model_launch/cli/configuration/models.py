@@ -69,6 +69,12 @@ class _ResolvableConfiguration(_Configuration):
                 return env_value
         return None
 
+    def _missing_value_message(self) -> str:
+        arg = f"--{self.name.replace('_', '-')}"
+        if self.env_var:
+            return f"Missing required value: pass {arg} or set {self.env_var} (non-interactive mode)"
+        return f"Missing required argument {arg} (non-interactive mode)"
+
     async def aconfigure(
         self,
         get_value: GetValueFn | None = None,
@@ -81,7 +87,7 @@ class _ResolvableConfiguration(_Configuration):
             self._on_answer()
             return
         if non_interactive:
-            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
+            raise ValueError(self._missing_value_message())
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -160,7 +166,7 @@ class TextConfiguration(_ResolvableConfiguration):
             self._on_answer()
             return
         if non_interactive:
-            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
+            raise ValueError(self._missing_value_message())
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -271,8 +277,11 @@ class OptionsConfiguration(_ResolvableConfiguration):
                 self.value = resolved
                 self._on_answer()
                 return
+            if non_interactive:
+                arg = f"--{self.name.replace('_', '-')}"
+                raise ValueError(f"Invalid value {resolved!r} for {arg}. Valid options: {list(options.keys())}")
         if non_interactive:
-            raise ValueError(f"Missing required argument --{self.name.replace('_', '-')} (non-interactive mode)")
+            raise ValueError(self._missing_value_message())
         options = await self._resolve_options(get_value)
         if len(options) == 1:
             self.value = next(iter(options))
