@@ -10,7 +10,7 @@ from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_EXAMPLES_DIR = _REPO_ROOT / "examples" / "cli"
+_EXAMPLES_DIR = _REPO_ROOT / "examples" / "clariden" / "cli"
 
 _JOB_SUBMISSION_TIMEOUT_SEC = 180
 _LAUNCH_TIMEOUT_MIN = 60
