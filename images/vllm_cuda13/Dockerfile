@@ -29,16 +29,16 @@ RUN chmod +x /root/miniconda.sh && \
     /opt/conda/bin/conda clean -ya
 
 # Install vllm cu130 nightly (brings its own torch 2.10.0+cu130).
-RUN pip install --no-cache-dir uv && \
+RUN pip install --no-cache-dir uv==0.11.7 && \
     uv pip install --system -U vllm --torch-backend=auto --extra-index-url https://wheels.vllm.ai/nightly/cu130
 
 # Ensure ray is installed and on PATH.
-RUN pip install --no-cache-dir "ray[default]"
+RUN pip install --no-cache-dir "ray[default]==2.55.0"
 
 # Symlink cuDNN and NCCL headers into conda include path.
-RUN CUDNN_DIR=$(dirname $(find /usr -name 'cudnn.h' -print -quit)) && \
-    ln -sf ${CUDNN_DIR}/cudnn*.h /opt/conda/include/ && \
-    ln -sf $(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit) /opt/conda/include/nccl.h
+RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
+    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
+    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
 
 # Remove nvidia-cublas (pulled as transitive dep) — conflicts with CUDA 13 toolkit's cuBLAS.
 RUN pip uninstall -y nvidia-cublas 2>/dev/null; true
