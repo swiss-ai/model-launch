@@ -32,7 +32,8 @@ async def main() -> None:
             f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username} "
             "--host 0.0.0.0 "
             "--port 8080 "
-            "--tensor-parallel-size 4"
+            "--tensor-parallel-size 4 "
+            "--gpu-memory-utilization 0.5"
         ),
         time="05:00:00",
         worker_port=8080,
