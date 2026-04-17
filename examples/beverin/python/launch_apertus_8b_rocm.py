@@ -33,7 +33,7 @@ async def main() -> None:
             "--host 0.0.0.0 "
             "--port 8080 "
             "--tp-size 4 "
-            "--mem-fraction-static 0.5"
+            "--mem-fraction-static 0.3"
         ),
         time="05:00:00",
         worker_port=8080,
