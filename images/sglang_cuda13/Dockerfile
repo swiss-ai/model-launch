@@ -33,54 +33,52 @@ ARG CUDA_VERSION_PATH
 ARG TORCH_VERSION=2.9.1
 ARG INSTALL_CHANNEL=whl
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
-    torch==${TORCH_VERSION} torchvision torchaudio
+    torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
 
 # Symlink cuDNN and NCCL headers into conda include path.
-RUN CUDNN_DIR=$(dirname $(find /usr -name 'cudnn.h' -print -quit)) && \
-    ln -sf ${CUDNN_DIR}/cudnn*.h /opt/conda/include/ && \
-    ln -sf $(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit) /opt/conda/include/nccl.h
+RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
+    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
+    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
 
 # Install flash-attn 3.
 ARG FLASH_ATTN_3_SHA="92ca9da8d66f7b34ff50dc080ec0fef9661260d6"
-ARG FA3_MAX_JOBS=32
 RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Dao-AILab/flash-attention.git && \
-    cd flash-attention && \
-    git fetch --depth 1 origin ${FLASH_ATTN_3_SHA} && \
-    git checkout ${FLASH_ATTN_3_SHA} && \
-    git submodule update --init --depth 1 && \
-    cd hopper && \
-    FLASH_ATTENTION_DISABLE_FP16=TRUE FLASH_ATTENTION_DISABLE_SM80=TRUE MAX_JOBS=${FA3_MAX_JOBS} python setup.py install && \
-    cd /app/build && \
-    rm -rf flash-attention
+    git -C flash-attention fetch --depth 1 origin ${FLASH_ATTN_3_SHA} && \
+    git -C flash-attention checkout ${FLASH_ATTN_3_SHA} && \
+    git -C flash-attention submodule update --init --depth 1
+
+WORKDIR /app/build/flash-attention/hopper
+ARG FA3_MAX_JOBS=32
+RUN FLASH_ATTENTION_DISABLE_FP16=TRUE FLASH_ATTENTION_DISABLE_SM80=TRUE MAX_JOBS=${FA3_MAX_JOBS} python setup.py install
+
+WORKDIR /app/build
+RUN rm -rf flash-attention
 
 # Fix flash_attn_3 package structure for imports.
-RUN cd /opt/conda/lib/python${PYTHON_VERSION}/site-packages/ && \
-    mkdir -p flash_attn_3 && \
+WORKDIR /opt/conda/lib/python${PYTHON_VERSION}/site-packages
+RUN mkdir -p flash_attn_3 && \
     mv flash_attn_3-*.egg/flash_attn_3/* flash_attn_3/ && \
     mv flash_attn_3-*.egg/flash_attn_interface.py flash_attn_3/ && \
     touch flash_attn_3/__init__.py && \
     rm -rf flash_attn_3-*
 
+WORKDIR /app/build
+
 # Install sglang with all dependencies.
 # NOTE: sglang pins torch to cuda12 wheels, so we use --no-deps first,
 # then install its non-torch dependencies, then re-force cu130 torch.
-RUN pip install --no-cache-dir "sglang[all]"
+RUN pip install --no-cache-dir "sglang[all]==0.5.10.post1"
 
 # Re-install PyTorch cu130 — sglang downgrades to cuda12 torch via its deps.
 ARG CUDA_VERSION_PATH2=${CUDA_VERSION_PATH}
 RUN pip install --no-cache-dir --force-reinstall --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH2}/ \
-    torch==${TORCH_VERSION} torchvision torchaudio
+    torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
 
-# Re-install sgl-kernel with cu130 wheels (default pulls cuda12 version).
-# Download wheel directly to avoid hash mismatch from the index.
+# Re-install sgl-kernel with cu130 wheels, install nvidia-cublas, curl, and sglang-router.
 RUN pip install --no-cache-dir --no-deps --force-reinstall \
-    "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_aarch64.whl"
-
-# Install nvidia-cublas for torch compile compatibility.
-RUN pip install --no-cache-dir nvidia-cublas
-
-# Install curl for router health checks and sglang-router for load balancing.
-RUN conda install -y curl && conda clean -ya
-RUN pip install --no-cache-dir sglang-router
+    "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_aarch64.whl" && \
+    pip install --no-cache-dir nvidia-cublas==13.4.0.1 && \
+    conda install -y curl && conda clean -ya && \
+    pip install --no-cache-dir sglang-router==0.3.2
 
 WORKDIR /opt
