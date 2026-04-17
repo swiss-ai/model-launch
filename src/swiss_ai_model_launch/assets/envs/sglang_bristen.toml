@@ -1,0 +1,19 @@
+image = "lmsysorg/sglang:latest"
+
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
+  "/capstor",
+  "/iopsstor",
+]
+
+workdir = "/opt"
+
+# NOTE THIS IS MISSING SLINGSHOT AND NETWORK CONFIG. WILL BE SLOW FOR >1 NODE!
+
+[env]
+# NCCL_DEBUG = "INFO"  # uncomment for debugging
+# NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
+
+[annotations]
+com.hooks.aws_ofi_nccl.enabled = "true"
+com.hooks.aws_ofi_nccl.variant = "cuda12"
