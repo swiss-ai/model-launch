@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch Apertus-8B on beverin (ROCm/MI300) using the SML Python API."""
+"""Launch Apertus-8B on beverin (ROCm/MI300) with vLLM using the SML Python API."""
 
 import asyncio
 import getpass
@@ -21,20 +21,18 @@ async def main() -> None:
     )
 
     args = LaunchArgs(
-        job_name=f"sml_apertus_8b_rocm_{username}",
-        served_model_name=f"swiss-ai/Apertus-8B-Instruct-2509-rocm-{username}",
+        job_name=f"sml_apertus_8b_vllm_rocm_{username}",
+        served_model_name=f"swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username}",
         account=account,
         partition="mi300",
-        environment="src/swiss_ai_model_launch/assets/envs/sglang_rocm.toml",
-        framework="sglang",
+        environment="src/swiss_ai_model_launch/assets/envs/vllm_rocm.toml",
+        framework="vllm",
         framework_args=(
             "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
-            f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-rocm-sglang-{username} "
+            f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username} "
             "--host 0.0.0.0 "
             "--port 8080 "
-            "--tp-size 4 "
-            "--mem-fraction-static 0.15 "
-            "--enable-metrics"
+            "--tensor-parallel-size 4"
         ),
         time="05:00:00",
         worker_port=8080,
