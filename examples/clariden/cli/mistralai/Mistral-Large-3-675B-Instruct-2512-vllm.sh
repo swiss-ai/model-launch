@@ -1,6 +1,7 @@
 #!/bin/bash
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 4 \
   --serving-framework vllm \
   --worker-port 8080 \

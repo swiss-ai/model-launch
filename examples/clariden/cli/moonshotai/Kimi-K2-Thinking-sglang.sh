@@ -2,6 +2,7 @@
 # Runs with 4 nodes, TP16. Requires some time to start. Must include --reasoning-parser.
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 4 \
   --slurm-time 6:00:00 \
   --serving-framework sglang \

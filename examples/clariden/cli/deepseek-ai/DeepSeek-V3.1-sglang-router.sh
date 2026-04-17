@@ -2,6 +2,7 @@
 # 2 workers x 4 nodes each for increased throughput. Experimental.
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 8 \
   --slurm-workers 2 \
   --slurm-nodes-per-worker 4 \

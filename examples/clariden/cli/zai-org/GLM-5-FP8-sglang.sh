@@ -1,6 +1,7 @@
 #!/bin/bash
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 4 \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
@@ -16,5 +17,4 @@ sml advanced \
     --speculative-num-steps 3 \
     --speculative-eagle-topk 1 \
     --speculative-num-draft-tokens 4 \
-    --mem-fraction-static 0.85 \
-    --disable-cuda-graph"
+    --mem-fraction-static 0.85"

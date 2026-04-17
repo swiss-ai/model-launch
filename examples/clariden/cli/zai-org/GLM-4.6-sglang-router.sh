@@ -3,6 +3,7 @@
 # No bundled env available — provide your own
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 8 \
   --slurm-workers 2 \
   --slurm-nodes-per-worker 4 \

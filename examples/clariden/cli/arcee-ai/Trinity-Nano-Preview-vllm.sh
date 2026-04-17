@@ -1,6 +1,7 @@
 #!/bin/bash
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
   --slurm-nodes 1 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \

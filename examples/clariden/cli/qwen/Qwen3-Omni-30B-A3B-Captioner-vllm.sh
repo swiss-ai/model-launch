@@ -1,6 +1,7 @@
 #!/bin/bash
 sml advanced \
   --firecrest-system clariden \
+  --partition normal \
    --slurm-nodes 1 \
    --slurm-time 6:00:00 \
    --serving-framework vllm \
