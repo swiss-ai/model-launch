@@ -27,6 +27,7 @@ OCF_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4G
 SERVED_MODEL_NAME="{{ served_model_name }}"
 METRICS_REMOTE_WRITE_URL="{{ metrics_remote_write_url or '' }}"
 METRICS_AGENT_BIN="{{ metrics_agent_binary }}"
+DCGM_EXPORTER_BIN="{{ dcgm_exporter_binary }}"
 
 {% if telemetry_endpoint %}
 curl -sf -X POST "{{ telemetry_endpoint }}" \
@@ -44,11 +45,13 @@ if [[ "$ARCH" == "aarch64" ]]; then
     export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/
     export OCF_BIN=/ocfbin/ocf-arm
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-arm64"
+    DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-arm64"
 elif [[ "$ARCH" == "x86_64" ]]; then
     echo "Running on x86_64"
     export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/
     export OCF_BIN=/ocfbin/ocf-amd64
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-amd64"
+    DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-amd64"
 else
     echo "Unknown architecture: $ARCH"
     exit 1
@@ -215,6 +218,17 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
         > /tmp/vmagent-${SLURM_JOB_ID}.log 2>&1 &
 elif [ -n "$METRICS_REMOTE_WRITE_URL" ]; then
     echo "metrics: $METRICS_AGENT_BIN not found, skipping push" >&2
+fi
+
+# Launch DCGM exporter on the batch node to expose GPU metrics on port 9400.
+# vmagent scrape config should include a job targeting localhost:9400 to collect
+# these metrics alongside the framework metrics.
+if [ -x "$DCGM_EXPORTER_BIN" ]; then
+    "$DCGM_EXPORTER_BIN" \
+        --address 0.0.0.0:9400 \
+        > /tmp/dcgm-exporter-${SLURM_JOB_ID}.log 2>&1 &
+else
+    echo "dcgm-exporter: $DCGM_EXPORTER_BIN not found, skipping" >&2
 fi
 
 # Optional router launch
