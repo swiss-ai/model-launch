@@ -113,6 +113,8 @@ jobs:
     needs: [detect-changes, dockerlint]
     if: needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     strategy:
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
@@ -125,6 +127,8 @@ jobs:
       SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
       SML_PARTITION: ${{ secrets.SML_PARTITION }}
       SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
     steps:
       - uses: actions/checkout@v5
       - name: Restore build cache

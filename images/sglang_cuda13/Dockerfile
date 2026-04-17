@@ -6,17 +6,12 @@ ARG PYTHON_VERSION=3.12
 ARG BASE_IMAGE=docker.io/library/ubuntu:${UBUNTU_VERSION}
 ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}
 
-#########################################################################
-# Build image
-#########################################################################
-
 FROM ${DEVEL_BASE_IMAGE} AS build
 
 # NOTE: libnuma1 is mounted from the host via the toml file.
 
 WORKDIR /app/build
 
-# Install miniconda, Python, and Python build dependencies.
 ARG TARGET_PLATFORM
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:$PATH
@@ -28,19 +23,16 @@ RUN chmod +x /root/miniconda.sh && \
     /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja && \
     /opt/conda/bin/conda clean -ya
 
-# Install PyTorch for CUDA 13.
 ARG CUDA_VERSION_PATH
 ARG TORCH_VERSION=2.9.1
 ARG INSTALL_CHANNEL=whl
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
     torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
 
-# Symlink cuDNN and NCCL headers into conda include path.
 RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
     ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
     ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
 
-# Install flash-attn 3.
 ARG FLASH_ATTN_3_SHA="92ca9da8d66f7b34ff50dc080ec0fef9661260d6"
 RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Dao-AILab/flash-attention.git && \
     git -C flash-attention fetch --depth 1 origin ${FLASH_ATTN_3_SHA} && \
@@ -54,7 +46,6 @@ RUN FLASH_ATTENTION_DISABLE_FP16=TRUE FLASH_ATTENTION_DISABLE_SM80=TRUE MAX_JOBS
 WORKDIR /app/build
 RUN rm -rf flash-attention
 
-# Fix flash_attn_3 package structure for imports.
 WORKDIR /opt/conda/lib/python${PYTHON_VERSION}/site-packages
 RUN mkdir -p flash_attn_3 && \
     mv flash_attn_3-*.egg/flash_attn_3/* flash_attn_3/ && \

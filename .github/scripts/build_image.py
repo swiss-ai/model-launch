@@ -30,8 +30,11 @@ def _build_slurm_script(
     reservation: str | None,
     remote_logs_dir: str,
     output_sqsh: str,
+    ghcr_token: str,
+    ghcr_actor: str,
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
+    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest"
     return f"""#!/bin/bash
 #SBATCH --job-name=build-{image_name}
 #SBATCH --nodes=1
@@ -56,6 +59,7 @@ IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
 SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 
 cleanup() {{
+    podman logout ghcr.io 2>/dev/null || true
     podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
     rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
     rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
@@ -64,6 +68,10 @@ trap cleanup EXIT
 
 echo "=== Building {image_name} on $(hostname) at $(date) ==="
 podman build -t "${{IMAGE_TAG}}" .
+
+echo "=== Pushing to GHCR ==="
+echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
+podman push "${{IMAGE_TAG}}" "{ghcr_image}"
 
 echo "=== Converting to sqsh ==="
 rm -f "${{SCRATCH_SQSH}}"
@@ -118,6 +126,9 @@ async def main(image_name: str) -> int:
     partition = os.environ["SML_PARTITION"]
     reservation = os.environ.get("SML_RESERVATION")
 
+    ghcr_token = os.environ["GHCR_TOKEN"]
+    ghcr_actor = os.environ["GHCR_ACTOR"]
+
     auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri)
     client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
 
@@ -157,6 +168,8 @@ async def main(image_name: str) -> int:
         reservation=reservation,
         remote_logs_dir=remote_logs_dir,
         output_sqsh=output_sqsh,
+        ghcr_token=ghcr_token,
+        ghcr_actor=ghcr_actor,
     )
 
     # Submit job
