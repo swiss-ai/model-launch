@@ -1,6 +1,6 @@
 # `sml`: Swiss AI Model Launch
 
-<img src="docs/logo-wide.png" alt="sml logo" width="400">
+<p align="center"><img src="docs/logo-wide.png" alt="sml logo" width="400"></p>
 
 A CLI app for launching AI models on clusters.
 
