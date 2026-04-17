@@ -1,4 +1,4 @@
-image = "lmsysorg/sglang:latest"
+image = "lmsysorg/sglang:v0.5.10"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
