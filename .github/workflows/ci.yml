@@ -127,12 +127,28 @@ jobs:
       SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
     steps:
       - uses: actions/checkout@v5
+      - name: Restore build cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build-sentinel
+          key: build-${{ matrix.image }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
       - uses: ./.github/actions/setup
+        if: steps.cache.outputs.cache-hit != 'true'
         with:
           python-version: "3.12"
       - name: Build image and save sqsh
+        if: steps.cache.outputs.cache-hit != 'true'
         run: python .github/scripts/build_image.py "${{ matrix.image }}"
         timeout-minutes: 300
+      - name: Save build cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: mkdir -p .build-sentinel && touch .build-sentinel/built
+      - uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: .build-sentinel
+          key: build-${{ matrix.image }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
 
   test-lightweight:
     name: Integration Tests (lightweight)
