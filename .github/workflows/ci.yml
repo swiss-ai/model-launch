@@ -9,6 +9,62 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    name: Lint & Format (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: ruff check .
+      - run: ruff format --check .
+
+  typecheck:
+    name: Type Check (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: mypy
+
+  shellcheck:
+    name: Shell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make shellcheck
+
+  dockerlint:
+    name: Docker Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make dockerlint
+
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: |
+            **/*.md
+            !legacy/**/*.md
+          config: .markdownlint.yaml
+
   detect-changes:
     name: Detect Changed Images
     runs-on: ubuntu-latest
@@ -54,7 +110,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.image }}
-    needs: detect-changes
+    needs: [detect-changes, dockerlint]
     if: needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     strategy:
