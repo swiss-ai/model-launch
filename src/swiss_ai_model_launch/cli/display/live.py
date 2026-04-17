@@ -8,7 +8,7 @@ from rich.table import Table
 from rich.traceback import Traceback
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Footer, Header, Label, RichLog, TabbedContent, TabPane
+from textual.widgets import Footer, Header, Label, TabbedContent, TabPane, TextArea
 from textual.worker import Worker, WorkerState
 
 from swiss_ai_model_launch.cli.display.state import DisplayState
@@ -36,9 +36,10 @@ _ERR_LOG_ID = "err-log"
 
 class _SMLApp(App[bool]):
     TITLE = "SwissAI Model Launch"
+    ALLOW_SELECT = True
     BINDINGS = [
-        Binding("ctrl+x", "quit_resume", "Quit and Resume"),
-        Binding("ctrl+k", "quit_kill", "Quit and Kill"),
+        Binding("ctrl+x", "quit_resume", "Quit and Resume", priority=True),
+        Binding("ctrl+k", "quit_kill", "Quit and Kill", priority=True),
     ]
 
     CSS = """
@@ -51,9 +52,8 @@ class _SMLApp(App[bool]):
     TabbedContent {
         height: 1fr;
     }
-    RichLog {
+    TextArea {
         height: 1fr;
-        overflow-y: auto;
     }
     """
 
@@ -61,17 +61,15 @@ class _SMLApp(App[bool]):
         super().__init__()
         self._state = state
         self._work = work
-        self._out_written = 0
-        self._err_written = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Label(self._render_status(), id=_STATUS_LABEL_ID, markup=True)
         with TabbedContent("stdout", "stderr"):
             with TabPane("stdout"):
-                yield RichLog(id=_OUT_LOG_ID, highlight=False, markup=False)
+                yield TextArea("", id=_OUT_LOG_ID, read_only=True)
             with TabPane("stderr"):
-                yield RichLog(id=_ERR_LOG_ID, highlight=False, markup=False)
+                yield TextArea("", id=_ERR_LOG_ID, read_only=True)
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -125,22 +123,14 @@ class _SMLApp(App[bool]):
         self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
 
         out_lines = list(self._state.out_logs)
-        out_log = self.query_one(f"#{_OUT_LOG_ID}", RichLog)
-        if len(out_lines) < self._out_written:
-            out_log.clear()
-            self._out_written = 0
-        for line in out_lines[self._out_written :]:
-            out_log.write(line)
-        self._out_written = len(out_lines)
+        out_log = self.query_one(f"#{_OUT_LOG_ID}", TextArea)
+        out_log.load_text("\n".join(out_lines))
+        out_log.scroll_end(animate=False)
 
         err_lines = list(self._state.err_logs)
-        err_log = self.query_one(f"#{_ERR_LOG_ID}", RichLog)
-        if len(err_lines) < self._err_written:
-            err_log.clear()
-            self._err_written = 0
-        for line in err_lines[self._err_written :]:
-            err_log.write(line)
-        self._err_written = len(err_lines)
+        err_log = self.query_one(f"#{_ERR_LOG_ID}", TextArea)
+        err_log.load_text("\n".join(err_lines))
+        err_log.scroll_end(animate=False)
 
 
 class LiveDisplay:
