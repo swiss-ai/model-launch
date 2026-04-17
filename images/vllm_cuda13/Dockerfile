@@ -6,6 +6,7 @@ ARG PYTHON_VERSION=3.12
 ARG BASE_IMAGE=docker.io/library/ubuntu:${UBUNTU_VERSION}
 ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}
 
+
 FROM ${DEVEL_BASE_IMAGE} AS build
 
 # NOTE: libnuma1 is mounted from the host via the toml file.
