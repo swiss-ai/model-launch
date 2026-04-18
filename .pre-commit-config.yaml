@@ -6,10 +6,10 @@ repos:
         args: ["--fix"]
       - id: ruff-format
 
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.44.0
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.17.2
     hooks:
-      - id: markdownlint
+      - id: markdownlint-cli2
         args: ["--config", ".markdownlint.yaml"]
         exclude: ^legacy/
 
@@ -25,13 +25,10 @@ repos:
       - id: hadolint-docker
         files: ^images/
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - pydantic
-          - types-PyYAML
-          - questionary
-          - keyring
-          - textual
+        name: mypy
+        entry: make mypy
+        language: system
+        pass_filenames: false

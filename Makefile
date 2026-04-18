@@ -1,8 +1,15 @@
-.PHONY: format shellcheck markdownlint dockerlint _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+.PHONY: lint format mypy shellcheck markdownlint dockerlint static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+
+lint:
+	ruff check .
+	ruff format --check .
 
 format:
 	ruff format .
 	ruff check --fix .
+
+mypy:
+	mypy
 
 shellcheck:
 	find . -name "*.sh" -not -path "./legacy/*" -not -path "./.venv/*" | xargs shellcheck
@@ -12,6 +19,8 @@ markdownlint:
 
 dockerlint:
 	find images/ -name "Dockerfile*" | while read -r f; do echo "--- $$f"; docker run --rm -i docker.io/hadolint/hadolint < "$$f"; done
+
+static: lint mypy shellcheck markdownlint dockerlint
 
 _test-lightweight:
 	pytest -m lightweight --cov --cov-report=term-missing -n auto
