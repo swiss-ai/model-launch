@@ -112,7 +112,7 @@
     "time": "06:00:00",
     "framework_args": "--tp-size 16 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   },
-    {
+  {
     "vendor": "zai-org",
     "model_name": "GLM-5.1",
     "framework": "sglang",
