@@ -43,6 +43,7 @@ repos:
 
       - id: mypy
         name: mypy
-        entry: make mypy
+        entry: make dmypy
         language: system
+        types: [python]
         pass_filenames: false

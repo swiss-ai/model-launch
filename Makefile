@@ -1,4 +1,4 @@
-.PHONY: lint format mypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+.PHONY: lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
 
 lint:
 	ruff check .
@@ -12,6 +12,9 @@ format:
 
 mypy:
 	uv run --frozen mypy
+
+dmypy:
+	uv run --frozen dmypy run -- src
 
 shellcheck:
 	find . -name "*.sh" -not -path "./legacy/*" -not -path "./.venv/*" | xargs shellcheck
@@ -53,6 +56,7 @@ clean-cache:
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	-uv run --frozen dmypy stop 2>/dev/null; rm -f .dmypy.json
 
 clean-dev: clean-cache
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
