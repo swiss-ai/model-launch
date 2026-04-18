@@ -9,28 +9,28 @@ description = "Swiss AI Model Launch"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "httpx>=0.28",
-    "jinja2>=3.0",
-    "keyring>=25.0",
-    "keyrings.alt>=5.0",
-    "pydantic>=2.0",
-    "pyfirecrest>=3.7.1",
-    "pyyaml>=6.0",
-    "questionary>=2.0",
-    "textual>=8.1",
+  "httpx>=0.28",
+  "jinja2>=3.0",
+  "keyring>=25.0",
+  "keyrings.alt>=5.0",
+  "pydantic>=2.0",
+  "pyfirecrest>=3.7.1",
+  "pyyaml>=6.0",
+  "questionary>=2.0",
+  "textual>=8.1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.15",
-    "mypy>=1.0",
-    "pytest>=9.0",
-    "pytest-asyncio>=1.0",
-    "pytest-cov>=7.0",
-    "pytest-xdist>=3.0",
-    "pre-commit>=4.0",
-    "shellcheck-py>=0.9",
-    "types-PyYAML>=6.0",
+  "ruff>=0.15",
+  "mypy>=1.0",
+  "pytest>=9.0",
+  "pytest-asyncio>=1.0",
+  "pytest-cov>=7.0",
+  "pytest-xdist>=3.0",
+  "pre-commit>=4.0",
+  "shellcheck-py>=0.9",
+  "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
@@ -53,13 +53,13 @@ exclude = ["legacy"] # TODO
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle
-    "F",  # pyflakes
-    "I",  # isort
-    "N",  # naming conventions
-    "B",  # bugbear
-    "UP", # pyupgrade
-    "S",  # security (bandit)
+  "E",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # isort
+  "N",  # naming conventions
+  "B",  # bugbear
+  "UP", # pyupgrade
+  "S",  # security (bandit)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -75,9 +75,9 @@ plugins = ["pydantic.mypy"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
-    "lightweight: lightweight integration tests (triggered automatically)",
-    "medium: full models.json matrix (triggered on label)",
-    "full: medium + examples/cli/*.sh scripts (triggered on label)",
+  "lightweight: lightweight integration tests (triggered automatically)",
+  "medium: full models.json matrix (triggered on label)",
+  "full: medium + examples/cli/*.sh scripts (triggered on label)",
 ]
 
 [tool.coverage.run]

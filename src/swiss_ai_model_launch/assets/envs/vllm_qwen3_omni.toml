@@ -10,7 +10,7 @@ mounts = [
   "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
 ]
 
-workdir = "/opt" 
+workdir = "/opt"
 
 [env]
 # NCCL_DEBUG = "INFO"  # uncomment for debugging

@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.10", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.10", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
@@ -56,3 +56,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: make markdownlint
+
+  tomlfmt:
+    name: TOML Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install taplo
+        run: curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.9.3/taplo-full-linux-x86_64.gz | gzip -d > taplo && chmod +x taplo && sudo mv taplo /usr/local/bin/taplo
+      - run: make tomlfmt
+
+  prettier:
+    name: JSON & YAML Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make prettier

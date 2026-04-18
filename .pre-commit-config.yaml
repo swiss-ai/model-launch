@@ -27,6 +27,20 @@ repos:
 
   - repo: local
     hooks:
+      - id: taplo
+        name: taplo
+        entry: taplo fmt
+        language: system
+        files: \.toml$
+        exclude: ^legacy/
+
+      - id: prettier
+        name: prettier
+        entry: npx prettier --write
+        language: system
+        files: \.(json|ya?ml)$
+        exclude: ^legacy/
+
       - id: mypy
         name: mypy
         entry: make mypy
