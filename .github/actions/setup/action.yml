@@ -12,5 +12,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
     - uses: astral-sh/setup-uv@v6
+      with:
+        activate-environment: true
     - run: uv sync --frozen --extra dev
       shell: bash
