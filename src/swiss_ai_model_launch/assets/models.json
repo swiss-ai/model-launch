@@ -91,5 +91,45 @@
     "nodes_per_worker": 1,
     "time": "02:00:00",
     "framework_args": "--enable-metrics"
+  },
+  {
+    "vendor": "zai-org",
+    "model_name": "GLM-5",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 8,
+    "time": "06:00:00",
+    "framework_args": "--tp-size 32 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+  },
+  {
+    "vendor": "zai-org",
+    "model_name": "GLM-5-FP8",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 4,
+    "time": "06:00:00",
+    "framework_args": "--tp-size 16 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+  },
+    {
+    "vendor": "zai-org",
+    "model_name": "GLM-5.1",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 8,
+    "time": "06:00:00",
+    "framework_args": "--tp-size 32 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+  },
+  {
+    "vendor": "zai-org",
+    "model_name": "GLM-5.1-FP8",
+    "framework": "sglang",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 4,
+    "time": "06:00:00",
+    "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   }
 ]
