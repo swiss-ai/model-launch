@@ -1,8 +1,8 @@
 # `sml`: Swiss AI Model Launch
 
-<p align="center"><img src="docs/logo-wide.png" alt="sml logo" width="400"></p>
+<p align="center"><img src="docs/assets/logo-wide.png" alt="SML Logo" width="400"></p>
 
-A CLI app for launching AI models on clusters.
+A CLI app for launching LLMs on clusters.
 
 ## Installation
 
@@ -43,7 +43,7 @@ You can run SML on your local machine and it will submit jobs to the cluster via
 
 SML is designed for users at different levels of expertise, from those who only want to launch a pre-configured model with a few clicks, to those who want to have full control over the model and serving configuration.
 
-![Levels of Expertise and Use Cases](docs/levels-of-expertise.png)
+![Levels of Expertise and Use Cases](docs/assets/levels-of-expertise.png)
 
 Before proceeding to the next sections, please take a moment to identify which user level you belong to. This will help you navigate the documentation and find the most relevant information for your needs. Then you can follow the instructions in the [Usage](#usage) section that best suits your needs.
 
