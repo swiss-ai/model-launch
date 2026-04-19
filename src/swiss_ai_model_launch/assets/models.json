@@ -131,5 +131,25 @@
     "nodes_per_worker": 4,
     "time": "06:00:00",
     "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+  },
+  {
+    "vendor": "google",
+    "model_name": "gemma-4-26B-A4B-it",
+    "framework": "vllm",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "06:00:00",
+    "framework_args": "--tensor-parallel-size 4"
+  },
+  {
+    "vendor": "google",
+    "model_name": "gemma-4-31B-it",
+    "framework": "vllm",
+    "environment": null,
+    "workers": 1,
+    "nodes_per_worker": 1,
+    "time": "06:00:00",
+    "framework_args": "--tensor-parallel-size 4"
   }
 ]
