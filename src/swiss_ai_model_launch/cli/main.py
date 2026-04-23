@@ -623,8 +623,6 @@ async def _main(args: argparse.Namespace) -> None:
         await _run_preconfigured(args)
     elif subcommand == "advanced":
         await _run_advanced(args)
-    elif subcommand == "mcp":
-        _run_mcp()
 
 
 def main() -> None:
@@ -633,7 +631,10 @@ def main() -> None:
     if args.subcommand is None:
         default = "preconfigured" if InitConfig.exists() else "init"
         args = parser.parse_args([default])
-    asyncio.run(_main(args))
+    if args.subcommand == "mcp":
+        _run_mcp()
+    else:
+        asyncio.run(_main(args))
 
 
 if __name__ == "__main__":
