@@ -153,7 +153,7 @@ async def list_preconfigured_models(
 ) -> list[dict[str, Any]]:
     """List all preconfigured models available for launch."""
     launcher = await _make_launcher(system=system, partition=partition)
-    entries: list[ModelCatalogEntry] = await launcher.get_preconfigured_models()
+    entries = await launcher.get_preconfigured_models()
     return [e.model_dump() for e in entries]
 
 
