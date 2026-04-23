@@ -55,9 +55,7 @@ async def _make_launcher(
 
     if launcher_type == "firecrest":
         if system is None:
-            raise ValueError(
-                "`system` is required when using a FirecREST-based launcher."
-            )
+            raise ValueError("`system` is required when using a FirecREST-based launcher.")
         client = _build_firecrest_client(config)
         return await FirecRESTLauncher.from_client(
             client=client,
@@ -107,22 +105,14 @@ async def launch_model(
         str | None,
         "Target HPC system name (required for FirecREST launchers).",
     ] = None,
-    use_router: Annotated[
-        bool, "Enable router for load balancing across workers."
-    ] = False,
+    use_router: Annotated[bool, "Enable router for load balancing across workers."] = False,
     reservation: Annotated[str | None, "SLURM reservation name (optional)."] = None,
     nodes_per_worker: Annotated[int, "Number of nodes per worker."] = 1,
-    framework_args: Annotated[
-        str | None, "Extra arguments forwarded to the framework."
-    ] = None,
-    pre_launch_cmds: Annotated[
-        str | None, "Shell commands to run before launch."
-    ] = None,
+    framework_args: Annotated[str | None, "Extra arguments forwarded to the framework."] = None,
+    pre_launch_cmds: Annotated[str | None, "Shell commands to run before launch."] = None,
 ) -> dict[str, Any]:
     """Launch a model on an HPC cluster. Returns the job ID and served model name."""
-    launcher = await _make_launcher(
-        system=system, partition=partition, reservation=reservation
-    )
+    launcher = await _make_launcher(system=system, partition=partition, reservation=reservation)
     served_model_name = f"{vendor}/{model_name}-{create_salt(4)}"
     request = LaunchRequest(
         vendor=vendor,
