@@ -4,7 +4,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
@@ -110,8 +110,8 @@ class SlurmLauncher(Launcher):
         # sbatch prints: "Submitted batch job 12345"
         return int(stdout.decode().strip().split()[-1])
 
-    async def get_preconfigured_models(self) -> list[LaunchRequest]:
-        return [LaunchRequest(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
+    async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
+        return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         launch_args = launch_args.model_copy(

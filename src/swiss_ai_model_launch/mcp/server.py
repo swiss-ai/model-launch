@@ -11,7 +11,7 @@ import firecrest as f7t
 import yaml
 
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
 
 if TYPE_CHECKING:
@@ -136,8 +136,8 @@ async def list_preconfigured_models(
 ) -> list[dict[str, Any]]:
     """List all preconfigured models available for launch."""
     launcher = await _make_launcher(system=system, partition=partition)
-    models = await launcher.get_preconfigured_models()
-    return [m.model_dump() for m in models]
+    entries: list[ModelCatalogEntry] = await launcher.get_preconfigured_models()
+    return [e.model_dump() for e in entries]
 
 
 async def launch_model(

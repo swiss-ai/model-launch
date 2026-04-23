@@ -7,7 +7,7 @@ from pathlib import Path
 import firecrest as f7t
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
@@ -155,8 +155,8 @@ class FirecRESTLauncher(Launcher):
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
-    async def get_preconfigured_models(self) -> list[LaunchRequest]:
-        return [LaunchRequest(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
+    async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
+        return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
         remote_env_path = await self._create_remote_env_file_path(launch_request)

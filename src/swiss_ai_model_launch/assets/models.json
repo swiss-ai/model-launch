@@ -4,9 +4,7 @@
     "model_name": "Apertus-8B-Instruct-2509",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 1,
-    "time": "02:00:00",
     "framework_args": "--enable-metrics",
     "_include_in_lightweight_ci": true
   },
@@ -15,9 +13,7 @@
     "model_name": "Apertus-8B-Instruct-2509",
     "framework": "vllm",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 1,
-    "time": "02:00:00",
     "framework_args": "",
     "_include_in_lightweight_ci": true
   },
@@ -26,9 +22,7 @@
     "model_name": "Apertus-70B-Instruct-2509",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 2,
-    "time": "02:00:00",
     "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
@@ -36,9 +30,7 @@
     "model_name": "Qwen3-235B-A22B-Instruct-2507",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 2,
-    "time": "02:00:00",
     "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
@@ -46,9 +38,7 @@
     "model_name": "Qwen3.5-397B-A17B",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 4,
-    "time": "02:00:00",
     "framework_args": "--tp-size 16 --mem-fraction-static 0.8 --context-length 262144 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --enable-metrics",
     "pre_launch_cmds": "pip install nvidia-cudnn-cu12==9.16.0.29"
   },
@@ -57,9 +47,7 @@
     "model_name": "Kimi-K2.5",
     "framework": "sglang",
     "environment": "src/swiss_ai_model_launch/assets/envs/sglang_kimi.toml",
-    "workers": 1,
     "nodes_per_worker": 4,
-    "time": "02:00:00",
     "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --enable-metrics"
   },
   {
@@ -67,9 +55,7 @@
     "model_name": "MiniMax-M2",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 2,
-    "time": "02:00:00",
     "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85 --enable-metrics"
   },
   {
@@ -77,9 +63,7 @@
     "model_name": "MiniMax-M2.5",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 2,
-    "time": "02:00:00",
     "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85 --enable-metrics"
   },
   {
@@ -87,9 +71,7 @@
     "model_name": "gpt-oss-120b",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 1,
-    "time": "02:00:00",
     "framework_args": "--enable-metrics"
   },
   {
@@ -97,9 +79,7 @@
     "model_name": "GLM-5",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 8,
-    "time": "06:00:00",
     "framework_args": "--tp-size 32 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   },
   {
@@ -107,9 +87,7 @@
     "model_name": "GLM-5-FP8",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 4,
-    "time": "06:00:00",
     "framework_args": "--tp-size 16 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   },
   {
@@ -117,9 +95,7 @@
     "model_name": "GLM-5.1",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 8,
-    "time": "06:00:00",
     "framework_args": "--tp-size 32 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   },
   {
@@ -127,9 +103,7 @@
     "model_name": "GLM-5.1-FP8",
     "framework": "sglang",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 4,
-    "time": "06:00:00",
     "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
   },
   {
@@ -137,9 +111,7 @@
     "model_name": "gemma-4-26B-A4B-it",
     "framework": "vllm",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 1,
-    "time": "06:00:00",
     "framework_args": "--tensor-parallel-size 4"
   },
   {
@@ -147,9 +119,7 @@
     "model_name": "gemma-4-31B-it",
     "framework": "vllm",
     "environment": null,
-    "workers": 1,
     "nodes_per_worker": 1,
-    "time": "06:00:00",
     "framework_args": "--tensor-parallel-size 4"
   }
 ]

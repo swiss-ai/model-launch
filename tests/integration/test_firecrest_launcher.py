@@ -6,7 +6,7 @@ import firecrest as f7t
 import pytest
 
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
 from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _LAUNCH_TIMEOUT = 60
@@ -16,7 +16,11 @@ _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
 _LAUNCH_REQUESTS = [
     pytest.param(
-        LaunchRequest.model_validate(entry),
+        LaunchRequest(
+            **ModelCatalogEntry.model_validate(entry).model_dump(),
+            workers=1,
+            time="03:00:00",
+        ),
         id=f"{entry['vendor']}/{entry['model_name']}/{entry['framework']}",
         marks=[pytest.mark.medium, pytest.mark.full]
         + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
