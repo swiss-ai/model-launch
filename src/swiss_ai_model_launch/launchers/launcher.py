@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
 
 class JobStatus(Enum):

@@ -11,7 +11,8 @@ import firecrest as f7t
 import yaml
 
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
 
 if TYPE_CHECKING:

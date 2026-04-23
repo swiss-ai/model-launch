@@ -24,7 +24,8 @@ from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
@@ -416,17 +417,13 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         (e for e in catalogue if e.vendor == vendor and e.model_name == model_name and e.framework == framework),
         None,
     )
-    return LaunchRequest(
-        vendor=vendor,
-        model_name=model_name,
-        framework=framework,
-        environment=catalogue_entry.environment if catalogue_entry else None,
+    if catalogue_entry is None:
+        catalogue_entry = ModelCatalogEntry(vendor=vendor, model_name=model_name, framework=framework)
+    return LaunchRequest.from_catalog_entry(
+        catalogue_entry,
         workers=int(launch_req_config.get_non_none_value("workers")),
-        nodes_per_worker=catalogue_entry.nodes_per_worker if catalogue_entry else 1,
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
-        framework_args=catalogue_entry.framework_args if catalogue_entry else None,
-        pre_launch_cmds=catalogue_entry.pre_launch_cmds if catalogue_entry else None,
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
     )
 

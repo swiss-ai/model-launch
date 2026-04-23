@@ -6,7 +6,8 @@ import firecrest as f7t
 import pytest
 
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
 
 _LAUNCH_TIMEOUT = 60

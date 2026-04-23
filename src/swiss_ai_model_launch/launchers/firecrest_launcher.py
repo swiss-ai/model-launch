@@ -7,8 +7,9 @@ from pathlib import Path
 import firecrest as f7t
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.launchers.launch_request import LaunchRequest, ModelCatalogEntry
+from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
