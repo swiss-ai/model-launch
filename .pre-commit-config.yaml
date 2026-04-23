@@ -1,37 +1,58 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.4
+  - repo: local
     hooks:
       - id: ruff
-        args: ["--fix"]
+        name: ruff
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types: [python]
+        pass_filenames: false
+
       - id: ruff-format
+        name: ruff-format
+        entry: uv run --frozen ruff format
+        language: system
+        types: [python]
+        pass_filenames: false
 
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.44.0
-    hooks:
-      - id: markdownlint
-        args: ["--config", ".markdownlint.yaml"]
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        entry: npx markdownlint-cli2 --config .markdownlint.yaml
+        language: system
+        types: [markdown]
         exclude: ^legacy/
 
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
-    hooks:
       - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        types: [shell]
         exclude: ^legacy/
 
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
-    hooks:
-      - id: hadolint-docker
-        files: ^images/
+      - id: hadolint
+        name: hadolint
+        entry: hadolint
+        language: system
+        files: ^images/.*Dockerfile
+        types_or: [dockerfile, file]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
-    hooks:
+      - id: taplo
+        name: taplo
+        entry: taplo fmt
+        language: system
+        files: \.toml$
+        exclude: ^legacy/
+
+      - id: prettier
+        name: prettier
+        entry: npx prettier --write
+        language: system
+        files: \.(json|ya?ml)$
+        exclude: ^legacy/
+
       - id: mypy
-        additional_dependencies:
-          - pydantic
-          - types-PyYAML
-          - questionary
-          - keyring
-          - textual
+        name: mypy
+        entry: make dmypy
+        language: system
+        types: [python]
+        pass_filenames: false

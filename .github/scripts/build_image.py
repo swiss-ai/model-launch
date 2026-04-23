@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Submit a SLURM image-build job via FirecREST and wait for completion."""
 
 import asyncio
 import os
@@ -7,12 +6,13 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from textwrap import dedent
 
 import firecrest as f7t
 
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
-_POLL_INTERVAL = 60  # seconds
-_TIMEOUT = 4 * 3600  # 4 hours
+_POLL_INTERVAL = 60
+_TIMEOUT = 4 * 3600
 _TERMINAL_STATES = {
     "COMPLETED",
     "FAILED",
@@ -35,60 +35,63 @@ def _build_slurm_script(
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
     ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest"
-    return f"""#!/bin/bash
-#SBATCH --job-name=build-{image_name}
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --time=04:00:00
-#SBATCH --account={account}
-#SBATCH --partition={partition}
-{reservation_line}
-#SBATCH --output={remote_logs_dir}/%j.out
-#SBATCH --error={remote_logs_dir}/%j.err
+    return dedent(
+        f"""
+        #!/bin/bash
+        #SBATCH --job-name=build-{image_name}
+        #SBATCH --nodes=1
+        #SBATCH --ntasks=1
+        #SBATCH --cpus-per-task=64
+        #SBATCH --time=04:00:00
+        #SBATCH --account={account}
+        #SBATCH --partition={partition}
+        {reservation_line}
+        #SBATCH --output={remote_logs_dir}/%j.out
+        #SBATCH --error={remote_logs_dir}/%j.err
 
-set -euo pipefail
+        set -euo pipefail
 
-# Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
-# Point podman's runtime dir to a writable temp location.
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
-export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
-mkdir -p "${{XDG_RUNTIME_DIR}}"
+        # Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
+        # Point podman's runtime dir to a writable temp location.
+        export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
+        export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
+        mkdir -p "${{XDG_RUNTIME_DIR}}"
 
-IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
-SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
+        IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
+        SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 
-cleanup() {{
-    podman logout ghcr.io 2>/dev/null || true
-    podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
-    rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
-    rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
-}}
-trap cleanup EXIT
+        cleanup() {{
+            podman logout ghcr.io 2>/dev/null || true
+            podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+            rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
+            rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
+        }}
+        trap cleanup EXIT
 
-echo "=== Building {image_name} on $(hostname) at $(date) ==="
-podman build -t "${{IMAGE_TAG}}" .
+        echo "=== Building {image_name} on $(hostname) at $(date) ==="
+        podman build -t "${{IMAGE_TAG}}" .
 
-echo "=== Pushing to GHCR ==="
-echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
-podman push "${{IMAGE_TAG}}" "{ghcr_image}"
+        echo "=== Pushing to GHCR ==="
+        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
+        podman push "${{IMAGE_TAG}}" "{ghcr_image}"
 
-echo "=== Converting to sqsh ==="
-rm -f "${{SCRATCH_SQSH}}"
-enroot import -o "${{SCRATCH_SQSH}}" "podman://${{IMAGE_TAG}}" || true
-if [ ! -s "${{SCRATCH_SQSH}}" ]; then
-    echo "ERROR: enroot import produced no output"
-    exit 1
-fi
+        echo "=== Converting to sqsh ==="
+        rm -f "${{SCRATCH_SQSH}}"
+        enroot import -o "${{SCRATCH_SQSH}}" "podman://${{IMAGE_TAG}}" || true
+        if [ ! -s "${{SCRATCH_SQSH}}" ]; then
+            echo "ERROR: enroot import produced no output"
+            exit 1
+        fi
 
-echo "=== Saving to capstor ==="
-mkdir -p "$(dirname "{output_sqsh}")"
-cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
-mv "{output_sqsh}.tmp" "{output_sqsh}"
-chmod o+rx "{output_sqsh}"
+        echo "=== Saving to capstor ==="
+        mkdir -p "$(dirname "{output_sqsh}")"
+        cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
+        mv "{output_sqsh}.tmp" "{output_sqsh}"
+        chmod o+rx "{output_sqsh}"
 
-echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
-"""
+        echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
+    """
+    ).lstrip("\n")
 
 
 async def _print_logs(
@@ -139,12 +142,10 @@ async def main(image_name: str) -> int:
     remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}"
     remote_logs_dir = f"/users/{username}/.sml/image-builds/logs"
 
-    # Create remote directories
     print("Creating remote directories...")
     await client.mkdir(system_name, remote_build_dir, create_parents=True)
     await client.mkdir(system_name, remote_logs_dir, create_parents=True)
 
-    # Upload all files in the image directory
     local_image_dir = Path("images") / image_name
     print(f"Uploading {local_image_dir} -> {remote_build_dir}")
     for local_file in sorted(local_image_dir.iterdir()):
@@ -172,7 +173,6 @@ async def main(image_name: str) -> int:
         ghcr_actor=ghcr_actor,
     )
 
-    # Submit job
     print(f"Submitting SLURM job for {image_name}...")
     result = await client.submit(
         system_name=system_name,
@@ -183,7 +183,6 @@ async def main(image_name: str) -> int:
     job_id = int(result["jobId"])
     print(f"Job ID: {job_id}")
 
-    # Poll until terminal state
     start = time.time()
     while time.time() - start < _TIMEOUT:
         await asyncio.sleep(_POLL_INTERVAL)

@@ -1,10 +1,10 @@
+import argparse
+import logging
 import os
 import sys
-import logging
-import argparse
 import tempfile
 
-from utils import nanoid, extract_model_name, setup_logging, generate_job_script, submit_job, fetch_bootstrap_addresses
+from utils import extract_model_name, fetch_bootstrap_addresses, generate_job_script, nanoid, setup_logging, submit_job
 
 
 def parse_args():
@@ -19,13 +19,20 @@ def parse_args():
     parser.add_argument("--interactive", action="store_true", help="Launch interactive shell instead of batch job")
 
     # Framework selection
-    parser.add_argument("--serving-framework", type=str, choices=["sglang", "vllm"], required=True, help="Serving framework to use")
+    parser.add_argument(
+        "--serving-framework", type=str, choices=["sglang", "vllm"], required=True, help="Serving framework to use"
+    )
 
     # Framework arguments as a single string
     parser.add_argument("--framework-args", type=str, default="", help="Arguments to pass to the serving framework")
 
     # Pre-launch setup
-    parser.add_argument("--pre-launch-cmds", type=str, default="", help="Commands to run before launching framework (e.g., 'pip install blobfile; pip install package2')")
+    parser.add_argument(
+        "--pre-launch-cmds",
+        type=str,
+        default="",
+        help="Commands to run before launching framework (e.g., 'pip install blobfile; pip install package2')",
+    )
 
     # Optional orchestration parameters
     parser.add_argument("--workers", type=int, default=1, help="Number of independent workers")
@@ -40,7 +47,9 @@ def parse_args():
 
     # OCF (Open Compute Framework) parameters
     parser.add_argument("--disable-ocf", action="store_true", help="Disable OCF wrapper (OCF is enabled by default)")
-    parser.add_argument("--ocf-bootstrap-addr", type=str, default=None, help="OCF bootstrap address (fetched from API if not specified)")
+    parser.add_argument(
+        "--ocf-bootstrap-addr", type=str, default=None, help="OCF bootstrap address (fetched from API if not specified)"
+    )
     parser.add_argument("--ocf-service-name", type=str, default="llm", help="OCF service name")
     parser.add_argument("--ocf-service-port", type=int, default=8080, help="OCF service port")
 
@@ -115,7 +124,7 @@ def main():
             partition=args.slurm_partition,
             time=args.slurm_time,
             account=args.slurm_account,
-            environment=environment
+            environment=environment,
         )
 
         # Only show batch-specific info if not in interactive mode
@@ -125,7 +134,7 @@ def main():
             logging.info("")
             logging.info(f"Root job output will be available in: {log_dir}/log.out")
             logging.info("")
-            logging.info(f"To view CSCS Dashboard:")
+            logging.info("To view CSCS Dashboard:")
             logging.info(" https://console.mlp.cscs.ch/")
             logging.info("")
             logging.info("To tail all logs (from all nodes):")
