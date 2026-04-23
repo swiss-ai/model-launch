@@ -1,4 +1,9 @@
-.PHONY: lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+.PHONY: install-dev lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+
+install-dev:
+	uv venv --python 3.12
+	uv pip install -e ".[dev]"
+	uv run pre-commit install
 
 lint:
 	ruff check .

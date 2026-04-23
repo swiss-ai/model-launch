@@ -177,10 +177,11 @@ By default, local variables are hidden from crash reports.
 
 ```bash
 git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
-uv venv --python 3.12
+```
+
+```bash
+make install-dev
 source .venv/bin/activate
-uv pip install -e ".[dev]"
-pre-commit install
 ```
 
 ### Testing Environment

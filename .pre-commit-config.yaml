@@ -1,32 +1,41 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.4
-    hooks:
-      - id: ruff
-        args: ["--fix"]
-      - id: ruff-format
-
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.17.2
-    hooks:
-      - id: markdownlint-cli2
-        args: ["--config", ".markdownlint.yaml"]
-        exclude: ^legacy/
-
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
-    hooks:
-      - id: shellcheck
-        exclude: ^legacy/
-
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
-    hooks:
-      - id: hadolint-docker
-        files: ^images/
-
   - repo: local
     hooks:
+      - id: ruff
+        name: ruff
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff-format
+        entry: uv run --frozen ruff format
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        entry: npx markdownlint-cli2 --config .markdownlint.yaml
+        language: system
+        types: [markdown]
+        exclude: ^legacy/
+
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        types: [shell]
+        exclude: ^legacy/
+
+      - id: hadolint
+        name: hadolint
+        entry: hadolint
+        language: system
+        files: ^images/.*Dockerfile
+        types_or: [dockerfile, file]
+
       - id: taplo
         name: taplo
         entry: taplo fmt

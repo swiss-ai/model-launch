@@ -1,11 +1,11 @@
-import random
-import string
-import logging
-import subprocess
-import shlex
 import json
-from urllib.request import urlopen
+import logging
+import random
+import shlex
+import string
+import subprocess
 from urllib.error import URLError
+from urllib.request import urlopen
 
 from jinja2 import Template
 
@@ -24,14 +24,14 @@ def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/
     try:
         logging.info(f"Fetching bootstrap addresses from {bootstrap_api_url}")
         with urlopen(bootstrap_api_url, timeout=timeout) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            data = json.loads(response.read().decode("utf-8"))
 
         if not data:
             logging.warning("No bootstrap nodes found in API response")
             return None
 
         # Handle format 1: {"bootstraps": ["/ip4/148.187.108.172/tcp/43905/p2p/QmPf4..."]}
-        bootstraps = data.get('bootstraps')
+        bootstraps = data.get("bootstraps")
         if bootstraps and isinstance(bootstraps, list) and len(bootstraps) > 0:
             bootstrap_addr = bootstraps[0]
             logging.info(f"Using bootstrap address: {bootstrap_addr}")
@@ -42,12 +42,12 @@ def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/
             if not isinstance(node_info, dict):
                 continue
 
-            public_address = node_info.get('public_address')
+            public_address = node_info.get("public_address")
             if not public_address:
                 continue
 
             # Extract peer ID (remove leading slash)
-            peer_id = peer_id_key.lstrip('/')
+            peer_id = peer_id_key.lstrip("/")
 
             # Construct multiaddr: /ip4/{ip}/tcp/{port}/p2p/{peer_id}
             # Using port 43905 as standard libp2p port
@@ -123,7 +123,7 @@ def setup_logging(level: int = logging.INFO) -> None:
 
 
 def generate_job_script(template_path, output_path, **kwargs):
-    with open(template_path, "r") as f:
+    with open(template_path) as f:
         template = Template(f.read())
 
     rendered_script = template.render(**kwargs)
@@ -131,7 +131,15 @@ def generate_job_script(template_path, output_path, **kwargs):
         f.write(rendered_script)
 
 
-def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", time="04:00:00", account="infra01", environment=None):
+def submit_job(
+    job_script_path,
+    interactive=False,
+    nodes=1,
+    partition="normal",
+    time="04:00:00",
+    account="infra01",
+    environment=None,
+):
     if interactive:
         # Build srun command for interactive session
         cmd = [
@@ -141,7 +149,7 @@ def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", 
             f"--time={time}",
             f"--account={account}",
             "--exclusive",
-            "--pty"
+            "--pty",
         ]
 
         if environment:
@@ -166,9 +174,7 @@ def submit_job(job_script_path, interactive=False, nodes=1, partition="normal", 
     else:
         # Original batch submission logic
         try:
-            result = subprocess.run(
-                ["sbatch", job_script_path], capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(["sbatch", job_script_path], capture_output=True, text=True, check=True)
             output_lines = result.stdout.strip().split("\n")
 
             job_id = output_lines[-1].split()[-1]
