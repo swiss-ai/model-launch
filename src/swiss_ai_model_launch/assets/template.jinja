@@ -223,12 +223,12 @@ fi
 # Launch DCGM exporter on the batch node to expose GPU metrics on port 9400.
 # vmagent scrape config should include a job targeting localhost:9400 to collect
 # these metrics alongside the framework metrics.
-if [ -x "$DCGM_EXPORTER_BIN" ]; then
+if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
     "$DCGM_EXPORTER_BIN" \
-        --address 0.0.0.0:9400 \
+        --address 0.0.0.0:9400 -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
         > /tmp/dcgm-exporter-${SLURM_JOB_ID}.log 2>&1 &
 else
-    echo "dcgm-exporter: $DCGM_EXPORTER_BIN not found, skipping" >&2
+    echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
 fi
 
 # Optional router launch
