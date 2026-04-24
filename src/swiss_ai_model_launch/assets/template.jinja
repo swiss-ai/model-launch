@@ -200,59 +200,55 @@ $FRAMEWORK_CMD" &
     done
 done
 
-# Launch vmagent and DCGM on the batch node directly (runs on the host).
-# Scrapes both framework metrics (8080) and DCGM (9400).
+# Launch vmagent and DCGM on every node.
+# The batch node (index 0) runs directly; worker nodes run via srun --overlap.
+# The batch node scrapes framework metrics (8080) + DCGM (9400); workers scrape only DCGM (9400).
 if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
-    if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
-        "$DCGM_EXPORTER_BIN" --address 0.0.0.0:9400 \
-            -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
-            > /tmp/dcgm-exporter-${SLURM_JOB_ID}-$(hostname).log 2>&1 &
-    else
-        echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
-    fi
-    "$METRICS_AGENT_BIN" \
-        -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml \
-        -remoteWrite.url="${METRICS_REMOTE_WRITE_URL}" \
-        -remoteWrite.label="slurm_job_id=${SLURM_JOB_ID}" \
-        -remoteWrite.label="model=${SERVED_MODEL_NAME}" \
-        -remoteWrite.label="framework=${FRAMEWORK}" \
-        -remoteWrite.label="user=${USER}" \
-        -remoteWrite.label="node=$(hostname)" \
-        -remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID} \
-        > /tmp/vmagent-${SLURM_JOB_ID}.log 2>&1 &
+    VMAGENT_COMMON_ARGS="
+        -remoteWrite.url=${METRICS_REMOTE_WRITE_URL}
+        -remoteWrite.label=slurm_job_id=${SLURM_JOB_ID}
+        -remoteWrite.label=model=${SERVED_MODEL_NAME}
+        -remoteWrite.label=framework=${FRAMEWORK}
+        -remoteWrite.label=user=${USER}
+    "
+    METRICS_CONFIG_DIR="/capstor/store/cscs/swissai/infra01/ocf-share"
+    DCGM_COMMON_ARGS="--address 0.0.0.0:9400 -f $METRICS_CONFIG_DIR/default-counters.csv"
+    DCGM_LOG="/tmp/dcgm-exporter-${SLURM_JOB_ID}.log"
+    VMAGENT_LOG="/tmp/vmagent-${SLURM_JOB_ID}.log"
+    VMAGENT_DATA="/tmp/vmagent-data-${SLURM_JOB_ID}"
+
+    for i in "${!nodes[@]}"; do
+        node="${nodes[$i]}"
+        if [ "$i" -eq 0 ]; then
+            if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
+                "$DCGM_EXPORTER_BIN" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
+            else
+                echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
+            fi
+            "$METRICS_AGENT_BIN" $VMAGENT_COMMON_ARGS \
+                -promscrape.config=$METRICS_CONFIG_DIR/vmagent-scrape.yaml \
+                -remoteWrite.label="node=$(hostname)" \
+                -remoteWrite.tmpDataPath=$VMAGENT_DATA \
+                > $VMAGENT_LOG 2>&1 &
+        else
+            srun --nodes=1 --ntasks=1 --nodelist=$node --overlap \
+                bash -c "
+                    if [ -e /dev/nvidia0 ] && [ -x \"$DCGM_EXPORTER_BIN\" ]; then
+                        \"$DCGM_EXPORTER_BIN\" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
+                    else
+                        echo 'dcgm-exporter: no NVIDIA GPU or binary not found, skipping' >&2
+                    fi
+                    \"$METRICS_AGENT_BIN\" $VMAGENT_COMMON_ARGS \
+                        -promscrape.config=$METRICS_CONFIG_DIR/vmagent-scrape-dcgm-only.yaml \
+                        -remoteWrite.label=\"node=\$(hostname)\" \
+                        -remoteWrite.tmpDataPath=$VMAGENT_DATA \
+                        > $VMAGENT_LOG 2>&1 &
+                    wait
+                " &
+        fi
+    done
 else
     echo "metrics: $METRICS_AGENT_BIN not found, skipping push" >&2
-fi
-
-# Launch vmagent and DCGM on worker nodes via srun --overlap (runs on the host).
-# Scrapes only DCGM (9400).
-if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ] && [ ${#nodes[@]} -gt 1 ]; then
-    for i in "${!nodes[@]}"; do
-        [ "$i" -eq 0 ] && continue
-        node="${nodes[$i]}"
-        srun --nodes=1 --ntasks=1 --nodelist=$node --overlap \
-            bash -c "
-                if [ -e /dev/nvidia0 ] && [ -x \"$DCGM_EXPORTER_BIN\" ]; then
-                    \"$DCGM_EXPORTER_BIN\" --address 0.0.0.0:9400 \
-                        -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
-                        > /tmp/dcgm-exporter-${SLURM_JOB_ID}-\$(hostname).log 2>&1 &
-                else
-                    echo 'dcgm-exporter: no NVIDIA GPU or binary not found, skipping' >&2
-                fi
-                \"$METRICS_AGENT_BIN\" \
-                    -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape-dcgm-only.yaml \
-                    -remoteWrite.url=\"${METRICS_REMOTE_WRITE_URL}\" \
-                    -remoteWrite.label=\"slurm_job_id=${SLURM_JOB_ID}\" \
-                    -remoteWrite.label=\"model=${SERVED_MODEL_NAME}\" \
-                    -remoteWrite.label=\"framework=${FRAMEWORK}\" \
-                    -remoteWrite.label=\"user=${USER}\" \
-                    -remoteWrite.label=\"node=\$(hostname)\" \
-                    -httpListenAddr=:0 \
-                    -remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}-\$(hostname) \
-                    > /tmp/vmagent-${SLURM_JOB_ID}-\$(hostname).log 2>&1 &
-                wait
-            " &
-    done
 fi
 
 # Optional router launch
