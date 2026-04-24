@@ -30,11 +30,39 @@ _launcher: Launcher | None = None
 mcp = fastmcp.FastMCP(
     name="sml",
     instructions=(
-        "Swiss AI Model Launcher MCP server. "
-        "Use these tools to list, launch, monitor, and cancel AI model jobs "
-        "on HPC clusters via SML. "
-        "Call `establish` first to set a default system so you don't need to pass "
-        "`system` on every subsequent tool call."
+        "Swiss AI Model Launcher (SML) — deploy AI inference servers on HPC clusters via SLURM.\n\n"
+        "## Typical workflow\n\n"
+        "1. **Discover** — call `list_systems` to see available HPC systems, SLURM partitions,\n"
+        "   and active reservations. On a local SLURM install there is always a single 'local'\n"
+        "   system; on a FirecREST install there may be several named clusters (e.g. 'clariden').\n\n"
+        "2. **Establish** — call `establish` with your chosen system (FirecREST only), partition,\n"
+        "   and optional reservation. This initialises the session launcher; all subsequent tool\n"
+        "   calls reuse it without re-authentication. Call it again at any time to switch targets.\n"
+        "   Skip this step if SML_SYSTEM / SML_PARTITION env vars are already configured.\n\n"
+        "3. **Browse the catalogue** — call `list_preconfigured_models` to see which\n"
+        "   vendor/model + framework combinations can be deployed. The model string is in\n"
+        "   'vendor/name' format (e.g. 'swiss-ai/Apertus-70B').\n\n"
+        "4. **Launch** — call `launch_preconfigured_model` with the model, framework, and job\n"
+        "   parameters. The tool submits the SLURM job, then streams live stdout/stderr and\n"
+        "   periodic [status] lines as MCP notifications while you wait. It returns only when\n"
+        "   the model is healthy or the job reaches a terminal state. The return value includes\n"
+        "   the served_model_name — a unique identifier (e.g. 'swiss-ai/Apertus-70B-a1b2')\n"
+        "   that you pass as the 'model' field when sending inference requests to the cluster\n"
+        "   API endpoint.\n\n"
+        "5. **Operate** — use `get_job_status` to poll a running job (returns PENDING, RUNNING,\n"
+        "   TIMEOUT, or UNKNOWN), `get_job_logs` to stream its stdout/stderr, and `cancel_job`\n"
+        "   to stop it.\n\n"
+        "## Health monitoring\n\n"
+        "When CSCS_API_KEY is configured, `launch_preconfigured_model` actively polls the\n"
+        "inference endpoint and returns as soon as the model is HEALTHY. Without the key,\n"
+        "health checks are skipped and the tool only returns when the job terminates — so for\n"
+        "long-running servers you may want to cancel the tool call and query job status manually.\n\n"
+        "## Common errors\n\n"
+        "- 'SML is not configured' → the user must run `sml init` in a terminal and restart the\n"
+        "  MCP server.\n"
+        "- 'No partition specified' → call `establish` first (or set SML_PARTITION).\n"
+        "- Model not found → verify the 'vendor/name' format and that the framework exactly\n"
+        "  matches one of the entries returned by `list_preconfigured_models`."
     ),
 )
 
@@ -99,9 +127,11 @@ if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest
 
     @mcp.tool
     async def list_systems() -> list[dict[str, Any]]:
-        """List all HPC systems accessible via FirecREST, along with their available
-        SLURM partitions and active reservations. Use this before calling `establish`
-        to pick the right system, partition, and reservation.
+        """List all HPC systems accessible via FirecREST with their SLURM partitions
+        and active reservations.
+
+        Returns a list of objects with keys 'system', 'partitions', and 'reservations'.
+        Call this first to discover valid values for `establish`.
         """
         client = (
             _launcher.client if isinstance(_launcher, FirecRESTLauncher) else _build_firecrest_client(InitConfig.load())
@@ -129,21 +159,18 @@ if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest
         partition: Annotated[str, "SLURM partition (e.g. 'normal')."],
         reservation: Annotated[str | None, "SLURM reservation name."] = None,
     ) -> str:
-        """Set the target system, partition, and reservation for all subsequent tool calls.
+        """Connect to an HPC system and set the default target for all subsequent tool calls.
 
-        Connects to the specified FirecREST system and initialises the launcher for
-        this session. All subsequent calls to `launch_model`, `get_job_status`,
-        `get_job_logs`, and `cancel_job` will use these settings without requiring
-        you to pass them again.
+        Authenticates against the FirecREST API for the given system and initialises the
+        session launcher. All subsequent calls to `launch_preconfigured_model`,
+        `get_job_status`, `get_job_logs`, and `cancel_job` use these settings without
+        requiring you to pass them again. Call `establish` again at any time to switch to
+        a different system, partition, or reservation.
 
-        Call `list_systems` first to discover the available systems, partitions, and
-        reservations. Call `establish` again at any point to switch to a different
-        system, partition, or reservation — the previous launcher is replaced
-        immediately.
-
-        If the environment variables SML_SYSTEM, SML_PARTITION, and SML_RESERVATION
-        are already set, the session is initialised automatically on first use.
-        Values passed here always take precedence over those variables.
+        Call `list_systems` first to discover valid system names, partitions, and
+        reservations. If SML_SYSTEM, SML_PARTITION, and SML_RESERVATION env vars are set,
+        the session is initialised automatically on first use — `establish` is still
+        useful to override them or switch targets mid-session.
         """
         global _launcher
         _launcher = await _create_launcher(system=system, partition=partition, reservation=reservation)
@@ -157,7 +184,9 @@ else:
     @mcp.tool
     async def list_systems() -> list[dict[str, Any]]:
         """List the local SLURM cluster's available partitions and active reservations.
-        Use this before calling `establish` to pick the right partition and reservation.
+
+        Returns a single-element list with keys 'system' (always 'local'), 'partitions',
+        and 'reservations'. Call this first to discover valid values for `establish`.
         """
 
         def _run(args: list[str]) -> str:
@@ -176,18 +205,15 @@ else:
     ) -> str:
         """Set the target partition and reservation for all subsequent tool calls.
 
-        Initialises the local SLURM launcher for this session. All subsequent calls
-        to `launch_model`, `get_job_status`, `get_job_logs`, and `cancel_job` will
-        use these settings without requiring you to pass them again.
+        Initialises the local SLURM launcher for this session. All subsequent calls to
+        `launch_preconfigured_model`, `get_job_status`, `get_job_logs`, and `cancel_job`
+        use these settings without requiring you to pass them again. Call `establish` again
+        at any time to switch to a different partition or reservation.
 
-        Call `list_systems` first to discover the available partitions and
-        reservations on the local cluster. Call `establish` again at any point to
-        switch to a different partition or reservation — the previous launcher is
-        replaced immediately.
-
-        If the environment variables SML_PARTITION and SML_RESERVATION are already
-        set, the session is initialised automatically on first use. Values passed
-        here always take precedence over those variables.
+        Call `list_systems` first to discover valid partitions and reservations on the local
+        cluster. If SML_PARTITION and SML_RESERVATION env vars are set, the session is
+        initialised automatically on first use — `establish` is still useful to override
+        them or switch targets mid-session.
         """
         global _launcher
         _launcher = await _create_launcher(system=None, partition=partition, reservation=reservation)
@@ -199,7 +225,12 @@ else:
 
 @mcp.tool
 async def list_preconfigured_models() -> Any:
-    """List all preconfigured models available for launch."""
+    """List all preconfigured models available for launch.
+
+    Returns a list of objects with 'model' (in 'vendor/name' format, e.g.
+    'swiss-ai/Apertus-70B') and 'framework' ('sglang' or 'vllm') fields.
+    Use the exact values from this response when calling `launch_preconfigured_model`.
+    """
     try:
         launcher = await _get_launcher()
     except RuntimeError as e:
@@ -220,14 +251,23 @@ async def launch_preconfigured_model(
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
     use_router: Annotated[bool, "Enable router for load balancing across workers."] = False,
 ) -> str:
-    """Launch a preconfigured model on an HPC cluster and stream logs until the model is healthy or the job terminates.
+    """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
     Looks up the model in the catalogue by vendor/name and framework, then submits a
     SLURM job using the preconfigured settings (nodes, environment, framework arguments).
-    Use `list_preconfigured_models` to see what is available before calling this tool.
+    Call `list_preconfigured_models` first to verify the model and framework are available.
 
-    Streams stdout, stderr, and health status while the job runs. Returns when the
-    model is healthy or the job reaches a terminal state.
+    While waiting, this tool emits MCP notifications for each new log line (prefixed
+    '[stdout]' or '[stderr]') and periodic '[status]' lines with the current job state
+    and health. It returns when:
+    - the model is HEALTHY — returns the served_model_name (e.g. 'swiss-ai/Apertus-70B-a1b2')
+      and job ID. Pass the served_model_name as the 'model' field in inference requests.
+    - the job reaches a terminal state (TIMEOUT or UNKNOWN) — returns the job ID and
+      final status.
+
+    If CSCS_API_KEY is not configured, health checks are skipped and the tool only
+    returns on job termination. For long-running inference servers without the key,
+    cancel this call and use `get_job_status` / `get_job_logs` to monitor manually.
     """
     try:
         launcher = await _get_launcher()
@@ -290,7 +330,11 @@ async def launch_preconfigured_model(
 async def get_job_status(
     job_id: Annotated[int, "SLURM job ID to query."],
 ) -> str:
-    """Get the status of a running or queued SML job."""
+    """Get the current status of a SLURM job.
+
+    Returns one of: PENDING (queued), RUNNING (executing), TIMEOUT (exceeded time limit),
+    or UNKNOWN (job not found or in an unrecognised state).
+    """
     try:
         launcher = await _get_launcher()
     except RuntimeError as e:
@@ -303,7 +347,12 @@ async def get_job_logs(
     job_id: Annotated[int, "SLURM job ID to retrieve logs for."],
     ctx: Context,
 ) -> str:
-    """Retrieve and stream stdout and stderr logs for a job."""
+    """Retrieve and stream the full stdout and stderr logs for a SLURM job.
+
+    Emits each log line as an MCP notification and returns a summary of how many
+    lines were streamed. Useful for diagnosing startup failures or checking progress
+    on a job launched outside this session.
+    """
     try:
         launcher = await _get_launcher()
     except RuntimeError as e:
@@ -326,7 +375,7 @@ async def get_job_logs(
 async def cancel_job(
     job_id: Annotated[int, "SLURM job ID to cancel."],
 ) -> str:
-    """Cancel a running or queued SML job."""
+    """Cancel a running or queued SLURM job. This action is immediate and irreversible."""
     try:
         launcher = await _get_launcher()
     except RuntimeError as e:
