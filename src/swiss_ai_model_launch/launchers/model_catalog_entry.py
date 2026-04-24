@@ -12,3 +12,4 @@ class ModelCatalogEntry(BaseModel):
     nodes_per_worker: int = 1
     framework_args: str | None = None
     pre_launch_cmds: str | None = None
+    model_path: str | None = None

@@ -14,6 +14,7 @@ from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
     render_job_script,
+    resolve_model_path,
 )
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
@@ -92,7 +93,7 @@ class FirecRESTLauncher(Launcher):
             framework=launch_request.framework,
             served_model_name=served_model_name,
             framework_args=(
-                f"--model {str(_REMOTE_MODEL_REGISTRY / model)} "
+                f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
                 "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")

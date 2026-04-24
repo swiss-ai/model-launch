@@ -1,12 +1,25 @@
 import secrets
 import string
 from importlib.resources import files
+from pathlib import Path
 
 from jinja2 import Template
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 
 _TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
+
+
+def resolve_model_path(model: str, registry: Path, model_path: str | None = None) -> str:
+    """Return the filesystem path for a model.
+
+    If *model_path* is provided it is used as-is (absolute path override).
+    Otherwise the model identifier is appended to *registry*
+    (e.g. ``swiss-ai/Apertus-70B`` → ``<registry>/swiss-ai/Apertus-70B``).
+    """
+    if model_path is not None:
+        return model_path
+    return str(registry / model)
 
 
 def create_salt(length: int) -> str:

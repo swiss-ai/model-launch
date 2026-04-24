@@ -80,6 +80,38 @@
     "_include_in_lightweight_ci": true
   },
   {
+    "model": "swiss-ai/Apertus-1.5-8B-gbs512-mbs1-steps8030",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct --tensor-parallel-size 4 --trust-remote-code --trust-request-chat-template --max-model-len 8192 --gpu-memory-utilization 0.6",
+    "model_path": "/capstor/store/cscs/swissai/infra01/MLLM/ablations/apertus-8b-img-SFT-32nodes-gbs512-mbs1-steps8030-img-text-seqlen8192-s2onlytxtloss/HF"
+  },
+  {
+    "model": "swiss-ai/Apertus-1.5-8B-Instruct",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct --tensor-parallel-size 4 --trust-remote-code --trust-request-chat-template --max-model-len 8192 --gpu-memory-utilization 0.6",
+    "model_path": "/capstor/store/cscs/swissai/infra01/models/apertus-8b-sft-1.5--lr8e-5-MaxMin_4096-Filtered-dpo-lr1e-06-beta25.0-lenNormTrue-ebs128-ep1"
+  },
+  {
+    "model": "swiss-ai/Apertus-1.5-8B-cooldown-lr-1e-5-step9688",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct --tensor-parallel-size 4 --trust-remote-code --trust-request-chat-template --max-model-len 8192 --gpu-memory-utilization 0.6",
+    "model_path": "/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-1e-5/2026-04-23_19-38-55/global_step_9688/huggingface"
+  },
+  {
+    "model": "swiss-ai/Apertus-1.5-8B-cooldown-lr-8e-5-step9688",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct --tensor-parallel-size 4 --trust-remote-code --trust-request-chat-template --max-model-len 8192 --gpu-memory-utilization 0.6",
+    "model_path": "/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-5/2026-04-23_19-08-56/global_step_9688/huggingface"
+  },
+  {
     "model": "zai-org/GLM-5",
     "framework": "sglang",
     "environment": null,

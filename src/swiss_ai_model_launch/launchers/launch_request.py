@@ -18,6 +18,7 @@ class LaunchRequest(BaseModel):
     framework_args: str | None = None
     pre_launch_cmds: str | None = None
     use_router: bool = False
+    model_path: str | None = None
 
     @classmethod
     def from_catalog_entry(
@@ -40,4 +41,5 @@ class LaunchRequest(BaseModel):
             time=time,
             served_model_name=served_model_name,
             use_router=use_router,
+            model_path=entry.model_path,
         )

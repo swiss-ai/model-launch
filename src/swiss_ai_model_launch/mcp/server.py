@@ -103,8 +103,9 @@ if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest
         SLURM partitions and active reservations. Use this before calling `establish`
         to pick the right system, partition, and reservation.
         """
-        config = InitConfig.load()
-        client = _build_firecrest_client(config)
+        client = (
+            _launcher.client if isinstance(_launcher, FirecRESTLauncher) else _build_firecrest_client(InitConfig.load())
+        )
         systems = await client.systems()
         result = []
         for system in systems:
