@@ -200,13 +200,16 @@ $FRAMEWORK_CMD" &
     done
 done
 
-# Push framework metrics to Prometheus via vmagent (runs on the batch node).
-# Pyxis containers share the host network namespace, so localhost:8080 on the
-# batch node reaches the framework's API server. The scrape config is a static
-# YAML staged alongside the binaries at /ocfbin/vmagent-scrape.yaml.
-# NOTE: only the worker on the batch node is scraped — multi-worker setups
-# would need a per-worker vmagent (future work).
+# Launch vmagent and DCGM on the batch node directly (runs on the host).
+# Scrapes both framework metrics (8080) and DCGM (9400).
 if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
+    if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
+        "$DCGM_EXPORTER_BIN" --address 0.0.0.0:9400 \
+            -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
+            > /tmp/dcgm-exporter-${SLURM_JOB_ID}-$(hostname).log 2>&1 &
+    else
+        echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
+    fi
     "$METRICS_AGENT_BIN" \
         -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml \
         -remoteWrite.url="${METRICS_REMOTE_WRITE_URL}" \
@@ -214,21 +217,42 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
         -remoteWrite.label="model=${SERVED_MODEL_NAME}" \
         -remoteWrite.label="framework=${FRAMEWORK}" \
         -remoteWrite.label="user=${USER}" \
+        -remoteWrite.label="node=$(hostname)" \
         -remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID} \
         > /tmp/vmagent-${SLURM_JOB_ID}.log 2>&1 &
-elif [ -n "$METRICS_REMOTE_WRITE_URL" ]; then
+else
     echo "metrics: $METRICS_AGENT_BIN not found, skipping push" >&2
 fi
 
-# Launch DCGM exporter on the batch node to expose GPU metrics on port 9400.
-# vmagent scrape config should include a job targeting localhost:9400 to collect
-# these metrics alongside the framework metrics.
-if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
-    "$DCGM_EXPORTER_BIN" \
-        --address 0.0.0.0:9400 -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
-        > /tmp/dcgm-exporter-${SLURM_JOB_ID}.log 2>&1 &
-else
-    echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
+# Launch vmagent and DCGM on worker nodes via srun --overlap (runs on the host).
+# Scrapes only DCGM (9400).
+if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ] && [ ${#nodes[@]} -gt 1 ]; then
+    for i in "${!nodes[@]}"; do
+        [ "$i" -eq 0 ] && continue
+        node="${nodes[$i]}"
+        srun --nodes=1 --ntasks=1 --nodelist=$node --overlap \
+            bash -c "
+                if [ -e /dev/nvidia0 ] && [ -x \"$DCGM_EXPORTER_BIN\" ]; then
+                    \"$DCGM_EXPORTER_BIN\" --address 0.0.0.0:9400 \
+                        -f /capstor/store/cscs/swissai/infra01/ocf-share/default-counters.csv \
+                        > /tmp/dcgm-exporter-${SLURM_JOB_ID}-\$(hostname).log 2>&1 &
+                else
+                    echo 'dcgm-exporter: no NVIDIA GPU or binary not found, skipping' >&2
+                fi
+                \"$METRICS_AGENT_BIN\" \
+                    -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape-dcgm-only.yaml \
+                    -remoteWrite.url=\"${METRICS_REMOTE_WRITE_URL}\" \
+                    -remoteWrite.label=\"slurm_job_id=${SLURM_JOB_ID}\" \
+                    -remoteWrite.label=\"model=${SERVED_MODEL_NAME}\" \
+                    -remoteWrite.label=\"framework=${FRAMEWORK}\" \
+                    -remoteWrite.label=\"user=${USER}\" \
+                    -remoteWrite.label=\"node=\$(hostname)\" \
+                    -httpListenAddr=:0 \
+                    -remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}-\$(hostname) \
+                    > /tmp/vmagent-${SLURM_JOB_ID}-\$(hostname).log 2>&1 &
+                wait
+            " &
+    done
 fi
 
 # Optional router launch
