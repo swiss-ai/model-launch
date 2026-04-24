@@ -8,7 +8,7 @@ sml advanced \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/ablations/apertus-8b-img-SFT-32nodes-gbs512-mbs1-steps8030-img-text-seqlen8192-s2onlytxtloss/HF \
-    --served-model-name swiss-ai/apertus1.5 \
+    --served-model-name swiss-ai/apertus1.5X \
     --tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
@@ -16,7 +16,5 @@ sml advanced \
     --trust-remote-code \
     --trust-request-chat-template \
     --max-model-len 8192 \
-    --limit-mm-per-prompt \"{\"image\": 1}\" \
-    --mm-processor-kwargs \"{\"apertus_vision_tokenizer_device\":\"cuda\",\"apertus_emu35_codebase\":\"/workspace/Emu3.5\"}\" \
     --gpu-memory-utilization 0.6"
 
