@@ -7,8 +7,8 @@ sml advanced \
   --slurm-time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
-  --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/ablations/apertus-8b-img-SFT-32nodes-gbs512-mbs1-steps8030-img-text-seqlen8192-s2onlytxtloss/HF \
-    --served-model-name swiss-ai/apertus-8b-1.5-gbs512-mbs1-steps8030 \
+  --framework-args "--model /iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-1e-5/2026-04-23_19-38-55/global_step_9688/huggingface \
+    --served-model-name swiss-ai/apertus1p5-lr-1e-5-2026-04-23_19-38-55 \
     --tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
@@ -17,4 +17,3 @@ sml advanced \
     --trust-request-chat-template \
     --max-model-len 8192 \
     --gpu-memory-utilization 0.6"
-
