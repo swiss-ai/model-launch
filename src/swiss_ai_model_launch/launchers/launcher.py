@@ -3,6 +3,7 @@ from enum import Enum
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
 
 class JobStatus(Enum):
@@ -37,7 +38,7 @@ class Launcher(ABC):
         self.telemetry_endpoint = telemetry_endpoint
 
     @abstractmethod
-    async def get_preconfigured_models(self) -> list[LaunchRequest]: ...
+    async def get_preconfigured_models(self) -> list[ModelCatalogEntry]: ...
 
     @abstractmethod
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]: ...

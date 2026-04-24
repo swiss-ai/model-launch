@@ -9,10 +9,12 @@ import firecrest as f7t
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
     render_job_script,
+    resolve_model_path,
 )
 
 _REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
@@ -76,10 +78,9 @@ class FirecRESTLauncher(Launcher):
         self,
         launch_request: LaunchRequest,
     ) -> LaunchArgs:
-        vendor = launch_request.vendor
-        model_name = launch_request.model_name
-        job_name = f"{vendor}_{model_name}_{self.username}_{create_salt(8)}"
-        served_model_name = launch_request.served_model_name or f"{vendor}/{model_name}-{create_salt(4)}"
+        model = launch_request.model
+        job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
+        served_model_name = launch_request.served_model_name or f"{model}-{create_salt(4)}"
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -92,7 +93,7 @@ class FirecRESTLauncher(Launcher):
             framework=launch_request.framework,
             served_model_name=served_model_name,
             framework_args=(
-                f"--model {str(_REMOTE_MODEL_REGISTRY / vendor / model_name)} "
+                f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
                 "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
@@ -155,8 +156,8 @@ class FirecRESTLauncher(Launcher):
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
-    async def get_preconfigured_models(self) -> list[LaunchRequest]:
-        return [LaunchRequest(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
+    async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
+        return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
         remote_env_path = await self._create_remote_env_file_path(launch_request)
