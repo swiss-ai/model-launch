@@ -22,7 +22,7 @@ _LAUNCH_REQUESTS = [
             workers=1,
             time="03:00:00",
         ),
-        id=f"{entry['vendor']}/{entry['model_name']}/{entry['framework']}",
+        id=f"{entry['model']}/{entry['framework']}",
         marks=[pytest.mark.medium, pytest.mark.full]
         + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
     )

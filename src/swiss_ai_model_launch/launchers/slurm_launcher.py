@@ -48,10 +48,9 @@ class SlurmLauncher(Launcher):
         return Path.home() / _APP_WORKING_DIRECTORY
 
     def _get_launch_args_from_request(self, launch_request: LaunchRequest) -> LaunchArgs:
-        vendor = launch_request.vendor
-        model_name = launch_request.model_name
-        job_name = f"{vendor}_{model_name}_{self.username}_{create_salt(8)}"
-        served_model_name = launch_request.served_model_name or f"{vendor}/{model_name}-{create_salt(4)}"
+        model = launch_request.model
+        job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
+        served_model_name = launch_request.served_model_name or f"{model}-{create_salt(4)}"
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -64,7 +63,7 @@ class SlurmLauncher(Launcher):
             framework=launch_request.framework,
             served_model_name=served_model_name,
             framework_args=(
-                f"--model {str(self.model_registry / vendor / model_name)} "
+                f"--model {str(self.model_registry / model)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
                 "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")

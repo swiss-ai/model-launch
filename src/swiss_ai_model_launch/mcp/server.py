@@ -2,23 +2,30 @@ import asyncio
 import getpass
 import grp
 import os
-from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+import re
+import subprocess
+from typing import Annotated, Any, Literal
 
 import fastmcp
 import firecrest as f7t
-import yaml
 from fastmcp import Context
 
+from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus
-from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
 
-if TYPE_CHECKING:
-    from swiss_ai_model_launch.cli.configuration import InitConfig
+_POLL_INTERVAL_SECONDS = 10
+_TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
+
+_SYSTEM = os.environ.get("SML_SYSTEM")
+_PARTITION = os.environ.get("SML_PARTITION")
+_RESERVATION = os.environ.get("SML_RESERVATION")
+
+_launcher: Launcher | None = None
+
 
 mcp = fastmcp.FastMCP(
     name="sml",
@@ -31,39 +38,8 @@ mcp = fastmcp.FastMCP(
     ),
 )
 
-_CONFIG_DIR = Path(d) if (d := os.environ.get("SML_CONFIG_DIR")) else Path.home() / ".sml"
-_CONTEXT_FILE = _CONFIG_DIR / "context.yml"
 
-_SYSTEM = os.environ.get("SML_SYSTEM")
-_PARTITION = os.environ.get("SML_PARTITION")
-_RESERVATION = os.environ.get("SML_RESERVATION")
-
-_POLL_INTERVAL_SECONDS = 10
-_TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
-
-
-def _load_context() -> dict[str, str]:
-    if not _CONTEXT_FILE.exists():
-        return {}
-    with _CONTEXT_FILE.open() as f:
-        return yaml.safe_load(f) or {}
-
-
-def _save_context(context: dict[str, str]) -> None:
-    _CONTEXT_FILE.parent.mkdir(exist_ok=True)
-    with _CONTEXT_FILE.open("w") as f:
-        yaml.dump(context, f)
-
-
-def _load_config() -> "InitConfig":
-    from swiss_ai_model_launch.cli.configuration import InitConfig
-
-    if not InitConfig.exists():
-        raise RuntimeError("SML is not configured. Run `sml init` first.")
-    return InitConfig.load()
-
-
-def _build_firecrest_client(config: "InitConfig") -> f7t.v2.AsyncFirecrest:
+def _build_firecrest_client(config: InitConfig) -> f7t.v2.AsyncFirecrest:
     return f7t.v2.AsyncFirecrest(
         firecrest_url=config.get_non_none_value("firecrest_url"),
         authorization=f7t.ClientCredentialsAuth(
@@ -74,36 +50,28 @@ def _build_firecrest_client(config: "InitConfig") -> f7t.v2.AsyncFirecrest:
     )
 
 
-async def _make_launcher(
-    system: str | None = None,
-    partition: str | None = None,
-    reservation: str | None = None,
+async def _create_launcher(
+    system: str | None,
+    partition: str | None,
+    reservation: str | None,
 ) -> Launcher:
-    config = _load_config()
+    if not partition:
+        raise RuntimeError("No partition specified. Call `establish` first, or set the SML_PARTITION env var.")
+    config = InitConfig.load()
     launcher_type = config.get_non_none_value("launcher")
     telemetry_endpoint = config.get_value("telemetry_endpoint")
 
-    context = _load_context()
-    system = system or _SYSTEM or context.get("system_name")
-    partition = partition or _PARTITION or context.get("default_partition")
-    reservation = reservation or _RESERVATION
-
-    if partition is None:
-        raise ValueError("`partition` is required. Pass it explicitly, set SML_PARTITION, or call `establish`.")
-
     if launcher_type == "firecrest":
-        if system is None:
-            raise ValueError("`system` is required when using a FirecREST-based launcher.")
-        client = _build_firecrest_client(config)
+        if not system:
+            raise RuntimeError("No system specified. Call `establish` first, or set the SML_SYSTEM env var.")
         return await FirecRESTLauncher.from_client(
-            client=client,
+            client=_build_firecrest_client(config),
             system_name=system,
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
         )
-
-    if launcher_type == "slurm":
+    elif launcher_type == "slurm":
         return SlurmLauncher(
             system_name="local",
             username=getpass.getuser(),
@@ -112,127 +80,178 @@ async def _make_launcher(
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
         )
-
-    raise NotImplementedError(f"Launcher type '{launcher_type}' is not supported.")
-
-
-# establish's signature varies based on pre-configured env vars:
-#   0 — nothing pre-configured      → system, partition, reservation
-#   1 — SML_SYSTEM                  → partition, reservation
-#   2+ — SML_SYSTEM + SML_PARTITION → reservation only
-
-if _SYSTEM and _PARTITION:
-    _level = 2
-elif _SYSTEM:
-    _level = 1
-else:
-    _level = 0
-
-_ESTABLISH_DOC = (
-    "Set session defaults for all subsequent MCP tool calls. "
-    "If the user has not mentioned a SLURM reservation, ask them before proceeding — "
-    "reservations are not persisted and must be passed explicitly on each call that needs one."
-)
+    else:
+        raise RuntimeError(f"Launcher type '{launcher_type}' is not supported.")
 
 
-async def _establish_impl(system: str | None, partition: str | None, reservation: str | None) -> str:
-    context = _load_context()
-    if system is not None:
-        context["system_name"] = system
-    if partition is not None:
-        context["default_partition"] = partition
-    _save_context(context)
-    msg = f"Established default system: '{system or _SYSTEM}'"
-    if partition or _PARTITION:
-        msg += f", partition: '{partition or _PARTITION}'"
-    if reservation:
-        msg += f", reservation: '{reservation}' (not persisted — pass it explicitly on each call)"
-    return msg + "."
+async def _get_launcher() -> Launcher:
+    global _launcher
+    if not InitConfig.exists():
+        raise RuntimeError(
+            "SML is not configured. Open a terminal and run `sml init` first, then restart the MCP server."
+        )
+    if _launcher is None:
+        _launcher = await _create_launcher(system=_SYSTEM, partition=_PARTITION, reservation=_RESERVATION)
+    return _launcher
 
 
-if _level == 0:
+if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest":
 
+    @mcp.tool
+    async def list_systems() -> list[dict[str, Any]]:
+        """List all HPC systems accessible via FirecREST, along with their available
+        SLURM partitions and active reservations. Use this before calling `establish`
+        to pick the right system, partition, and reservation.
+        """
+        config = InitConfig.load()
+        client = _build_firecrest_client(config)
+        systems = await client.systems()
+        result = []
+        for system in systems:
+            system_name = system["name"]
+            partitions, reservations = await asyncio.gather(
+                client.partitions(system_name),
+                client.reservations(system_name),
+            )
+            result.append(
+                {
+                    "system": system_name,
+                    "partitions": [p["name"] for p in partitions],
+                    "reservations": [r["name"] for r in reservations],
+                }
+            )
+        return result
+
+    @mcp.tool
     async def establish(
-        system: Annotated[str, "HPC system name (e.g. 'daint')."],
-        partition: Annotated[str | None, "Default SLURM partition (e.g. 'normal')."] = None,
-        reservation: Annotated[str | None, "SLURM reservation for this session."] = None,
+        system: Annotated[str, "HPC system name (e.g. 'clariden')."],
+        partition: Annotated[str, "SLURM partition (e.g. 'normal')."],
+        reservation: Annotated[str | None, "SLURM reservation name."] = None,
     ) -> str:
-        return await _establish_impl(system, partition, reservation)
+        """Set the target system, partition, and reservation for all subsequent tool calls.
 
-elif _level == 1:
+        Connects to the specified FirecREST system and initialises the launcher for
+        this session. All subsequent calls to `launch_model`, `get_job_status`,
+        `get_job_logs`, and `cancel_job` will use these settings without requiring
+        you to pass them again.
 
-    async def establish(  # type: ignore[misc]
-        partition: Annotated[str | None, "Default SLURM partition (e.g. 'normal')."] = None,
-        reservation: Annotated[str | None, "SLURM reservation for this session."] = None,
-    ) -> str:
-        return await _establish_impl(None, partition, reservation)
+        Call `list_systems` first to discover the available systems, partitions, and
+        reservations. Call `establish` again at any point to switch to a different
+        system, partition, or reservation — the previous launcher is replaced
+        immediately.
+
+        If the environment variables SML_SYSTEM, SML_PARTITION, and SML_RESERVATION
+        are already set, the session is initialised automatically on first use.
+        Values passed here always take precedence over those variables.
+        """
+        global _launcher
+        _launcher = await _create_launcher(system=system, partition=partition, reservation=reservation)
+        parts = [f"system='{system}'", f"partition='{partition}'"]
+        if reservation:
+            parts.append(f"reservation='{reservation}'")
+        return "Session established: " + ", ".join(parts) + "."
 
 else:
 
+    @mcp.tool
+    async def list_systems() -> list[dict[str, Any]]:
+        """List the local SLURM cluster's available partitions and active reservations.
+        Use this before calling `establish` to pick the right partition and reservation.
+        """
+
+        def _run(args: list[str]) -> str:
+            return subprocess.run(args, capture_output=True, text=True).stdout  # noqa: S603
+
+        partition_out = _run(["scontrol", "show", "partition", "--oneliner"])
+        reservation_out = _run(["scontrol", "show", "reservation"])
+        partitions = re.findall(r"PartitionName=(\S+)", partition_out)
+        reservations = re.findall(r"ReservationName=(\S+)", reservation_out)
+        return [{"system": "local", "partitions": partitions, "reservations": reservations}]
+
+    @mcp.tool
     async def establish(  # type: ignore[misc]
-        reservation: Annotated[str | None, "SLURM reservation for this session."] = None,
+        partition: Annotated[str, "SLURM partition (e.g. 'normal')."],
+        reservation: Annotated[str | None, "SLURM reservation name."] = None,
     ) -> str:
-        return await _establish_impl(None, None, reservation)
+        """Set the target partition and reservation for all subsequent tool calls.
 
+        Initialises the local SLURM launcher for this session. All subsequent calls
+        to `launch_model`, `get_job_status`, `get_job_logs`, and `cancel_job` will
+        use these settings without requiring you to pass them again.
 
-establish.__doc__ = _ESTABLISH_DOC
-mcp.add_tool(establish)
+        Call `list_systems` first to discover the available partitions and
+        reservations on the local cluster. Call `establish` again at any point to
+        switch to a different partition or reservation — the previous launcher is
+        replaced immediately.
+
+        If the environment variables SML_PARTITION and SML_RESERVATION are already
+        set, the session is initialised automatically on first use. Values passed
+        here always take precedence over those variables.
+        """
+        global _launcher
+        _launcher = await _create_launcher(system=None, partition=partition, reservation=reservation)
+        parts = [f"partition='{partition}'"]
+        if reservation:
+            parts.append(f"reservation='{reservation}'")
+        return "Session established: " + ", ".join(parts) + "."
 
 
 @mcp.tool
-async def list_preconfigured_models(
-    system: Annotated[str | None, "Target HPC system name (required for FirecREST launchers)."] = None,
-    partition: Annotated[str | None, "SLURM partition (defaults to the one set via `establish`)."] = None,
-) -> list[dict[str, Any]]:
+async def list_preconfigured_models() -> Any:
     """List all preconfigured models available for launch."""
-    launcher = await _make_launcher(system=system, partition=partition)
-    return [e.model_dump() for e in await launcher.get_preconfigured_models()]
+    try:
+        launcher = await _get_launcher()
+    except RuntimeError as e:
+        return str(e)
+    return [{"model": e.model, "framework": e.framework} for e in await launcher.get_preconfigured_models()]
 
 
 @mcp.tool
-async def launch_model(
-    vendor: Annotated[str, "Model vendor (e.g. 'swiss-ai', 'Qwen')."],
-    model_name: Annotated[str, "Model name (e.g. 'Apertus-70B')."],
-    framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
+async def launch_preconfigured_model(
     ctx: Context,
-    system: Annotated[str | None, "Target HPC system name (required for FirecREST launchers)."] = None,
-    partition: Annotated[str | None, "SLURM partition (defaults to the one set via `establish`)."] = None,
-    reservation: Annotated[str | None, "SLURM reservation name (optional)."] = None,
+    model: Annotated[
+        str,
+        "Model in 'vendor/name' format (e.g. 'swiss-ai/Apertus-70B'). "
+        "Use `list_preconfigured_models` to see available models.",
+    ],
+    framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
     workers: Annotated[int, "Number of workers."] = 1,
-    time: Annotated[str, "Job time limit in HH:MM:SS format."] = "03:00:00",
+    time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
     use_router: Annotated[bool, "Enable router for load balancing across workers."] = False,
-    nodes_per_worker: Annotated[int | None, "Override nodes per worker (defaults to catalogue value)."] = None,
-    framework_args: Annotated[str | None, "Override framework arguments (defaults to catalogue value)."] = None,
-    pre_launch_cmds: Annotated[str | None, "Override pre-launch commands (defaults to catalogue value)."] = None,
 ) -> str:
-    """Launch a model on an HPC cluster and stream logs until the model is healthy or the job terminates."""
-    launcher = await _make_launcher(system=system, partition=partition, reservation=reservation)
+    """Launch a preconfigured model on an HPC cluster and stream logs until the model is healthy or the job terminates.
+
+    Looks up the model in the catalogue by vendor/name and framework, then submits a
+    SLURM job using the preconfigured settings (nodes, environment, framework arguments).
+    Use `list_preconfigured_models` to see what is available before calling this tool.
+
+    Streams stdout, stderr, and health status while the job runs. Returns when the
+    model is healthy or the job reaches a terminal state.
+    """
+    try:
+        launcher = await _get_launcher()
+    except RuntimeError as e:
+        return str(e)
     catalogue = await launcher.get_preconfigured_models()
     entry = next(
-        (e for e in catalogue if e.vendor == vendor and e.model_name == model_name and e.framework == framework),
-        ModelCatalogEntry(vendor=vendor, model_name=model_name, framework=framework),
+        (e for e in catalogue if e.model == model and e.framework == framework),
+        None,
     )
-    overrides = {
-        k: v
-        for k, v in {
-            "nodes_per_worker": nodes_per_worker,
-            "framework_args": framework_args,
-            "pre_launch_cmds": pre_launch_cmds,
-        }.items()
-        if v is not None
-    }
-    if overrides:
-        entry = entry.model_copy(update=overrides)
+    if entry is None:
+        return (
+            f"Model '{model}' with framework '{framework}' was not found in the catalogue. "
+            "Use `list_preconfigured_models` to see available models."
+        )
     request = LaunchRequest.from_catalog_entry(
         entry,
         workers=workers,
         time=time,
-        served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
+        served_model_name=f"{model}-{create_salt(4)}",
         use_router=use_router,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")
-    config = _load_config()
+    config = InitConfig.load()
     cscs_api_key = config.get_value("cscs_api_key")
     stdout_lines_sent = 0
     stderr_lines_sent = 0
@@ -269,11 +288,12 @@ async def launch_model(
 @mcp.tool
 async def get_job_status(
     job_id: Annotated[int, "SLURM job ID to query."],
-    system: Annotated[str | None, "Target HPC system name (required for FirecREST launchers)."] = None,
-    partition: Annotated[str | None, "SLURM partition the job is running on."] = None,
 ) -> str:
     """Get the status of a running or queued SML job."""
-    launcher = await _make_launcher(system=system, partition=partition)
+    try:
+        launcher = await _get_launcher()
+    except RuntimeError as e:
+        return str(e)
     return (await launcher.get_job_status(job_id)).value
 
 
@@ -281,11 +301,12 @@ async def get_job_status(
 async def get_job_logs(
     job_id: Annotated[int, "SLURM job ID to retrieve logs for."],
     ctx: Context,
-    system: Annotated[str | None, "Target HPC system name (required for FirecREST launchers)."] = None,
-    partition: Annotated[str | None, "SLURM partition the job is running on."] = None,
 ) -> str:
     """Retrieve and stream stdout and stderr logs for a job."""
-    launcher = await _make_launcher(system=system, partition=partition)
+    try:
+        launcher = await _get_launcher()
+    except RuntimeError as e:
+        return str(e)
     stdout, stderr = await launcher.get_job_logs(job_id)
     if stdout:
         await ctx.info("=== stdout ===")
@@ -303,10 +324,11 @@ async def get_job_logs(
 @mcp.tool
 async def cancel_job(
     job_id: Annotated[int, "SLURM job ID to cancel."],
-    system: Annotated[str | None, "Target HPC system name (required for FirecREST launchers)."] = None,
-    partition: Annotated[str | None, "SLURM partition the job is running on."] = None,
 ) -> str:
     """Cancel a running or queued SML job."""
-    launcher = await _make_launcher(system=system, partition=partition)
+    try:
+        launcher = await _get_launcher()
+    except RuntimeError as e:
+        return str(e)
     await launcher.cancel_job(job_id)
     return f"Job {job_id} cancelled."

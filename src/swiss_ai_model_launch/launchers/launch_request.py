@@ -8,8 +8,7 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 class LaunchRequest(BaseModel):
     """A fully-specified launch request — catalogue fields plus user-supplied runtime parameters."""
 
-    vendor: str
-    model_name: str
+    model: str
     framework: Literal["sglang", "vllm"]
     environment: str | None = None
     nodes_per_worker: int
@@ -31,8 +30,7 @@ class LaunchRequest(BaseModel):
         use_router: bool = False,
     ) -> Self:
         return cls(
-            vendor=entry.vendor,
-            model_name=entry.model_name,
+            model=entry.model,
             framework=entry.framework,
             environment=entry.environment,
             nodes_per_worker=entry.nodes_per_worker,

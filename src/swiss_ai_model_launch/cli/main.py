@@ -363,11 +363,6 @@ async def _get_slurm_launcher(
     )
 
 
-def _split_vendor_model(combined: str) -> tuple[str, str]:
-    vendor, model_name = combined.split("/", 1)
-    return vendor, model_name
-
-
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
     workers = get_value("workers")
     if workers is not None and int(workers) > 1:
@@ -386,23 +381,17 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
         seen: dict[str, tuple[str, str]] = {}
         for entry in catalogue:
-            key = f"{entry.vendor}/{entry.model_name}"
-            if key not in seen:
-                seen[key] = (entry.model_name, entry.vendor)
+            if entry.model not in seen:
+                seen[entry.model] = (entry.model, entry.model)
         return seen
 
     async def _get_frameworks(
         get_value_from_context: GetValueFn,
     ) -> dict[str, tuple[str, str]]:
-        combined = get_value_from_context("model")
-        if combined is None:
+        model = get_value_from_context("model")
+        if model is None:
             return {}
-        vendor, model_name = _split_vendor_model(combined)
-        return {
-            entry.framework: (entry.framework, entry.framework)
-            for entry in catalogue
-            if entry.model_name == model_name and entry.vendor == vendor
-        }
+        return {entry.framework: (entry.framework, entry.framework) for entry in catalogue if entry.model == model}
 
     launch_req_config = _make_launch_request_config(
         vendor_models_factory=_get_vendor_models,
@@ -411,19 +400,19 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
     )
     await launch_req_config.aconfigure(args=args)
 
-    vendor, model_name = _split_vendor_model(launch_req_config.get_non_none_value("model"))
+    model = launch_req_config.get_non_none_value("model")
     framework = launch_req_config.get_non_none_value("framework")
     catalogue_entry: ModelCatalogEntry | None = next(
-        (e for e in catalogue if e.vendor == vendor and e.model_name == model_name and e.framework == framework),
+        (e for e in catalogue if e.model == model and e.framework == framework),
         None,
     )
     if catalogue_entry is None:
-        catalogue_entry = ModelCatalogEntry(vendor=vendor, model_name=model_name, framework=framework)
+        catalogue_entry = ModelCatalogEntry(model=model, framework=framework)
     return LaunchRequest.from_catalog_entry(
         catalogue_entry,
         workers=int(launch_req_config.get_non_none_value("workers")),
         time=launch_req_config.get_non_none_value("time"),
-        served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
+        served_model_name=f"{model}-{create_salt(4)}",
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
     )
 
