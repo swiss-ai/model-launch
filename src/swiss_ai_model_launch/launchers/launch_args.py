@@ -35,7 +35,7 @@ class LaunchArgs(BaseModel):
     def to_job_env(self) -> dict[str, str]:
         return {
             "FRAMEWORK": self.framework,
-            "ENVIRONMENT": self.environment,
+            "SML_ENVIRONMENT": self.environment,
             "FRAMEWORK_ARGS": self.framework_args,
             "PRE_LAUNCH_CMDS": self.pre_launch_cmds,
             "WORKERS": str(self.workers),

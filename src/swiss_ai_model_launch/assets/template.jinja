@@ -17,7 +17,7 @@ OCF_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4G
 if [ -n "$TELEMETRY_ENDPOINT" ]; then
     curl -sf -X POST "$TELEMETRY_ENDPOINT" \
         -H "Content-Type: application/json" \
-        -d '{"user": "'"${USER}"'", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": '"${SLURM_NNODES}"', "slurm_job_name": "'"${SLURM_JOB_NAME}"'", "slurm_partition": "'"${SLURM_JOB_PARTITION}"'", "slurm_time": "'"${SML_TIME}"'", "slurm_account": "'"${SLURM_JOB_ACCOUNT}"'", "slurm_environment": "'"${ENVIRONMENT}"'", "interactive": false, "serving_framework": "'"${FRAMEWORK}"'", "framework_args": "'"${FRAMEWORK_ARGS}"'", "pre_launch_cmds": "'"${PRE_LAUNCH_CMDS}"'", "model_name": "'"${SERVED_MODEL_NAME}"'", "workers": '"${WORKERS}"', "nodes_per_worker": '"${NODES_PER_WORKER}"', "worker_port": '"${WORKER_PORT}"', "use_router": '"${USE_ROUTER}"', "router_environment": "'"${ROUTER_ENVIRONMENT}"'", "router_port": 30000, "router_args": "'"${ROUTER_ARGS}"'", "ocf_enabled": '"${USE_OCF}"', "ocf_bootstrap_addr": "'"${OCF_BOOTSTRAP_ADDR}"'", "ocf_service_name": "llm", "ocf_service_port": 8080}' || true
+        -d '{"user": "'"${USER}"'", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": '"${SLURM_NNODES}"', "slurm_job_name": "'"${SLURM_JOB_NAME}"'", "slurm_partition": "'"${SLURM_JOB_PARTITION}"'", "slurm_time": "'"${SML_TIME}"'", "slurm_account": "'"${SLURM_JOB_ACCOUNT}"'", "slurm_environment": "'"${SML_ENVIRONMENT}"'", "interactive": false, "serving_framework": "'"${FRAMEWORK}"'", "framework_args": "'"${FRAMEWORK_ARGS}"'", "pre_launch_cmds": "'"${PRE_LAUNCH_CMDS}"'", "model_name": "'"${SERVED_MODEL_NAME}"'", "workers": '"${WORKERS}"', "nodes_per_worker": '"${NODES_PER_WORKER}"', "worker_port": '"${WORKER_PORT}"', "use_router": '"${USE_ROUTER}"', "router_environment": "'"${ROUTER_ENVIRONMENT}"'", "router_port": 30000, "router_args": "'"${ROUTER_ARGS}"'", "ocf_enabled": '"${USE_OCF}"', "ocf_bootstrap_addr": "'"${OCF_BOOTSTRAP_ADDR}"'", "ocf_service_name": "llm", "ocf_service_port": 8080}' || true
 fi
 
 unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
@@ -166,7 +166,7 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \
             --container-writable \
-            --environment="$ENVIRONMENT" \
+            --environment="$SML_ENVIRONMENT" \
             bash --norc --noprofile -c "\
 set -ex
 $FRAMEWORK_ENV_SETUP
