@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from importlib.resources import files
 from pathlib import Path
 
@@ -102,6 +103,7 @@ class SlurmLauncher(Launcher):
             str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env={**os.environ, **launch_args.to_job_env()},
         )
         stdout, stderr = await proc.communicate()
 

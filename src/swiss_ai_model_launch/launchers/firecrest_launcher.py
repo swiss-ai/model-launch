@@ -152,6 +152,7 @@ class FirecRESTLauncher(Launcher):
             system_name=self.system_name,
             working_dir=self._get_working_dir(),
             script_str=script_str,
+            env_vars=launch_args.to_job_env(),
             account=self.account,
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
@@ -174,6 +175,7 @@ class FirecRESTLauncher(Launcher):
             system_name=self.system_name,
             working_dir=self._get_working_dir(),
             script_str=script_str,
+            env_vars=launch_args.to_job_env(),
             account=self.account,
         )
 
