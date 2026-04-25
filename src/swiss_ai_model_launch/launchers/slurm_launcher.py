@@ -11,7 +11,7 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
-    render_job_script,
+    get_job_script,
     resolve_model_path,
 )
 
@@ -89,17 +89,17 @@ class SlurmLauncher(Launcher):
             )
 
     async def _sbatch(self, launch_args: LaunchArgs) -> int:
-        script_str = render_job_script(launch_args)
         working_dir = self._get_working_dir()
         working_dir.mkdir(parents=True, exist_ok=True)
 
         script_path = working_dir / f"job_{launch_args.job_name}.sh"
-        script_path.write_text(script_str)
+        script_path.write_text("#!/bin/bash\n" + get_job_script())
 
         proc = await asyncio.create_subprocess_exec(
             "sbatch",
             "--chdir",
             str(working_dir),
+            *launch_args.to_sbatch_args(),
             str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

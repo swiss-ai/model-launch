@@ -32,6 +32,21 @@ class LaunchArgs(BaseModel):
             self.nodes = self.workers * self.nodes_per_worker
         return self
 
+    def to_sbatch_args(self) -> list[str]:
+        args = [
+            f"--job-name={self.job_name}",
+            f"--account={self.account}",
+            f"--time={self.time}",
+            "--exclusive",
+            f"--nodes={self.nodes}",
+            f"--partition={self.partition}",
+            "--output=logs/%j/log.out",
+            "--error=logs/%j/log.out",
+        ]
+        if self.reservation:
+            args.append(f"--reservation={self.reservation}")
+        return args
+
     def to_job_env(self) -> dict[str, str]:
         return {
             "FRAMEWORK": self.framework,
