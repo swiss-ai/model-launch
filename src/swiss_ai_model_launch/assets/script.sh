@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+set -euo pipefail
 
 ROUTER_PORT=30000
 OCF_SERVICE_NAME="llm"
@@ -37,18 +38,66 @@ for i in "${!nodes[@]}"; do
     echo "Node $i: ${nodes[$i]}"
 done
 
-case "$FRAMEWORK" in
-    sglang)
-        FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
-        FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
-        ;;
-    vllm)
-        FRAMEWORK_ENV_SETUP="export RAY_CGRAPH_get_timeout=1800; export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
-        FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
-        ;;
-esac
+# ── sglang ──────────────────────────────────────────────────────────────────
 
-ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
+_sglang_setup() {
+    FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
+    FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
+}
+
+_sglang_worker_cmd() {
+    local local_rank=$1 worker_host_ip=$2
+    local dist_args=""
+    if [ "$NODES_PER_WORKER" -gt 1 ]; then
+        dist_args="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
+    fi
+    FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $dist_args $FRAMEWORK_ARGS"
+}
+
+# ── vllm ────────────────────────────────────────────────────────────────────
+
+_vllm_setup() {
+    FRAMEWORK_ENV_SETUP="export RAY_CGRAPH_get_timeout=1800; export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
+    FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
+}
+
+_vllm_worker_cmd() {
+    local local_rank=$1 worker_host_ip=$2
+    local ray_port=6379 num_gpus=4
+
+    if [ "$NODES_PER_WORKER" -gt 1 ]; then
+        # For multi-node: only the head node runs the API server via Ray;
+        # follower nodes join the Ray cluster and block.
+        if [ "$local_rank" -eq 0 ]; then
+            FRAMEWORK_CMD="ray start --head --port=${ray_port} --num-gpus=${num_gpus} --block &
+
+echo 'Waiting for all Ray worker nodes to connect...'
+EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${num_gpus}))
+while true; do
+    AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
+    echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
+    if [ \"\${AVAILABLE_GPUS}\" -ge \"\${EXPECTED_GPUS}\" ]; then
+        echo 'All Ray workers connected!'
+        break
+    fi
+    sleep 5
+done
+
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+        else
+            FRAMEWORK_CMD="ray start --address=${worker_host_ip}:${ray_port} --num-gpus=${num_gpus} --block"
+        fi
+    else
+        FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_ARGS"
+    fi
+}
+
+# ── main ────────────────────────────────────────────────────────────────────
+
+case "$FRAMEWORK" in
+    sglang) _sglang_setup ;;
+    vllm)   _vllm_setup ;;
+esac
 
 EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
 if [ "$TOTAL_NODES" -ne "$EXPECTED_NODES" ]; then
@@ -60,7 +109,7 @@ fi
 worker_head_ips=()
 worker_urls=()
 
-for worker_id in $(seq 0 $((WORKERS - 1))); do
+for ((worker_id=0; worker_id<WORKERS; worker_id++)); do
     start_node=$((worker_id * NODES_PER_WORKER))
     worker_host_node=${nodes[$start_node]}
     worker_host_ip=$(srun --nodes=1 --ntasks=1 -w "${worker_host_node}" hostname -i)
@@ -77,66 +126,18 @@ done
 
 echo "All worker URLs: ${worker_urls[*]}"
 
-for worker_id in $(seq 0 $((WORKERS - 1))); do
+for ((worker_id=0; worker_id<WORKERS; worker_id++)); do
     echo "Launching worker $worker_id"
     start_node=$((worker_id * NODES_PER_WORKER))
     worker_host_ip=${worker_head_ips[$worker_id]}
 
-    for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
-        global_node_idx=$((start_node + local_rank))
-        node=${nodes[$global_node_idx]}
+    for ((local_rank=0; local_rank<NODES_PER_WORKER; local_rank++)); do
+        node=${nodes[$((start_node + local_rank))]}
 
         case "$FRAMEWORK" in
-            sglang)
-                if [ "$NODES_PER_WORKER" -gt 1 ]; then
-                    FRAMEWORK_DIST_ARGS_EXPANDED="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
-                else
-                    FRAMEWORK_DIST_ARGS_EXPANDED=""
-                fi
-                ;;
-            vllm)
-                if [ "$NODES_PER_WORKER" -gt 1 ]; then
-                    FRAMEWORK_DIST_ARGS_EXPANDED="--nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --distributed-executor-backend mp --master-addr ${worker_host_ip} --master-port 5757"
-                else
-                    FRAMEWORK_DIST_ARGS_EXPANDED=""
-                fi
-                ;;
+            sglang) _sglang_worker_cmd "$local_rank" "$worker_host_ip" ;;
+            vllm)   _vllm_worker_cmd   "$local_rank" "$worker_host_ip" ;;
         esac
-
-        # For vLLM multi-node: only the head node runs the API server via Ray;
-        # follower nodes join the Ray cluster and block.
-        if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
-            RAY_PORT=6379
-            NUM_GPUS=4
-
-            if [ "$local_rank" -eq 0 ]; then
-                # Head node: start Ray head, wait for all workers, then launch vLLM
-                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
-
-echo 'Waiting for all Ray worker nodes to connect...'
-EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
-while true; do
-    AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
-    echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
-    if [ \"\${AVAILABLE_GPUS}\" -ge \"\${EXPECTED_GPUS}\" ]; then
-        echo 'All Ray workers connected!'
-        break
-    fi
-    sleep 5
-done
-
-$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
-            else
-                # Follower node: join Ray cluster and block
-                FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
-            fi
-        fi
-
-        if [ -n "${FRAMEWORK_CMD_OVERRIDE:-}" ]; then
-            FRAMEWORK_CMD="$FRAMEWORK_CMD_OVERRIDE"
-        else
-            FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
-        fi
 
         if [ "$USE_OCF" = "true" ] && [ "$local_rank" -eq 0 ]; then
             FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
@@ -153,8 +154,6 @@ if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     eval \"$PRE_LAUNCH_CMDS\"
 fi
 $FRAMEWORK_CMD" &
-
-        FRAMEWORK_CMD_OVERRIDE=""
     done
 done
 
@@ -179,6 +178,7 @@ if [ "$USE_ROUTER" = "true" ] && [ "$WORKERS" -gt 1 ]; then
     router_host_node=${nodes[0]}
     router_host_ip=${worker_head_ips[0]}
     worker_urls_str="${worker_urls[*]}"
+    ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
 
     echo "Starting router on ${router_host_node} (${router_host_ip}:${ROUTER_PORT})"
     echo "Router worker URLs: ${worker_urls_str}"
@@ -204,15 +204,15 @@ echo \"All workers are ready! Launching router...\"
 
 $ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
 
-    echo ""
+    echo
     echo "Router URL: http://${router_host_ip}:${ROUTER_PORT}"
 fi
 
-echo ""
+echo
 echo "To connect to the host node:"
 echo "srun --jobid $SLURM_JOB_ID -w ${nodes[0]} --overlap --pty bash"
 
-echo ""
+echo
 echo "Make sure to cancel the job at the end:"
 echo "scancel $SLURM_JOB_ID"
 
