@@ -31,3 +31,23 @@ class LaunchArgs(BaseModel):
         if self.nodes is None:
             self.nodes = self.workers * self.nodes_per_worker
         return self
+
+    def to_job_env(self) -> dict[str, str]:
+        return {
+            "FRAMEWORK": self.framework,
+            "ENVIRONMENT": self.environment,
+            "FRAMEWORK_ARGS": self.framework_args,
+            "PRE_LAUNCH_CMDS": self.pre_launch_cmds,
+            "WORKERS": str(self.workers),
+            "NODES_PER_WORKER": str(self.nodes_per_worker),
+            "WORKER_PORT": str(self.worker_port),
+            "USE_ROUTER": "true" if self.use_router else "false",
+            "ROUTER_ENVIRONMENT": self.environment,
+            "ROUTER_ARGS": self.router_args,
+            "USE_OCF": "false" if self.disable_ocf else "true",
+            "SERVED_MODEL_NAME": self.served_model_name,
+            "METRICS_REMOTE_WRITE_URL": self.metrics_remote_write_url or "",
+            "METRICS_AGENT_BIN": self.metrics_agent_binary,
+            "TELEMETRY_ENDPOINT": self.telemetry_endpoint or "",
+            "SML_TIME": self.time,
+        }
