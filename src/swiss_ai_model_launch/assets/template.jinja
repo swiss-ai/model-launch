@@ -8,7 +8,7 @@
 {% if reservation %}#SBATCH --reservation={{ reservation }}{% endif %}
 #SBATCH --output=logs/%j/log.out
 #SBATCH --error=logs/%j/log.out
-
+{% raw %}
 ROUTER_PORT=30000
 OCF_SERVICE_NAME="llm"
 OCF_SERVICE_PORT=8080
@@ -249,3 +249,4 @@ echo "scancel $SLURM_JOB_ID"
 
 wait
 echo "Script finished at $(date)"
+{% endraw %}
