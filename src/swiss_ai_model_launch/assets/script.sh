@@ -1,14 +1,5 @@
-#!/bin/bash
-#SBATCH --job-name={{ job_name }}
-#SBATCH --account={{ account }}
-#SBATCH --time={{ time }}
-#SBATCH --exclusive
-#SBATCH --nodes={{ nodes }}
-#SBATCH --partition={{ partition }}
-{% if reservation %}#SBATCH --reservation={{ reservation }}{% endif %}
-#SBATCH --output=logs/%j/log.out
-#SBATCH --error=logs/%j/log.out
-{% raw %}
+# shellcheck shell=bash
+
 ROUTER_PORT=30000
 OCF_SERVICE_NAME="llm"
 OCF_SERVICE_PORT=8080
@@ -22,7 +13,6 @@ fi
 
 unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE
 
-# Architecture detection
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
     echo "Running on ARM64 (aarch64)"
@@ -39,8 +29,7 @@ else
     exit 1
 fi
 
-# Node setup
-nodes=($(scontrol show hostnames $SLURM_NODELIST))
+mapfile -t nodes < <(scontrol show hostnames "$SLURM_NODELIST")
 TOTAL_NODES=${#nodes[@]}
 
 echo "Total nodes allocated: $TOTAL_NODES"
@@ -48,7 +37,6 @@ for i in "${!nodes[@]}"; do
     echo "Node $i: ${nodes[$i]}"
 done
 
-# Build the launch command based on framework
 case "$FRAMEWORK" in
     sglang)
         FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
@@ -60,25 +48,22 @@ case "$FRAMEWORK" in
         ;;
 esac
 
-# Router always uses sglang_router (works with any OpenAI-compatible backend)
 ROUTER_LAUNCH="python3 -m sglang_router.launch_router"
 
-# Validate configuration
 EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
-if [ $TOTAL_NODES -ne $EXPECTED_NODES ]; then
+if [ "$TOTAL_NODES" -ne "$EXPECTED_NODES" ]; then
     echo "Warning: Total nodes ($TOTAL_NODES) doesn't match WORKERS($WORKERS) * NODES_PER_WORKER($NODES_PER_WORKER) = $EXPECTED_NODES"
     echo "Adjusting to use all available nodes with WORKERS workers"
     NODES_PER_WORKER=$((TOTAL_NODES / WORKERS))
 fi
 
-# Collect worker head IPs
 worker_head_ips=()
 worker_urls=()
 
 for worker_id in $(seq 0 $((WORKERS - 1))); do
     start_node=$((worker_id * NODES_PER_WORKER))
     worker_host_node=${nodes[$start_node]}
-    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w ${worker_host_node} hostname -i)
+    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w "${worker_host_node}" hostname -i)
 
     if [ -z "$worker_host_ip" ]; then
         echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}"
@@ -90,21 +75,17 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
     worker_urls+=("http://${worker_host_ip}:${WORKER_PORT}")
 done
 
-echo "All worker URLs: ${worker_urls[@]}"
+echo "All worker URLs: ${worker_urls[*]}"
 
-# Launch workers
 for worker_id in $(seq 0 $((WORKERS - 1))); do
     echo "Launching worker $worker_id"
     start_node=$((worker_id * NODES_PER_WORKER))
-    end_node=$((start_node + NODES_PER_WORKER - 1))
-
     worker_host_ip=${worker_head_ips[$worker_id]}
 
     for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
         global_node_idx=$((start_node + local_rank))
         node=${nodes[$global_node_idx]}
 
-        # Build the framework command with expanded variables
         case "$FRAMEWORK" in
             sglang)
                 if [ "$NODES_PER_WORKER" -gt 1 ]; then
@@ -122,16 +103,15 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
                 ;;
         esac
 
-        # For vLLM multi-node with Ray: only the head node runs the API server,
-        # follower nodes just run a Ray worker and sleep.
+        # For vLLM multi-node: only the head node runs the API server via Ray;
+        # follower nodes join the Ray cluster and block.
         if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
             RAY_PORT=6379
             NUM_GPUS=4
 
-            if [ $local_rank -eq 0 ]; then
+            if [ "$local_rank" -eq 0 ]; then
                 # Head node: start Ray head, wait for all workers, then launch vLLM
                 FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
-RAY_HEAD_PID=\$!
 
 echo 'Waiting for all Ray worker nodes to connect...'
 EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
@@ -147,47 +127,40 @@ done
 
 $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
             else
-                # Follower node: join Ray cluster and sleep forever
+                # Follower node: join Ray cluster and block
                 FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
             fi
         fi
 
-        # Use override if set (vLLM multi-node), otherwise build normally
         if [ -n "${FRAMEWORK_CMD_OVERRIDE:-}" ]; then
             FRAMEWORK_CMD="$FRAMEWORK_CMD_OVERRIDE"
         else
             FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
         fi
 
-        # Wrap with OCF if enabled (only on master node - rank 0)
-        if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
+        if [ "$USE_OCF" = "true" ] && [ "$local_rank" -eq 0 ]; then
             FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
         fi
 
-        srun --nodes=1 --ntasks=1 --nodelist=$node \
+        srun --nodes=1 --ntasks=1 --nodelist="$node" \
             --container-writable \
             --environment="$SML_ENVIRONMENT" \
             bash --norc --noprofile -c "\
 set -ex
 $FRAMEWORK_ENV_SETUP
-# Run pre-launch commands if provided
 if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     echo \"Running pre-launch commands...\"
     eval \"$PRE_LAUNCH_CMDS\"
 fi
 $FRAMEWORK_CMD" &
 
-        # Reset override for next iteration
         FRAMEWORK_CMD_OVERRIDE=""
     done
 done
 
-# Push framework metrics to Prometheus via vmagent (runs on the batch node).
-# Pyxis containers share the host network namespace, so localhost:8080 on the
-# batch node reaches the framework's API server. The scrape config is a static
-# YAML staged alongside the binaries at /ocfbin/vmagent-scrape.yaml.
-# NOTE: only the worker on the batch node is scraped — multi-worker setups
-# would need a per-worker vmagent (future work).
+# vmagent runs on the batch node rather than inside a container: pyxis containers
+# share the host network namespace, so the framework's API server is reachable
+# at localhost:8080 from here without any extra networking.
 if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
     "$METRICS_AGENT_BIN" \
         -promscrape.config=/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml \
@@ -196,30 +169,27 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
         -remoteWrite.label="model=${SERVED_MODEL_NAME}" \
         -remoteWrite.label="framework=${FRAMEWORK}" \
         -remoteWrite.label="user=${USER}" \
-        -remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID} \
-        > /tmp/vmagent-${SLURM_JOB_ID}.log 2>&1 &
+        "-remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}" \
+        > "/tmp/vmagent-${SLURM_JOB_ID}.log" 2>&1 &
 elif [ -n "$METRICS_REMOTE_WRITE_URL" ]; then
     echo "metrics: $METRICS_AGENT_BIN not found, skipping push" >&2
 fi
 
-# Optional router launch
-if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
+if [ "$USE_ROUTER" = "true" ] && [ "$WORKERS" -gt 1 ]; then
     router_host_node=${nodes[0]}
     router_host_ip=${worker_head_ips[0]}
-
-    # Build worker URLs string
-    worker_urls_str="${worker_urls[@]}"
+    worker_urls_str="${worker_urls[*]}"
 
     echo "Starting router on ${router_host_node} (${router_host_ip}:${ROUTER_PORT})"
     echo "Router worker URLs: ${worker_urls_str}"
 
-    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node \
+    srun --nodes=1 --ntasks=1 --nodelist="$router_host_node" \
         --container-writable \
         --environment="$ROUTER_ENVIRONMENT" \
         --overlap \
         bash --norc --noprofile -c "\
 set -ex
-# 1. Unconditionally bypass the proxy for the Rust router
+# bypass proxy — the Rust router does not honour it and hangs if set
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
 
 echo \"Waiting for all workers to fully initialize the GPU engine before starting router...\"
@@ -232,7 +202,6 @@ for worker_ip in ${worker_head_ips[*]}; do
 done
 echo \"All workers are ready! Launching router...\"
 
-# 3. Launch the router
 $ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
 
     echo ""
@@ -249,4 +218,3 @@ echo "scancel $SLURM_JOB_ID"
 
 wait
 echo "Script finished at $(date)"
-{% endraw %}
