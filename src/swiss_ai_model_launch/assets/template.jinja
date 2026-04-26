@@ -28,6 +28,9 @@ SERVED_MODEL_NAME="{{ served_model_name }}"
 METRICS_REMOTE_WRITE_URL="{{ metrics_remote_write_url or '' }}"
 METRICS_AGENT_BIN="{{ metrics_agent_binary }}"
 DCGM_EXPORTER_BIN="{{ dcgm_exporter_binary }}"
+USE_DCGM_EXPORTER={{ "false" if disable_dcgm_exporter else "true" }}
+USE_METRICS={{ "false" if disable_metrics else "true" }}
+
 
 {% if telemetry_endpoint %}
 curl -sf -X POST "{{ telemetry_endpoint }}" \
@@ -217,36 +220,56 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
     VMAGENT_LOG="/tmp/vmagent-${SLURM_JOB_ID}.log"
     VMAGENT_DATA="/tmp/vmagent-data-${SLURM_JOB_ID}"
 
-    for i in "${!nodes[@]}"; do
-        node="${nodes[$i]}"
-        if [ "$i" -eq 0 ]; then
-            if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
-                "$DCGM_EXPORTER_BIN" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
+    if [ "$USE_METRICS" != "true" ]; then
+        echo "Metrics disabled, skipping vmagent initialization" >&2
+    fi
+    else
+        for i in "${!nodes[@]}"; do
+            node="${nodes[$i]}"
+            if [ $((i % NODES_PER_WORKER)) -eq 0 ]; then
+                VMAGENT_SCRAPE_CONFIG="$METRICS_CONFIG_DIR/vmagent-scrape.yaml"
             else
-                echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
+                VMAGENT_SCRAPE_CONFIG="$METRICS_CONFIG_DIR/vmagent-scrape-dcgm-only.yaml"
             fi
-            "$METRICS_AGENT_BIN" $VMAGENT_COMMON_ARGS \
-                -promscrape.config=$METRICS_CONFIG_DIR/vmagent-scrape.yaml \
-                -remoteWrite.label="node=$(hostname)" \
-                -remoteWrite.tmpDataPath=$VMAGENT_DATA \
-                > $VMAGENT_LOG 2>&1 &
-        else
-            srun --nodes=1 --ntasks=1 --nodelist=$node --overlap \
-                bash -c "
-                    if [ -e /dev/nvidia0 ] && [ -x \"$DCGM_EXPORTER_BIN\" ]; then
-                        \"$DCGM_EXPORTER_BIN\" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
+
+            if [ "$i" -eq 0 ]; then
+                if [ "$USE_DCGM_EXPORTER" = "true" ]; then
+                    echo "dcgm-exporter: /dev/nvidia0 exists=$([ -e /dev/nvidia0 ] && echo yes || echo no), binary=$DCGM_EXPORTER_BIN executable=$([ -x "$DCGM_EXPORTER_BIN" ] && echo yes || echo no)" >&2
+                    if [ -e /dev/nvidia0 ] && [ -x "$DCGM_EXPORTER_BIN" ]; then
+                        "$DCGM_EXPORTER_BIN" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
                     else
-                        echo 'dcgm-exporter: no NVIDIA GPU or binary not found, skipping' >&2
+                        echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2
                     fi
-                    \"$METRICS_AGENT_BIN\" $VMAGENT_COMMON_ARGS \
-                        -promscrape.config=$METRICS_CONFIG_DIR/vmagent-scrape-dcgm-only.yaml \
-                        -remoteWrite.label=\"node=\$(hostname)\" \
-                        -remoteWrite.tmpDataPath=$VMAGENT_DATA \
-                        > $VMAGENT_LOG 2>&1 &
-                    wait
-                " &
-        fi
-    done
+                else
+                    echo "dcgm-exporter: disabled (USE_DCGM_EXPORTER != true), skipping" >&2
+                fi
+                "$METRICS_AGENT_BIN" $VMAGENT_COMMON_ARGS \
+                    -promscrape.config=$VMAGENT_SCRAPE_CONFIG \
+                    -remoteWrite.label="node=$(hostname)" \
+                    -remoteWrite.tmpDataPath=$VMAGENT_DATA \
+                    > $VMAGENT_LOG 2>&1 &
+            else
+                srun --nodes=1 --ntasks=1 --nodelist=$node --overlap \
+                    bash -c "
+                        if [ \"$USE_DCGM_EXPORTER\" = 'true' ]; then
+                            if [ -e /dev/nvidia0 ] && [ -x \"$DCGM_EXPORTER_BIN\" ]; then
+                                \"$DCGM_EXPORTER_BIN\" $DCGM_COMMON_ARGS > $DCGM_LOG 2>&1 &
+                            else
+                                echo 'dcgm-exporter: no NVIDIA GPU or binary not found, skipping' >&2
+                            fi
+                        else
+                            echo 'dcgm-exporter: disabled (USE_DCGM_EXPORTER != true), skipping' >&2
+                        fi
+                        \"$METRICS_AGENT_BIN\" $VMAGENT_COMMON_ARGS \
+                            -promscrape.config=$VMAGENT_SCRAPE_CONFIG \
+                            -remoteWrite.label=\"node=\$(hostname)\" \
+                            -remoteWrite.tmpDataPath=$VMAGENT_DATA \
+                            > $VMAGENT_LOG 2>&1 &
+                        wait
+                    " &
+            fi
+        done
+    fi
 else
     echo "metrics: $METRICS_AGENT_BIN not found, skipping push" >&2
 fi
