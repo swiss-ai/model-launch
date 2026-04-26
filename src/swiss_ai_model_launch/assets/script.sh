@@ -1,6 +1,10 @@
 # shellcheck shell=bash
 set -euo pipefail
 
+: "${TELEMETRY_ENDPOINT:=}"
+: "${METRICS_REMOTE_WRITE_URL:=}"
+: "${PRE_LAUNCH_CMDS:=}"
+
 ROUTER_PORT=30000
 OCF_SERVICE_NAME="llm"
 OCF_SERVICE_PORT=8080
