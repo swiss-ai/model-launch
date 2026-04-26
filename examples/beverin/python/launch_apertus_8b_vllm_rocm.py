@@ -31,12 +31,10 @@ async def main() -> None:
             "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
             f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username} "
             "--host 0.0.0.0 "
-            "--port 8080 "
             "--tensor-parallel-size 4 "
             "--gpu-memory-utilization 0.5"
         ),
         time="05:00:00",
-        worker_port=8080,
     )
 
     job_id, served = await launcher.launch_with_args(args)

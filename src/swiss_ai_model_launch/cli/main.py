@@ -6,6 +6,7 @@ import importlib.metadata
 import logging
 import os
 import re
+import sys
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any, cast
 
@@ -23,13 +24,23 @@ from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
+
+
+def _resolve_legacy(
+    new_value: int | None, legacy_value: int | None, legacy_flag: str, new_flag: str, *, default: int
+) -> int:
+    if legacy_value is not None:
+        print(f"warning: {legacy_flag} is deprecated; use {new_flag} instead.", file=sys.stderr)
+        if new_value is None:
+            return legacy_value
+    return new_value if new_value is not None else default
 
 
 def _make_firecrest_launcher_config(
@@ -93,7 +104,7 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        "yes": ("Yes", "Use router to load balance across workers"),
+        "yes": ("Yes", "Use router to load balance across replicas"),
         "no": ("No", "Do not use router"),
     }
     return ChainConfiguration(
@@ -112,14 +123,14 @@ def _make_launch_request_config(
                 options=None if frameworks_factory else _empty,
             ),
             TextConfiguration(
-                name="workers",
-                prompt="Number of workers to use for running the model.",
+                name="replicas",
+                prompt="Number of replicas (independent inference engine instances) to launch.",
                 validator=lambda v: v.isdigit() and int(v) > 0,
                 default="1",
             ),
             OptionsConfiguration(
                 name="use_router",
-                prompt="Use router to load balance across workers.",
+                prompt="Use router to load balance across replicas.",
                 options_factory=use_router_factory,
                 options=None if use_router_factory else _router_options,
             ),
@@ -180,25 +191,42 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded to the inference framework.",
     )
     advanced_parser.add_argument(
-        "--slurm-workers",
-        dest="workers",
+        "--slurm-replicas",
+        dest="replicas",
         type=int,
-        default=1,
-        help="Number of workers (default: 1).",
+        default=None,
+        help="Number of independent inference engine instances (default: 1).",
+    )
+    advanced_parser.add_argument(
+        "--slurm-workers",
+        dest="legacy_workers",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    advanced_parser.add_argument(
+        "--slurm-nodes-per-replica",
+        dest="nodes_per_replica",
+        type=int,
+        default=None,
+        help=(
+            "Number of nodes spanned by one replica (default: 1). "
+            "Set this to match your TP/PP/DP/EP layout in --framework-args."
+        ),
     )
     advanced_parser.add_argument(
         "--slurm-nodes-per-worker",
-        dest="nodes_per_worker",
+        dest="legacy_nodes_per_worker",
         type=int,
-        default=1,
-        help="Number of nodes per worker (default: 1).",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--slurm-nodes",
-        dest="nodes",
+        dest="legacy_nodes",
         type=int,
         default=None,
-        help="Total number of nodes. Defaults to workers * nodes-per-worker.",
+        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--slurm-time",
@@ -221,17 +249,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
-        "--worker-port",
-        dest="worker_port",
+        "--replica-port",
+        dest="legacy_replica_port",
         type=int,
-        default=5000,
-        help="Port used by workers (default: 5000).",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    advanced_parser.add_argument(
+        "--worker-port",
+        dest="legacy_worker_port",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--use-router",
         dest="use_router",
         action="store_true",
-        help="Enable router to load balance across workers.",
+        help="Enable router to load balance across replicas.",
     )
     advanced_parser.add_argument(
         "--router-args",
@@ -310,7 +345,9 @@ async def _get_firecrest_launcher_with_client(
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
-        reservation = getattr(args, "reservation", None) if args else None
+        reservation = (
+            (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
+        )
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -347,7 +384,9 @@ async def _get_slurm_launcher(
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
-        reservation = getattr(args, "reservation", None) if args else None
+        reservation = (
+            (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
+        )
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -364,10 +403,10 @@ async def _get_slurm_launcher(
 
 
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
-    workers = get_value("workers")
-    if workers is not None and int(workers) > 1:
+    replicas = get_value("replicas")
+    if replicas is not None and int(replicas) > 1:
         return {
-            "yes": ("Yes", "Use router to load balance across workers"),
+            "yes": ("Yes", "Use router to load balance across replicas"),
             "no": ("No", "Do not use router"),
         }
     return {
@@ -410,7 +449,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         catalogue_entry = ModelCatalogEntry(model=model, framework=framework)
     return LaunchRequest.from_catalog_entry(
         catalogue_entry,
-        workers=int(launch_req_config.get_non_none_value("workers")),
+        replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{model}-{create_salt(4)}",
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
@@ -532,21 +571,46 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
+    replicas = _resolve_legacy(args.replicas, args.legacy_workers, "--slurm-workers", "--slurm-replicas", default=1)
+    nodes_per_replica = _resolve_legacy(
+        args.nodes_per_replica,
+        args.legacy_nodes_per_worker,
+        "--slurm-nodes-per-worker",
+        "--slurm-nodes-per-replica",
+        default=1,
+    )
+    for legacy_value, legacy_flag in (
+        (args.legacy_replica_port, "--replica-port"),
+        (args.legacy_worker_port, "--worker-port"),
+    ):
+        if legacy_value is not None:
+            print(
+                f"warning: {legacy_flag} is no longer configurable; the framework port is hardcoded "
+                "to 8080. Drop the flag.",
+                file=sys.stderr,
+            )
+    if args.legacy_nodes is not None:
+        print(
+            "warning: --slurm-nodes is no longer configurable; total nodes is derived from "
+            "--slurm-replicas * --slurm-nodes-per-replica. Drop the flag.",
+            file=sys.stderr,
+        )
+
     launch_args = LaunchArgs(
         job_name=job_name,
         served_model_name=served_model_name,
         account=launcher.account,
         partition=launcher.partition,
-        workers=args.workers,
-        nodes_per_worker=args.nodes_per_worker,
-        nodes=args.nodes,
+        topology=Topology(
+            replicas=replicas,
+            nodes_per_replica=nodes_per_replica,
+        ),
         time=args.time,
         reservation=args.reservation or None,
         environment=args.slurm_environment,
         framework=args.framework,
         framework_args=args.framework_args,
         pre_launch_cmds=args.pre_launch_cmds,
-        worker_port=args.worker_port,
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,

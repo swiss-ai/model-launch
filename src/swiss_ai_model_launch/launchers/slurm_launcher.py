@@ -4,7 +4,7 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
@@ -57,8 +57,10 @@ class SlurmLauncher(Launcher):
             job_name=job_name,
             account=self.account,
             partition=self.partition,
-            workers=launch_request.workers,
-            nodes_per_worker=launch_request.nodes_per_worker,
+            topology=Topology(
+                replicas=launch_request.replicas,
+                nodes_per_replica=launch_request.nodes_per_replica,
+            ),
             time=launch_request.time,
             reservation=self.reservation,
             environment=launch_request.environment,
@@ -67,8 +69,7 @@ class SlurmLauncher(Launcher):
             framework_args=(
                 f"--model {resolve_model_path(model, self.model_registry, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
-                "--host 0.0.0.0 "
-                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
+                "--host 0.0.0.0 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,

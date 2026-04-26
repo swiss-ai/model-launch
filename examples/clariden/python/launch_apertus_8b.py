@@ -33,11 +33,9 @@ async def main() -> None:
         framework_args=(
             "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
             f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-{username} "
-            "--host 0.0.0.0 "
-            "--port 8080"
+            "--host 0.0.0.0"
         ),
         time="02:00:00",
-        worker_port=8080,
     )
 
     job_id, served = await launcher.launch_with_args(args)
