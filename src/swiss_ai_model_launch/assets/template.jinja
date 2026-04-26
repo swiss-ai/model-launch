@@ -222,7 +222,6 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
 
     if [ "$USE_METRICS" != "true" ]; then
         echo "Metrics disabled, skipping vmagent initialization" >&2
-    fi
     else
         for i in "${!nodes[@]}"; do
             node="${nodes[$i]}"
