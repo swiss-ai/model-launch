@@ -167,7 +167,7 @@ if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
         -remoteWrite.label="slurm_job_id=${SLURM_JOB_ID}" \
         -remoteWrite.label="model=${SERVED_MODEL_NAME}" \
         -remoteWrite.label="framework=${FRAMEWORK}" \
-        -remoteWrite.label="user=${USER}" \
+        -remoteWrite.label="user=${SLURM_JOB_USER}" \
         "-remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}" \
         > "/tmp/vmagent-${SLURM_JOB_ID}.log" 2>&1 &
 elif [ -n "$METRICS_REMOTE_WRITE_URL" ]; then
