@@ -25,10 +25,11 @@ from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
-_DefaultFactory = Callable[[], Awaitable[str | None]] | Callable[[GetValueFn], Awaitable[str | None]] | None
 
 
 def _make_firecrest_launcher_config(
@@ -83,9 +84,7 @@ def _make_reservation_config() -> ChainConfiguration:
 def _make_launch_request_config(
     vendor_models_factory: _OptionsFactory = None,
     frameworks_factory: _OptionsFactory = None,
-    workers_default_factory: _DefaultFactory = None,
     use_router_factory: _OptionsFactory = None,
-    time_default_factory: _DefaultFactory = None,
 ) -> ChainConfiguration:
     """Build the launch request config.
 
@@ -115,8 +114,8 @@ def _make_launch_request_config(
             TextConfiguration(
                 name="workers",
                 prompt="Number of workers to use for running the model.",
-                validator=((lambda v: v.isdigit() and int(v) > 0) if workers_default_factory else None),
-                default_factory=workers_default_factory,
+                validator=lambda v: v.isdigit() and int(v) > 0,
+                default="1",
             ),
             OptionsConfiguration(
                 name="use_router",
@@ -128,7 +127,7 @@ def _make_launch_request_config(
                 name="time",
                 prompt="Time duration for running the model (in format HH:MM:SS).",
                 validator=lambda v: bool(re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)),
-                default_factory=time_default_factory,
+                default="03:00:00",
             ),
         ],
     )
@@ -268,6 +267,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Launch the interactive TUI after submitting the job.",
     )
 
+    subparsers.add_parser("mcp", help="Start the SML MCP server")
+
     return parser
 
 
@@ -362,32 +363,6 @@ async def _get_slurm_launcher(
     )
 
 
-def _split_vendor_model(combined: str) -> tuple[str, str]:
-    vendor, model_name = combined.split("/", 1)
-    return vendor, model_name
-
-
-async def _get_preconfigured_default(
-    get_value_from_context: GetValueFn, preconfigured: list[LaunchRequest], field: str
-) -> str | None:
-    combined = get_value_from_context("model")
-    if combined is None:
-        return None
-    vendor, model_name = _split_vendor_model(combined)
-    framework = get_value_from_context("framework")
-    match = next(
-        (
-            lr
-            for lr in preconfigured
-            if lr.vendor == vendor and lr.model_name == model_name and lr.framework == framework
-        ),
-        None,
-    )
-    if match is None:
-        return None
-    return str(getattr(match, field))
-
-
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
     workers = get_value("workers")
     if workers is not None and int(workers) > 1:
@@ -401,63 +376,43 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
 
 
 async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | None = None) -> LaunchRequest:
-    preconfigured_launch_requests = await launcher.get_preconfigured_models()
+    catalogue = await launcher.get_preconfigured_models()
 
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
         seen: dict[str, tuple[str, str]] = {}
-        for lr in preconfigured_launch_requests:
-            key = f"{lr.vendor}/{lr.model_name}"
-            if key not in seen:
-                seen[key] = (lr.model_name, lr.vendor)
+        for entry in catalogue:
+            if entry.model not in seen:
+                seen[entry.model] = (entry.model, entry.model)
         return seen
 
     async def _get_frameworks(
         get_value_from_context: GetValueFn,
     ) -> dict[str, tuple[str, str]]:
-        combined = get_value_from_context("model")
-        if combined is None:
+        model = get_value_from_context("model")
+        if model is None:
             return {}
-        vendor, model_name = _split_vendor_model(combined)
-        return {
-            lr.framework: (lr.framework, lr.framework)
-            for lr in preconfigured_launch_requests
-            if lr.model_name == model_name and lr.vendor == vendor
-        }
+        return {entry.framework: (entry.framework, entry.framework) for entry in catalogue if entry.model == model}
 
     launch_req_config = _make_launch_request_config(
         vendor_models_factory=_get_vendor_models,
         frameworks_factory=_get_frameworks,
-        workers_default_factory=lambda get_value: _get_preconfigured_default(
-            get_value, preconfigured_launch_requests, "workers"
-        ),
         use_router_factory=lambda get_value: _get_router_options(get_value),
-        time_default_factory=lambda get_value: _get_preconfigured_default(
-            get_value, preconfigured_launch_requests, "time"
-        ),
     )
     await launch_req_config.aconfigure(args=args)
 
-    vendor, model_name = _split_vendor_model(launch_req_config.get_non_none_value("model"))
+    model = launch_req_config.get_non_none_value("model")
     framework = launch_req_config.get_non_none_value("framework")
-    preconfigured = next(
-        (
-            lr
-            for lr in preconfigured_launch_requests
-            if lr.vendor == vendor and lr.model_name == model_name and lr.framework == framework
-        ),
+    catalogue_entry: ModelCatalogEntry | None = next(
+        (e for e in catalogue if e.model == model and e.framework == framework),
         None,
     )
-    return LaunchRequest(
-        vendor=vendor,
-        model_name=model_name,
-        framework=framework,
-        environment=preconfigured.environment if preconfigured else None,
+    if catalogue_entry is None:
+        catalogue_entry = ModelCatalogEntry(model=model, framework=framework)
+    return LaunchRequest.from_catalog_entry(
+        catalogue_entry,
         workers=int(launch_req_config.get_non_none_value("workers")),
-        nodes_per_worker=preconfigured.nodes_per_worker if preconfigured else 1,
         time=launch_req_config.get_non_none_value("time"),
-        served_model_name=f"{vendor}/{model_name}-{create_salt(4)}",
-        framework_args=preconfigured.framework_args if preconfigured else None,
-        pre_launch_cmds=preconfigured.pre_launch_cmds if preconfigured else None,
+        served_model_name=f"{model}-{create_salt(4)}",
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
     )
 
@@ -608,6 +563,10 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
+def _run_mcp() -> None:
+    _mcp.run()
+
+
 async def _main(args: argparse.Namespace) -> None:
     subcommand = args.subcommand
     if subcommand == "init":
@@ -624,7 +583,10 @@ def main() -> None:
     if args.subcommand is None:
         default = "preconfigured" if InitConfig.exists() else "init"
         args = parser.parse_args([default])
-    asyncio.run(_main(args))
+    if args.subcommand == "mcp":
+        _run_mcp()
+    else:
+        asyncio.run(_main(args))
 
 
 if __name__ == "__main__":
