@@ -247,6 +247,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable OCF.",
     )
     advanced_parser.add_argument(
+        "--disable-dcgm-exporter",
+        dest="disable_dcgm_exporter",
+        action="store_true",
+        help="Disable the DCGM exporter.",
+    )
+    advanced_parser.add_argument(
+        "--disable-metrics",
+        dest="disable_metrics",
+        action="store_true",
+        help="Disable metrics collection.",
+    )
+    advanced_parser.add_argument(
         "--pre-launch-cmds",
         dest="pre_launch_cmds",
         default="",
@@ -550,6 +562,8 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
+        disable_dcgm_exporter=args.disable_dcgm_exporter,
+        disable_metrics=args.disable_metrics,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 
