@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build demo clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build demo clean-cache clean-dev
 
 install-dev:
 	uv venv --python 3.12
@@ -48,6 +48,9 @@ prettier:
 	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx prettier --check
 
 static: lint mypy shellcheck markdownlint dockerlint tomlfmt prettier
+
+test:
+	uv run --frozen pytest tests/unit/ --cov=src --cov-report=term-missing
 
 _test-lightweight:
 	uv run --frozen pytest -m lightweight --cov --cov-report=term-missing -n auto
