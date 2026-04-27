@@ -1,258 +1,51 @@
 # `sml`: Swiss AI Model Launch
 
-<p align="center"><img src="docs/assets/logo-wide.png" alt="SML Logo" width="400"></p>
+<p align="center"><img src="docs/assets/logo-wide.png" alt="SML Logo" width="220"></p>
 
-A CLI app for launching LLMs on clusters.
+<p align="center">
+  <a href="https://github.com/swiss-ai/model-launch/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/swiss-ai/model-launch/ci.yml?branch=main&label=CI"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Quality Gate" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=alert_status"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Coverage" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=coverage"></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-%E2%89%A53.12-blue">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue"></a>
+</p>
 
-## Installation
+<p align="center"><strong>Easy to launch LLM models 🚀</strong></p>
 
-Requires Python 3.12 or later.
+A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST. Public serving endpoint: <https://serving.swissai.svc.cscs.ch/>.
 
-- SSH
-
-  ```bash
-  pip install git+ssh://git@github.com/swiss-ai/model-launch.git
-  ```
-
-- HTTPS
-
-  ```bash
-  pip install git+https://github.com/swiss-ai/model-launch.git
-  ```
-
-To verify installation, run:
+## Quickstart
 
 ```bash
-sml --version
-```
-
-If you want to contribute to the project, please follow the instructions in the [Development](#development) section to set up the development environment instead of the above installation.
-
-## Before You Begin
-
-Before diving into the documentation, take a moment to determine where you fit in the SML ecosystem.
-
-### Where Will You Run SML?
-
-You can run SML on your local machine and it will submit jobs to the cluster via FirecREST. Or, you can SSH into the cluster and directly run SML there. You can choose the option that best suits your needs and preferences. Your choice will only affect the initialization process, but not the rest of the usage. This choice will affect how you initialize SML and which credentials you need to provide. The two options are:
-
-1. FirecREST
-2. SLURM
-
-### What Is My Use Case?
-
-SML is designed for users at different levels of expertise, from those who only want to launch a pre-configured model with a few clicks, to those who want to have full control over the model and serving configuration.
-
-![Levels of Expertise and Use Cases](docs/assets/levels-of-expertise.png)
-
-Before proceeding to the next sections, please take a moment to identify which user level you belong to. This will help you navigate the documentation and find the most relevant information for your needs. Then you can follow the instructions in the [Usage](#usage) section that best suits your needs.
-
-## Initialization
-
-Before using `sml`, you need to initialize it with your credentials and configurations. This is a one-time setup that will allow `sml` to authenticate and interact with the necessary services for launching models on the cluster. To do the first-time initialization, simply run
-
-```bash
+pip install git+https://github.com/swiss-ai/model-launch.git
+sml init
 sml
 ```
 
-And proceed with the interactive prompts. You can also pre-fill the prompts with CLI arguments or environment variables to skip the interactive setup. Please refer to the table below for the available options for pre-filling the initialization prompts:
+That's it — the second command `sml init` sets up credentials, the third launches a model interactively.
 
-| CLI Argument                | Environment Variable             | Description                                            |
-| --------------------------- | -------------------------------- | ------------------------------------------------------ |
-| `--launcher`                |                                  | Job submission method (`firecrest` or `slurm`)         |
-| `--firecrest-url`           |                                  | FirecREST API URL (default: CSCS endpoint)             |
-| `--firecrest-token-uri`     |                                  | FirecREST token URI (default: CSCS auth endpoint)      |
-|                             | `SML_FIRECREST_CLIENT_ID`        | FirecREST client ID                                    |
-|                             | `SML_FIRECREST_CLIENT_SECRET`    | FirecREST client secret                                |
-|                             | `SML_CSCS_API_KEY`               | CSCS API key for health checks                         |
-| `--telemetry-endpoint`      |                                  | Endpoint for telemetry reports                         |
+Prefer a script you can copy? Browse [`examples/`](examples/) and run any of them after `pip install`.
 
-Please note that FirecREST related fields (`--firecrest-url`, `--firecrest-token-uri`, `SML_FIRECREST_CLIENT_ID`, `SML_FIRECREST_CLIENT_SECRET`) are only required if you choose `firecrest` as the launcher method. The CSCS API key (`SML_CSCS_API_KEY`) is required regardless of the launcher method.
+## Documentation
 
-The configuration is saved to `~/.sml/config.yml`. You can override the config directory by setting the `SML_CONFIG_DIR` environment variable.
+| Topic                                              | When to read                                     |
+| -------------------------------------------------- | ------------------------------------------------ |
+| [Getting Started](docs/getting-started.md)         | First time here                                  |
+| [Initialization](docs/initialization.md)           | Setting up credentials, FirecREST vs SLURM       |
+| [Using SML](docs/usage-sml.md)                     | Day-to-day launches via the interactive CLI      |
+| [Advanced Usage](docs/usage-advanced.md)           | Full SLURM/framework control                     |
+| [How to Size a Model](docs/sizing.md)              | Picking replica/node layout for a given model    |
+| [Benchmarking](docs/benchmarking.md)               | Measuring throughput and latency                 |
+| [MCP Server](docs/mcp.md)                          | Driving SML from Claude Desktop / Cursor         |
+| [Architecture](docs/architecture.md)               | How SML fits with serving-api and opentela       |
+| [Development](docs/development.md)                 | Contributing to SML itself                       |
+| [CI/CD](docs/ci-cd.md)                             | Pipeline structure                               |
+| [FAQ](docs/faq.md)                                 | Always-on hosting, common gotchas                |
 
-For re-doing the initialization, you can simply run the `sml init` command, which will guide you through the initialization process again and overwrite the previous configuration.
+A rendered docs site is built from the same files via MkDocs run: `make docs` to see this locally or visit SITE_TBC.
 
-## Usage
+<!-- Demo video placeholder — record a 60-90s walkthrough and embed here. -->
 
-Once you have figured out the answer to the question [What Is My Use Case?](#what-is-my-use-case), you can follow the instructions in the corresponding section below ([Entry-level and Basic Usage](#entry-level-and-basic-usage) or [Advanced Usage](#advanced-usage)) to learn how to use `sml` for your specific use case.
+## License
 
-### Entry-level and Basic Usage
-
-Once you have done the initialization, you can simply use `sml` (or `sml preconfigured`) to launch a model with a few clicks. This will guide you through selecting a pre-configured model and providing the necessary launch configuration in an interactive manner. This is the recommended option for users who want to quickly launch a model without worrying about the details of the configuration.
-
-If you want to skip the interactive prompts and launch a pre-configured model directly, you can use CLI arguments to pre-fill the necessary information. Please refer to the table below for the available options for pre-filling the launch configuration prompts:
-
-| Argument                | Environment Variable             | Description                                                            |
-| ----------------------- | -------------------------------- | ---------------------------------------------------------------------- |
-| `--firecrest-system`    | `SML_FIRECREST_SYSTEM`           | Target system to launch on (required only if using FirecREST launcher) |
-| `--partition`           | `SML_PARTITION`                  | SLURM partition to use                                                 |
-| `--reservation`         | `SML_RESERVATION`                | SLURM reservation name (optional)                                      |
-| `--model`               |                                  | Model to launch (`<vendor>/<model>`)                                   |
-| `--framework`           |                                  | Inference framework to use                                             |
-| `--workers`             |                                  | Number of workers                                                      |
-| `--use-router`          |                                  | Load balance across workers (`yes`, `no`)                              |
-| `--time`                |                                  | Job time limit (`HH:MM:SS`)                                            |
-
-For simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
-
-```bash
-export SML_FIRECREST_SYSTEM=clariden
-export SML_PARTITION=normal
-```
-
-If any of the above information is not provided via CLI arguments or environment variables, you will be prompted to provide it interactively. For the ones with both CLI arguments and environment variables, the priority is given to CLI arguments, meaning that if both are provided, the value from the CLI argument will be used.
-
-#### Example
-
-```bash
-export SML_FIRECREST_SYSTEM=clariden
-export SML_PARTITION=normal
-
-sml preconfigured \
-  --model swiss-ai/Apertus-8B-Instruct-2509 \
-  --framework sglang \
-  --workers 1 \
-  --time 02:00:00
-```
-
-Once the job is submitted, `sml` opens a TUI displaying the job status and live logs.
-
-### Advanced Usage
-
-For full control over the SLURM job, use `sml advanced`. This bypasses the model catalog and lets you specify all launch parameters directly. See [`examples/`](examples/) for ready-to-use scripts per model. System and partition are still selected the same way as before (interactive or via args/env vars).
-
-| Argument                   | Environment Variable      | Description                                                       |
-| -------------------------- | ------------------------- | ----------------------------------------------------------------- |
-| `--firecrest-system`       | `SML_FIRECREST_SYSTEM`    | Target HPC system to launch on                                    |
-| `--partition`              | `SML_PARTITION`           | SLURM partition to use                                            |
-| `--slurm-reservation`      | `SML_RESERVATION`         | SLURM reservation name (optional)                                 |
-| `--serving-framework`      |                           | Inference framework (`sglang`, `vllm`) — **required**             |
-| `--slurm-environment`      |                           | Local path to the environment `.toml` file — **required**         |
-| `--framework-args`         |                           | Arguments forwarded to the inference framework                    |
-| `--slurm-nodes`            |                           | Total number of nodes (default: `workers × nodes-per-worker`)     |
-| `--slurm-workers`          |                           | Number of workers (default: `1`)                                  |
-| `--slurm-nodes-per-worker` |                           | Nodes per worker (default: `1`)                                   |
-| `--slurm-time`             |                           | Job time limit in `HH:MM:SS` (default: `00:05:00`)                |
-| `--served-model-name`      |                           | Name under which the model is served (auto-generated if omitted)  |
-| `--worker-port`            |                           | Port used by workers (default: `5000`)                            |
-| `--use-router`             |                           | Enable router to load balance across workers                      |
-| `--router-args`            |                           | Arguments forwarded to the router                                 |
-| `--disable-ocf`            |                           | Disable OCF wrapper                                               |
-| `--pre-launch-cmds`        |                           | Shell commands to run before the framework starts                 |
-
-Again, for simplicity of usage, it is strongly advised to use environment variables to pre-fill `SML_FIRECREST_SYSTEM` and `SML_PARTITION`, as these are required for every job submission and they are usually constant for a user.
-
-#### Example
-
-```bash
-export SML_FIRECREST_SYSTEM=clariden
-export SML_PARTITION=normal
-
-sml advanced \
-  --slurm-nodes 1 \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
-  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
-    --host 0.0.0.0 \
-    --port 8080"
-```
-
-## Development
-
-### Debugging
-
-Set `SML_DEBUG=1` to include local variables in crash tracebacks:
-
-```bash
-export SML_DEBUG=1
-```
-
-By default, local variables are hidden from crash reports.
-
-> **Warning:** `SML_DEBUG=1` may expose secrets (such as your CSCS API key) in crash output. Do not share terminal output captured with this flag enabled.
-
-### Setting Up Development Environment
-
-```bash
-git clone git@github.com:swiss-ai/model-launch.git && cd model-launch
-```
-
-```bash
-make install-dev
-source .venv/bin/activate
-```
-
-### Testing Environment
-
-For writing the integration tests, you have to create a `.test.sh` file in the root of the repository with the following content:
-
-```shell
-export SML_CSCS_API_KEY=<your-api-key>
-export SML_FIRECREST_CLIENT_ID=<your-client-id>
-export SML_FIRECREST_CLIENT_SECRET=<your-client-secret>
-export SML_FIRECREST_SYSTEM=clariden
-export SML_FIRECREST_TOKEN_URI=<your-token-uri>
-export SML_FIRECREST_URL=<your-firecrest-url>
-export SML_PARTITION=normal
-export SML_RESERVATION=<your-reservation>
-```
-
-This file will be sourced when running the tests with `make test-lightweight` or `make test-comprehensive`, and the environment variables will be available for the tests.
-
-### Common Commands
-
-There is a `Makefile` with common development commands.
-
-1. To format code, you can run:
-
-   ```bash
-   make format
-   ```
-
-2. To lint shell scripts, you can run:
-
-   ```bash
-   make shellcheck
-   ```
-
-3. To lint Markdown files, you can run:
-
-   ```bash
-   make markdownlint
-   ```
-
-4. To run lightweight integration tests (auto CI subset), you can run:
-
-   ```bash
-   make test-lightweight
-   ```
-
-5. To run comprehensive integration tests (full suite), you can run:
-
-   ```bash
-   make test-comprehensive
-   ```
-
-6. To clean up cache files, you can run:
-
-   ```bash
-   make clean-cache
-   ```
-
-7. To clean up the env and cache, you can run:
-
-   ```bash
-   make clean-dev
-   ```
-
-## Appendix
-
-### Acquiring FirecREST Credentials
-
-Please follow the instructions in the [FirecREST documentation](https://docs.cscs.ch/services/devportal/#manage-your-applications) to acquire the necessary credentials for authentication from [Developer Portal](https://developer.svc.cscs.ch/devportal/apis).
-
-### Acquiring CSCS API Key
-
-Please proceed to [serving platform](https://serving.swissai.svc.cscs.ch) and log in using your institutional account. Then, navigate to the "View API Keys" section. You will see your API key listed there.
+[Apache 2.0](LICENSE).

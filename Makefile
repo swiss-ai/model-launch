@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive clean-cache clean-dev
+.PHONY: install-dev lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build clean-cache clean-dev
 
 install-dev:
 	uv venv --python 3.12
@@ -55,6 +55,14 @@ test-medium:
 
 test-comprehensive:
 	. ./.test.sh && $(MAKE) _test-comprehensive
+
+docs:
+	uv pip install -e ".[docs]" --quiet
+	uv run mkdocs serve
+
+docs-build:
+	uv pip install -e ".[docs]" --quiet
+	uv run mkdocs build --strict
 
 clean-cache:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
