@@ -13,6 +13,15 @@ source .venv/bin/activate
 
 `make install-dev` creates a virtualenv at `.venv/`, installs SML in editable mode, and sets up pre-commit hooks.
 
+A handful of lint tools live outside the venv and need a one-time install:
+
+| Tool | Why | Install (macOS) |
+| --- | --- | --- |
+| [`taplo`](https://taplo.tamasfe.dev/) | TOML formatter, used by `make format` / `make tomlfmt` and the pre-commit hook | `brew install taplo` |
+| `npx` (Node) | Runs `prettier` and `markdownlint-cli2` on demand | `brew install node` |
+
+Pin: CI installs `taplo` v0.9.3 — match it locally if you hit format-drift between your machine and CI.
+
 ## Test environment
 
 Integration tests need real cluster credentials. Create `.test.sh` at the repo root:
@@ -56,7 +65,7 @@ By default, locals are stripped from crash reports.
 
 ## Adding a new model recipe
 
-The lowest-friction contribution. Drop a shell script under `examples/<system>/cli/<vendor>/`. Use the [adding-new-model-to-sml issue template](../.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md) as a checklist; existing scripts (e.g. `examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh`) are good templates.
+The lowest-friction contribution. Drop a shell script under `examples/<system>/cli/<vendor>/`. Use the [adding-new-model-to-sml issue template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md) as a checklist; existing scripts (e.g. `examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh`) are good templates.
 
 For models that should appear in the `sml` interactive catalog (not just `sml advanced`), the recipe also needs an entry in the model catalog — see existing entries under `src/swiss_ai_model_launch/assets/models.json`.
 
@@ -70,7 +79,7 @@ The SML team can't take a "please add my model" request for every checkpoint tha
 4. **If it doesn't serve, narrow the failure** before opening an issue:
     - Does the same model work with the framework directly (no SML)? If not, it's a framework issue, not an SML issue — report upstream.
     - Does it OOM? See [Sizing](sizing.md) — you may need bigger TP, more nodes, or quantization.
-    - Does it fail to load? Architecture not supported by the framework version in the [environment toml](../src/swiss_ai_model_launch/assets/envs/) — try the other framework, or a newer image.
+    - Does it fail to load? Architecture not supported by the framework version in the [environment toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/) — try the other framework, or a newer image.
 5. **Only if you've gotten through 1-4 and are still stuck**, file an issue with the failing command, the trailing 50 lines of logs, and what you've already ruled out.
 
 ## CI / CD
@@ -79,6 +88,6 @@ See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → imag
 
 ## Filing issues / PRs
 
-- Bugs: use the [bug report template](../.github/ISSUE_TEMPLATE/bug-report.md). Include the failing command and the trailing chunk of TUI logs.
-- New models: use the [adding-new-model template](../.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
+- Bugs: use the [bug report template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/bug-report.md). Include the failing command and the trailing chunk of TUI logs.
+- New models: use the [adding-new-model template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
 - PRs: keep them focused; pre-commit hooks must pass; integration tests must pass on at least one partition.

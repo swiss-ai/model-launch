@@ -17,7 +17,7 @@ See [How to size a model](sizing.md). The short answer is "enough VRAM to fit we
 
 ## Does SML do load balancing?
 
-Yes — by default OCF/OpenTela does random assignment amoungst peers. There is a PR in progress which can change this to different assignment modes: <https://github.com/swiss-ai/OpenTela/pull/4>
+Yes — by default OCF/OpenTela does random assignment among peers. There is a PR in progress which can change this to different assignment modes: <https://github.com/swiss-ai/OpenTela/pull/4>
 
 In SML if you pass `--use-router` to put a router in front of N replicas. Without it, you get N independent endpoints with no traffic shaping. You can use this with and without OpenTela. OpenTela gives you external access via <https://serving.swissai.svc.cscs.ch> and the API. Without using OpenTela (using --disable-ocf) the model will not appear in this list so would need to be access directly from the cluster.
 
@@ -48,7 +48,7 @@ The framework (vllm/sglang) has metrics that can be gathered with `--enable-metr
 
 ## How do I contribute a new model recipe?
 
-Add an entry under `examples/<system>/cli/<vendor>/`. See [Development](development.md) for the contribution flow and the [adding-new-model issue template](../.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
+Add an entry under `examples/<system>/cli/<vendor>/`. See [Development](development.md) for the contribution flow and the [adding-new-model issue template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
 
 ## Where do I report bugs?
 

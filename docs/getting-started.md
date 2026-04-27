@@ -4,7 +4,7 @@ This page is a router. Pick the goal that matches what you're trying to do — e
 
 ## Install first
 
-Requires Python 3.12 or later.
+Requires Python 3.10 through 3.14.
 
 ```bash
 pip install git+https://github.com/swiss-ai/model-launch.git
@@ -22,7 +22,7 @@ Then pick your goal below. (Contributing to SML itself? Skip the install above a
 | **Run a model at high throughput** (batch eval, dataset processing) | [Sizing → Throughput tuning](sizing.md#throughput-tuning) for the layout, [Benchmarking](benchmarking.md) for measuring it. |
 | **Keep the model private — only I can reach it** | Pass `--disable-ocf` so the replica never registers with the public gateway. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf). |
 | **Run a model that isn't in the catalog** | Use [`sml advanced`](usage-advanced.md) and point at the model's path on the cluster filesystem. **Try this yourself first** — see [Adding a new model recipe](development.md#adding-a-new-model-recipe). The SML team can't take a custom request for every model. |
-| **Keep a model running 24/7** | SML can't — SLURM jobs are time-limited. You want Kubernetes. See the [24/7 hosting answer](faq.md#i-want-to-keep-a-model-running-247--can-sml-do-that) for who to contact. |
+| **Keep a model running 24/7** | SML can't — SLURM jobs are time-limited. You want Kubernetes. See the [24/7 hosting answer](faq.md#i-want-to-keep-a-model-running-247-can-sml-do-that) for who to contact. |
 | **Drive SML from Claude Desktop / Cursor** | [MCP Server](mcp.md) — wire up the JSON config snippet and you get launch/monitor/cancel as native tools. |
 | **Set up credentials for the first time** | [Initialization](initialization.md). Pick FirecREST (laptop) or SLURM (already on the cluster). |
 

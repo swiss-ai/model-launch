@@ -4,9 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/swiss-ai/model-launch/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/swiss-ai/model-launch/ci.yml?branch=main&label=CI"></a>
+  <a href="https://swiss-ai.github.io/model-launch/"><img alt="Docs" src="https://img.shields.io/github/actions/workflow/status/swiss-ai/model-launch/docs.yml?branch=main&label=docs"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Quality Gate" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=alert_status"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Coverage" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=coverage"></a>
-  <img alt="Python" src="https://img.shields.io/badge/python-%E2%89%A53.12-blue">
+  <img alt="Python" src="https://img.shields.io/badge/python-%E2%89%A53.10-blue">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue"></a>
 </p>
 
@@ -42,9 +43,11 @@ Prefer a script you can copy? Browse [`examples/`](examples/) and run any of the
 | [CI/CD](docs/ci-cd.md)                             | Pipeline structure                               |
 | [FAQ](docs/faq.md)                                 | Always-on hosting, common gotchas                |
 
-A rendered docs site is built from the same files via MkDocs run: `make docs` to see this locally or visit SITE_TBC.
+A rendered docs site is built from the same files via MkDocs — run `make docs` for a local preview, or browse the published site at <https://swiss-ai.github.io/model-launch/>.
 
-<!-- Demo video placeholder — record a 60-90s walkthrough and embed here. -->
+<p align="center"><img src="docs/assets/launch-apertus.gif" alt="Launching Apertus-8B with sml" width="800"></p>
+
+<!-- Source: tapes/launch-apertus.tape — regenerate with `make demo`. -->
 
 ## License
 

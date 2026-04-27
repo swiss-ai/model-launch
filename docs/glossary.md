@@ -38,7 +38,7 @@ How SML submits jobs: `firecrest` (REST API, works from a laptop) or `slurm` (di
 
 [Model Context Protocol](https://modelcontextprotocol.io/) — a standard for letting an LLM client (Claude Desktop, Cursor, …) call external tools. SML ships an MCP server so a client can list, launch, monitor, and cancel SML jobs as native tools. See [MCP Server](mcp.md).
 
-## OCF / OpenTela
+## OCF (OpenTela)
 
 The same thing — the [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
 
@@ -50,7 +50,7 @@ A SLURM concept — a named subset of cluster nodes with its own queue, time lim
 
 ## Replica
 
-One independent copy of the model (a [DP](sizing.md#parallelism-dp--tp--pp--ep--and-why-dp-is-replicas) unit). Set via `--slurm-replicas`. More replicas = more throughput. Distinct from `--slurm-nodes-per-replica`, which sets how many nodes one replica spans.
+One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-why-dp-is-replicas) unit). Set via `--slurm-replicas`. More replicas = more throughput. Distinct from `--slurm-nodes-per-replica`, which sets how many nodes one replica spans.
 
 ## Reservation
 
@@ -58,7 +58,7 @@ A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the
 
 ## Router
 
-A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--use-router`. Orthogonal to [OCF/OpenTela](#ocf--opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--use-router`. Orthogonal to [OCF/OpenTela](#ocf-opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 
 ## Served-model name
 
@@ -66,7 +66,7 @@ The name a client uses to request the model from the public gateway (e.g. `swiss
 
 ## serving-api
 
-[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#ocf--opentela) and forwards requests to a registered peer.
+[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#ocf-opentela) and forwards requests to a registered peer.
 
 ## SLURM
 

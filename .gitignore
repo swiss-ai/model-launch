@@ -358,3 +358,6 @@ $RECYCLE.BIN/
 
 .test.sh
 .claude/worktrees
+
+# VHS render intermediates — only the GIF is checked in.
+docs/assets/*.mp4

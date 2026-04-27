@@ -16,6 +16,8 @@ sml
 
 That's it — the second command `sml init` sets up credentials, the third launches a model interactively.
 
+<p align="center"><img src="assets/launch-apertus.gif" alt="Launching Apertus-8B with sml" width="800"></p>
+
 ## Where to start
 
 - New here? → [Getting Started](getting-started.md)
@@ -29,6 +31,6 @@ That's it — the second command `sml init` sets up credentials, the third launc
 
 SML is a thin orchestrator that submits SLURM jobs to bring up sglang or vLLM with the right model and arguments. It hands you back a live TUI of logs and job state until the model is healthy.
 
-It is **not** a model server itself, **not** a long-running deployment manager (use Kubernetes for always-on serving — see [FAQ](faq.md#i-want-to-keep-a-model-running-247--can-sml-do-that)), and **not** a public traffic gateway (that's [serving-api](https://github.com/swiss-ai/serving-api)).
+It is **not** a model server itself, **not** a long-running deployment manager (use Kubernetes for always-on serving — see [FAQ](faq.md#i-want-to-keep-a-model-running-247-can-sml-do-that)), and **not** a public traffic gateway (that's [serving-api](https://github.com/swiss-ai/serving-api)).
 
 See [Architecture](architecture.md) for how the pieces fit together.

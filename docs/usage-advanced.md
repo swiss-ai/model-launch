@@ -47,7 +47,7 @@ sml advanced \
 
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
 
-For more ready-to-run scripts per cluster and vendor, see [`examples/`](../examples/).
+For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
 
 ## When to disable OCF
 

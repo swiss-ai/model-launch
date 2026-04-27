@@ -87,7 +87,7 @@ Use `--disable-ocf` for private models, raw-throughput benchmarks (no OpenTela h
 
 SML's job is "get the framework process running on the right nodes with the right args, and stream you the logs until it's healthy." It does not:
 
-- Persist the deployment past the SLURM time limit (use k8s for that — see [FAQ](faq.md#i-want-to-keep-a-model-running-247--can-sml-do-that)).
+- Persist the deployment past the SLURM time limit (use k8s for that — see [FAQ](faq.md#i-want-to-keep-a-model-running-247-can-sml-do-that)).
 - Route public traffic (that's serving-api + OpenTela).
 
 This separation keeps SML small enough that a single user can read the whole codebase in an afternoon.
