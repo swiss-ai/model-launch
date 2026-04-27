@@ -6,7 +6,7 @@ Picking the right replica count and nodes-per-replica boils down to: **does the 
 
 Rough formula:
 
-```
+```text
 weights_bytes ≈ params × bytes_per_param
 ```
 
@@ -23,13 +23,13 @@ Add **~20% overhead** for activations, framework buffers, and CUDA workspaces.
 
 KV cache scales with concurrent sequences and context length. For a transformer:
 
-```
+```text
 kv_bytes_per_token ≈ 2 × num_layers × hidden_dim × kv_heads/heads × bytes_per_param
 ```
 
 Then:
 
-```
+```text
 kv_total ≈ kv_bytes_per_token × max_concurrent_tokens
 ```
 
@@ -39,23 +39,23 @@ Where `max_concurrent_tokens` is roughly `max_batch × max_seq_len`. If you're n
 
 CSCS GH200 nodes have 4 GPUs at ~96 GB each (~384 GB per node).
 
-| Model size (BF16) | Fits where                                | Layout                                     |
-| ----------------- | ----------------------------------------- | ------------------------------------------ |
+| Model size (BF16) | Fits where                                | Layout                                                                        |
+| ----------------- | ----------------------------------------- | ----------------------------------------------------------------------------- |
 | ≤ 30 B            | 1 GPU                                     | `--slurm-replicas N --slurm-nodes-per-replica 1`, set framework `--tp-size 1` |
-| 30–80 B           | 1 node (4-way TP)                         | 1 replica per node, framework `--tp-size 4` |
-| 80–250 B          | 1 node (4-way TP) at FP8, or 2 nodes BF16 | quantize, or `--slurm-nodes-per-replica 2` + matching TP |
-| 250 B+            | Multiple nodes                            | `--slurm-nodes-per-replica 2+`, expect tensor + pipeline parallelism |
+| 30–80 B           | 1 node (4-way TP)                         | 1 replica per node, framework `--tp-size 4`                                   |
+| 80–250 B          | 1 node (4-way TP) at FP8, or 2 nodes BF16 | quantize, or `--slurm-nodes-per-replica 2` + matching TP                      |
+| 250 B+            | Multiple nodes                            | `--slurm-nodes-per-replica 2+`, expect tensor + pipeline parallelism          |
 
 ## Parallelism: DP / TP / PP / EP — and why DP is replicas
 
 Four flavors of parallelism show up when serving large models:
 
-| Term | What it splits across GPUs                                                | Where SML expresses it                                                                                |
-| ---- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **TP** (tensor parallelism)   | A single matmul, sharded across GPUs within a layer        | Framework flag (e.g. sglang/vLLM `--tp-size`) inside `--framework-args`. Stays inside one replica.    |
-| **PP** (pipeline parallelism) | Layers, sharded across GPUs (or nodes) end-to-end          | Framework flag (e.g. `--pp-size`) inside `--framework-args`. Spans nodes within one replica when `--slurm-nodes-per-replica > 1`. |
-| **EP** (expert parallelism)   | MoE experts, sharded across GPUs — only meaningful for MoE models | Framework flag (e.g. vLLM/sglang `--ep-size` or `--enable-expert-parallel`) inside `--framework-args`. Stays inside one replica. |
-| **DP** (data parallelism)     | Independent copies serving different requests in parallel  | **`--slurm-replicas N`** — N copies of the model, optionally fronted by `--use-router`.               |
+| Term                          | What it splits across GPUs                                        | Where SML expresses it                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **TP** (tensor parallelism)   | A single matmul, sharded across GPUs within a layer               | Framework flag (e.g. sglang/vLLM `--tp-size`) inside `--framework-args`. Stays inside one replica.                                |
+| **PP** (pipeline parallelism) | Layers, sharded across GPUs (or nodes) end-to-end                 | Framework flag (e.g. `--pp-size`) inside `--framework-args`. Spans nodes within one replica when `--slurm-nodes-per-replica > 1`. |
+| **EP** (expert parallelism)   | MoE experts, sharded across GPUs — only meaningful for MoE models | Framework flag (e.g. vLLM/sglang `--ep-size` or `--enable-expert-parallel`) inside `--framework-args`. Stays inside one replica.  |
+| **DP** (data parallelism)     | Independent copies serving different requests in parallel         | **`--slurm-replicas N`** — N copies of the model, optionally fronted by `--use-router`.                                           |
 
 In short: **a "replica" in SML is a DP unit.** TP, PP, and EP are framework-internal — they affect how one replica is laid out across its allocated GPUs/nodes. DP is just "how many replicas".
 
@@ -92,7 +92,7 @@ Rule of thumb:
 
 ## Step 5 — sanity-check before submitting
 
-- Time limit (`--slurm-time`) covers warm-up + your workload + a margin. Cold start of a multi-node deployment can take several minutes.
+- Time limit (`--slurm-time`) covers warm-up + your workload + a margin. Cold start of a multi-node deployment can take sometimes up to 40 minutes (e.g. Kimi-k2.5 1T params).
 - Partition matches the GPU layout you're asking for.
 - KV cache leaves room for your max sequence length × max batch.
 

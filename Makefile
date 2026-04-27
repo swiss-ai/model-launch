@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build clean-cache clean-dev
 
 install-dev:
 	uv venv --python 3.12
@@ -12,8 +12,11 @@ lint:
 format:
 	uv run --frozen ruff format .
 	uv run --frozen ruff check --fix .
-	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs taplo fmt
+	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx --yes @taplo/cli fmt
 	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx prettier --write
+	-npx markdownlint-cli2 --config .markdownlint.yaml --fix "**/*.md" "!legacy/**/*.md" "!.venv/**/*.md"
+
+check: static
 
 mypy:
 	uv run --frozen mypy src
@@ -31,7 +34,7 @@ dockerlint:
 	find images/ -name "Dockerfile*" | xargs uv run --frozen hadolint
 
 tomlfmt:
-	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs taplo fmt --check
+	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx --yes @taplo/cli fmt --check
 
 prettier:
 	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx prettier --check

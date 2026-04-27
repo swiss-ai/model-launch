@@ -25,15 +25,15 @@ If you're not sure, start with `firecrest` — it's what most users run.
 
 ## Initialization options
 
-| CLI Argument            | Environment Variable          | Description                                            |
-| ----------------------- | ----------------------------- | ------------------------------------------------------ |
-| `--launcher`            |                               | Job submission method (`firecrest` or `slurm`)         |
-| `--firecrest-url`       |                               | FirecREST API URL (default: CSCS endpoint)             |
-| `--firecrest-token-uri` |                               | FirecREST token URI (default: CSCS auth endpoint)      |
-|                         | `SML_FIRECREST_CLIENT_ID`     | FirecREST client ID                                    |
-|                         | `SML_FIRECREST_CLIENT_SECRET` | FirecREST client secret                                |
+| CLI Argument            | Environment Variable          | Description                                                    |
+| ----------------------- | ----------------------------- | -------------------------------------------------------------- |
+| `--launcher`            |                               | Job submission method (`firecrest` or `slurm`)                 |
+| `--firecrest-url`       |                               | FirecREST API URL (default: CSCS endpoint)                     |
+| `--firecrest-token-uri` |                               | FirecREST token URI (default: CSCS auth endpoint)              |
+|                         | `SML_FIRECREST_CLIENT_ID`     | FirecREST client ID                                            |
+|                         | `SML_FIRECREST_CLIENT_SECRET` | FirecREST client secret                                        |
 |                         | `SML_CSCS_API_KEY`            | CSCS API key (used for health checks against the served model) |
-| `--telemetry-endpoint`  |                               | Endpoint for telemetry reports                         |
+| `--telemetry-endpoint`  |                               | Endpoint for telemetry reports                                 |
 
 The FirecREST fields are only required when `--launcher firecrest`. `SML_CSCS_API_KEY` is required regardless of launcher.
 

@@ -4,7 +4,7 @@ One-line definitions for terms that show up in SML and the surrounding serving s
 
 ## Beverin
 
-A CSCS HPC system; one of the [systems](#system) SML can target.
+A CSCS HPC system; one of the [systems](#system) SML can target. Not currently available via Firecrest.
 
 ## Bristen
 
@@ -20,7 +20,7 @@ The [Swiss National Supercomputing Centre](https://www.cscs.ch/), which operates
 
 ## DCGM
 
-NVIDIA's [Data Center GPU Manager](https://developer.nvidia.com/dcgm). The DCGM exporter runs on each replica node and surfaces per-GPU metrics (SM utilization, memory bandwidth, NVLink, power) to the [telemetry endpoint](#telemetry-endpoint).
+NVIDIA's [Data Center GPU Manager](https://developer.nvidia.com/dcgm). The DCGM exporter runs on each replica node and surfaces per-GPU metrics (SM utilization, memory bandwidth, NVLink, power) to the metrics stack (see [vmagent](#vmagent)).
 
 ## FirecREST
 
@@ -38,13 +38,11 @@ How SML submits jobs: `firecrest` (REST API, works from a laptop) or `slurm` (di
 
 [Model Context Protocol](https://modelcontextprotocol.io/) — a standard for letting an LLM client (Claude Desktop, Cursor, …) call external tools. SML ships an MCP server so a client can list, launch, monitor, and cancel SML jobs as native tools. See [MCP Server](mcp.md).
 
-## OCF
+## OCF / OpenTela
 
-The OpenTela client wrapper that runs alongside the [framework](#framework) on each replica. Registers the replica with the [OpenTela](#opentela) p2p mesh under the served model name; pass `--disable-ocf` to skip it. See [Architecture → OCF](architecture.md#ocf-the-opentela-client-on-each-replica).
+The same thing — the [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
 
-## OpenTela
-
-The [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). The public gateway resolves model names through OpenTela and forwards requests to a registered peer. Default load-balancing across peers is random assignment.
+`OCF` is the on-disk binary name; `OpenTela` is the project. The CLI flag `--disable-ocf` is named for the binary for historical reasons — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf).
 
 ## Partition
 
@@ -60,15 +58,15 @@ A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the
 
 ## Router
 
-A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--use-router`. Orthogonal to OpenTela: the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--use-router`. Orthogonal to [OCF/OpenTela](#ocf--opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 
 ## Served-model name
 
-The name a client uses to request the model from the public gateway (e.g. `swiss-ai/Apertus-8B-Instruct-2509-rosmith`). Set via `--served-model-name`. Auto-generated if omitted; the `-<user>` suffix avoids collisions with shared deployments.
+The name a client uses to request the model from the public gateway (e.g. `swiss-ai/Apertus-8B-Instruct-2509-myusername`). Set via `--served-model-name`. Auto-generated if omitted; the `-<user>` suffix avoids collisions with shared deployments.
 
 ## serving-api
 
-[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#opentela) and forwards requests to a registered peer.
+[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#ocf--opentela) and forwards requests to a registered peer.
 
 ## SLURM
 
@@ -86,14 +84,10 @@ The all-flags entry point — point at any model, pass any framework args. Use f
 
 The CSCS cluster a job targets — `clariden`, `beverin`, `bristen`, etc. Set via `--firecrest-system` or the `SML_FIRECREST_SYSTEM` env var.
 
-## Telemetry endpoint
-
-The URL metrics get pushed to (configured at `sml init` time). [DCGM exporter](#dcgm) and vmagent on each replica node push metrics here; Grafana reads from the same stack. Separate plane from [OpenTela](#opentela) (which carries request traffic, not metrics).
-
 ## TUI
 
-The terminal UI SML opens after job submission — shows job state and live logs until the model is healthy.
+The terminal UI SML opens after job submission via `sml` — shows job state and live logs until the model is healthy. Not available on advanced unless you pass flag.
 
 ## vmagent
 
-A [VictoriaMetrics agent](https://docs.victoriametrics.com/vmagent.html) that scrapes Prometheus-format metrics (from the [framework](#framework) and from [DCGM](#dcgm)) and pushes them to the [telemetry endpoint](#telemetry-endpoint).
+A [VictoriaMetrics agent](https://docs.victoriametrics.com/vmagent.html) that scrapes Prometheus-format metrics (from the [framework](#framework) and from [DCGM](#dcgm)) and pushes them to the prometheus metrics endpoint to view in Grafana metrics dashboard.

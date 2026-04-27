@@ -5,6 +5,7 @@
 No. SML submits SLURM jobs, which are bounded by the partition's time limit. For an always-on serving deployment, the right home is Kubernetes — get in touch with the SwissAI infrastructure team to be onboarded.
 
 If your need is "running for several hours unattended", that's fine — pick the time limit accordingly with `--time` (interactive `sml`) or `--slurm-time` (`sml advanced`).
+There is an [open issue](https://github.com/swiss-ai/model-launch/issues/63) to allow sml to keep starting a job continuously.
 
 ## Should I use FirecREST or SLURM?
 
@@ -32,11 +33,13 @@ Check via `squeue` on the cluster, or use the MCP tool / TUI status panel.
 
 ## Can I bring my own model that isn't in the catalog?
 
-Yes — use [`sml advanced`](usage-advanced.md) and pass the model's path on the cluster filesystem via `--framework-args "--model-path /capstor/store/.../my-model"`.
+Yes — use [`sml advanced`](usage-advanced.md) and pass the model's path on the cluster filesystem via `--framework-args "--model-path /capstor/store/.../my-model"`. Or use the HF <org>/<model-name> to make framework download it on start. If the model is gated you will need a key.
 
 ## How do I keep a model private (not publicly routable)?
 
-Pass `--disable-ocf` to `sml advanced`. OCF is the OpenTela client that runs on each replica — it's what registers the model on the OpenTela p2p mesh that the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) routes through. Disabling it means the replica never joins the mesh, so the model is only reachable from inside the cluster. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf).
+Pass `--disable-ocf` to `sml advanced`. By default each replica registers itself on the OpenTela p2p mesh — that registration is what the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) routes through. Disabling it means the replica never joins the mesh, so the model is only reachable from inside the cluster. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf).
+
+> "OCF" and "OpenTela" are the same thing — `OCF` is the on-disk binary name; `OpenTela` is the project. The flag is named `--disable-ocf` for historical reasons.
 
 ## How do I see metrics?
 

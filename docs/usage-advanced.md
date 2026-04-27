@@ -51,15 +51,17 @@ For more ready-to-run scripts per cluster and vendor, see [`examples/`](../examp
 
 ## When to disable OCF
 
-OCF is the **OpenTela client** that runs alongside your inference framework on each replica. It registers the replica on the OpenTela p2p mesh under the served model name, and that registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). It's enabled by default. See [Architecture](architecture.md#ocf-the-opentela-client-on-each-replica) for the longer story.
+> "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-ocf` for historical reasons.
+
+By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf) for the longer story.
 
 Pass `--disable-ocf` when:
 
-- **You're benchmarking max throughput.** OCF adds a hop on the request path; disabling it gives you the framework's raw numbers, free of any OpenTela overhead. See [Benchmarking](benchmarking.md).
-- **You want the model kept private.** With OCF disabled, the model never registers with OpenTela — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
+- **You're benchmarking max throughput.** OpenTela adds a hop on the request path; disabling it gives you the framework's raw numbers. See [Benchmarking](benchmarking.md).
+- **You want the model kept private.** With OpenTela disabled, the replica never registers with the mesh — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
 - **You're running at scale and the mesh is in the way.** If you've stood up your own routing in front of N replicas (or you're driving load directly from another cluster job), OpenTela registration is just overhead.
 
-If you disable OCF, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
+If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
 
 ## Notes on flag style
 
