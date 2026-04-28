@@ -199,7 +199,7 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
 echo \"Waiting for all workers to fully initialize the GPU engine before starting router...\"
 for worker_ip in ${worker_head_ips[*]}; do
     echo \"Checking worker at \$worker_ip...\"
-    while [ \"\$(curl --noproxy \"*\" -s -o /dev/null -w '%{http_code}' http://\${worker_ip}:${WORKER_PORT}/health)\" != \"200\" ]; do
+    while [ \"\$(curl --noproxy \"*\" -s -o /dev/null -w '%{http_code}' http://\${worker_ip}:${WORKER_PORT}/health)\" != \"200\" ]; do # NOSONAR
         sleep 10
     done
     echo \"Worker \$worker_ip is fully ready!\"
@@ -209,7 +209,7 @@ echo \"All workers are ready! Launching router...\"
 $ROUTER_LAUNCH --host 0.0.0.0 --port ${ROUTER_PORT} --worker-urls ${worker_urls_str} $ROUTER_ARGS" &
 
     echo
-    echo "Router URL: http://${router_host_ip}:${ROUTER_PORT}"
+    echo "Router URL: http://${router_host_ip}:${ROUTER_PORT}" # NOSONAR
 fi
 
 echo
