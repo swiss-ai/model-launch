@@ -44,8 +44,11 @@ Pass `--disable-ocf` to `sml advanced`. By default each replica registers itself
 ## How do I see metrics?
 
 Aggregated metrics land in Grafana — see [Benchmarking](benchmarking.md) for dashboard pointers.
-The framework (vllm/sglang) has metrics that can be gathered with `--enable-metrics` this is on by default for vllm but SGLang it must be enable with the flag, we use an agent called vmagent that can gather these and sends them to prometheus to be displayed in a grafana dashboard. There are also metrics provided by hardware counters that can be collated with Nvidia's DCGM.
+Additional metrics are available from several sources:
 
+- Framework metrics from vLLM/SGLang can be gathered with `--enable-metrics`. This is enabled by default for vLLM; for SGLang, it must be enabled with the flag.
+- We use an agent called vmagent to gather these metrics and send them to Prometheus, where they can be displayed in a Grafana dashboard.
+- Hardware-counter metrics can also be collected with NVIDIA's DCGM.
 ## How do I contribute a new model recipe?
 
 Add an entry under `examples/<system>/cli/<vendor>/`. See [Development](development.md) for the contribution flow and the [adding-new-model issue template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
