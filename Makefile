@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build demo clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
 
 install-dev:
 	uv venv --python 3.12
