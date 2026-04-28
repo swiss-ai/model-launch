@@ -30,7 +30,7 @@ elif [[ "$ARCH" == "x86_64" ]]; then
     export OCF_BIN=/ocfbin/ocf-amd64
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-amd64"
 else
-    echo "Unknown architecture: $ARCH"
+    echo "Unknown architecture: $ARCH" >&2
     exit 1
 fi
 
@@ -110,7 +110,7 @@ esac
 
 EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
 if [[ "$TOTAL_NODES" -ne "$EXPECTED_NODES" ]]; then
-    echo "Warning: Total nodes ($TOTAL_NODES) doesn't match WORKERS($WORKERS) * NODES_PER_WORKER($NODES_PER_WORKER) = $EXPECTED_NODES"
+    echo "Warning: Total nodes ($TOTAL_NODES) doesn't match WORKERS($WORKERS) * NODES_PER_WORKER($NODES_PER_WORKER) = $EXPECTED_NODES" >&2
     echo "Adjusting to use all available nodes with WORKERS workers"
     NODES_PER_WORKER=$((TOTAL_NODES / WORKERS))
 fi
@@ -124,7 +124,7 @@ for ((worker_id=0; worker_id<WORKERS; worker_id++)); do
     worker_host_ip=$(srun --nodes=1 --ntasks=1 -w "${worker_host_node}" hostname -i)
 
     if [[ -z "$worker_host_ip" ]]; then
-        echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}"
+        echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}" >&2
         exit 1
     fi
 
