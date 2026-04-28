@@ -31,13 +31,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: astral-sh/setup-uv@v6
-        with:
-          activate-environment: true
+      - uses: ./.github/actions/setup
       - name: Install docs deps
         run: uv sync --frozen --extra docs
       - name: Build site
