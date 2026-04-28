@@ -47,6 +47,7 @@ done
 _sglang_setup() {
     FRAMEWORK_ENV_SETUP="export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"; export SGL_ENABLE_JIT_DEEPGEMM=\"false\""
     FRAMEWORK_LAUNCH="python3 -m sglang.launch_server"
+    return
 }
 
 _sglang_worker_cmd() {
@@ -56,6 +57,7 @@ _sglang_worker_cmd() {
         dist_args="--dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank}"
     fi
     FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $dist_args $FRAMEWORK_ARGS"
+    return
 }
 
 # ── vllm ────────────────────────────────────────────────────────────────────
@@ -63,6 +65,7 @@ _sglang_worker_cmd() {
 _vllm_setup() {
     FRAMEWORK_ENV_SETUP="export RAY_CGRAPH_get_timeout=1800; export no_proxy=\"0.0.0.0,\$no_proxy\"; export NO_PROXY=\"0.0.0.0,\$NO_PROXY\""
     FRAMEWORK_LAUNCH="python3 -m vllm.entrypoints.openai.api_server"
+    return
 }
 
 _vllm_worker_cmd() {
@@ -94,6 +97,7 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
     else
         FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_ARGS"
     fi
+    return
 }
 
 # ── main ────────────────────────────────────────────────────────────────────
@@ -101,6 +105,7 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
 case "$FRAMEWORK" in
     sglang) _sglang_setup ;;
     vllm)   _vllm_setup ;;
+    *) echo "Error: Unknown framework: $FRAMEWORK" >&2; exit 1 ;;
 esac
 
 EXPECTED_NODES=$((WORKERS * NODES_PER_WORKER))
@@ -141,6 +146,7 @@ for ((worker_id=0; worker_id<WORKERS; worker_id++)); do
         case "$FRAMEWORK" in
             sglang) _sglang_worker_cmd "$local_rank" "$worker_host_ip" ;;
             vllm)   _vllm_worker_cmd   "$local_rank" "$worker_host_ip" ;;
+            *) echo "Error: Unknown framework: $FRAMEWORK" >&2; exit 1 ;;
         esac
 
         if [[ "$USE_OCF" = "true" ]] && [[ "$local_rank" -eq 0 ]]; then
