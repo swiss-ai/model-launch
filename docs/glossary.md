@@ -4,7 +4,7 @@ One-line definitions for terms that show up in SML and the surrounding serving s
 
 ## Beverin
 
-A CSCS HPC system; one of the [systems](#system) SML can target. Not currently available via Firecrest.
+A CSCS HPC system; one of the [systems](#system) SML can target. Not currently available via FirecREST.
 
 ## Bristen
 
