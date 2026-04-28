@@ -7,6 +7,8 @@ name = "swiss-ai-model-launch"
 version = "26.4.0a1"
 description = "Swiss AI Model Launch"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10,<=3.14"
 dependencies = [
   "fastmcp>=3.2.3",
@@ -34,6 +36,7 @@ dev = [
   "hadolint-py>=2.12",
   "types-PyYAML>=6.0",
 ]
+docs = ["mkdocs-material>=9.5", "mkdocs-autorefs>=1.0"]
 
 [project.scripts]
 sml = "swiss_ai_model_launch.cli:main"
