@@ -7,7 +7,7 @@ install-dev:
 	@command -v taplo >/dev/null 2>&1 || { \
 		echo ""; \
 		echo "WARNING: 'taplo' not found on PATH."; \
-		echo "  Install it for 'make format' / pre-commit to work:"; \
+		echo "  Install it for 'make format' and 'make tomlfmt' to work:"; \
 		echo "    macOS:  brew install taplo"; \
 		echo "    Linux:  curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.9.3/taplo-full-linux-x86_64.gz | gzip -d > /usr/local/bin/taplo && chmod +x /usr/local/bin/taplo"; \
 		echo ""; \
