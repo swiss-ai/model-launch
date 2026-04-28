@@ -49,6 +49,7 @@ Additional metrics are available from several sources:
 - Framework metrics from vLLM/SGLang can be gathered with `--enable-metrics`. This is enabled by default for vLLM; for SGLang, it must be enabled with the flag.
 - We use an agent called vmagent to gather these metrics and send them to Prometheus, where they can be displayed in a Grafana dashboard.
 - Hardware-counter metrics can also be collected with NVIDIA's DCGM.
+
 ## How do I contribute a new model recipe?
 
 Add an entry under `examples/<system>/cli/<vendor>/`. See [Development](development.md) for the contribution flow and the [adding-new-model issue template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md).
