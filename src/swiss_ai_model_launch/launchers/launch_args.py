@@ -31,3 +31,38 @@ class LaunchArgs(BaseModel):
         if self.nodes is None:
             self.nodes = self.workers * self.nodes_per_worker
         return self
+
+    def to_sbatch_args(self) -> list[str]:
+        args = [
+            f"--job-name={self.job_name}",
+            f"--account={self.account}",
+            f"--time={self.time}",
+            "--exclusive",
+            f"--nodes={self.nodes}",
+            f"--partition={self.partition}",
+            "--output=logs/%j/log.out",
+            "--error=logs/%j/log.out",
+        ]
+        if self.reservation:
+            args.append(f"--reservation={self.reservation}")
+        return args
+
+    def to_job_env(self) -> dict[str, str]:
+        return {
+            "FRAMEWORK": self.framework,
+            "SML_ENVIRONMENT": self.environment,
+            "FRAMEWORK_ARGS": self.framework_args,
+            "PRE_LAUNCH_CMDS": self.pre_launch_cmds,
+            "WORKERS": str(self.workers),
+            "NODES_PER_WORKER": str(self.nodes_per_worker),
+            "WORKER_PORT": str(self.worker_port),
+            "USE_ROUTER": "true" if self.use_router else "false",
+            "ROUTER_ENVIRONMENT": self.environment,
+            "ROUTER_ARGS": self.router_args,
+            "USE_OCF": "false" if self.disable_ocf else "true",
+            "SERVED_MODEL_NAME": self.served_model_name,
+            "METRICS_REMOTE_WRITE_URL": self.metrics_remote_write_url or "",
+            "METRICS_AGENT_BIN": self.metrics_agent_binary,
+            "TELEMETRY_ENDPOINT": self.telemetry_endpoint or "",
+            "SML_TIME": self.time,
+        }
