@@ -130,7 +130,7 @@ for ((worker_id=0; worker_id<WORKERS; worker_id++)); do
 
     echo "Worker $worker_id host IP: $worker_host_ip"
     worker_head_ips+=("$worker_host_ip")
-    worker_urls+=("http://${worker_host_ip}:${WORKER_PORT}")
+    worker_urls+=("http://${worker_host_ip}:${WORKER_PORT}") # NOSONAR
 done
 
 echo "All worker URLs: ${worker_urls[*]}"
