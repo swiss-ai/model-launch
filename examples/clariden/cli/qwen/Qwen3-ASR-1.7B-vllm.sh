@@ -1,16 +1,16 @@
 #!/bin/bash
-# Launch Qwen/Qwen3-ASR-1.7B (1.7B multilingual ASR + 22 Chinese-dialect
-# coverage built on Qwen3-Omni foundation) on one Clariden GH200 node with
-# vLLM, DP=4 TP=1 (4 independent replicas, one per GPU). Suitable for
-# high-throughput batch / streaming ASR over many audio clips.
+# Launch Qwen/Qwen3-ASR-1.7B (1.7B multilingual ASR, 52 langs incl.
+# 22 Chinese dialects, built on Qwen3-Omni foundation) on one Clariden
+# GH200 node with vLLM, DP=4 TP=1 (4 independent replicas, one per GPU).
+# Suitable for high-throughput batch / streaming ASR over many audio clips.
 #
 # Qwen3-ASR uses the Qwen3ASRForConditionalGeneration architecture, which
-# is registered in stock vLLM 0.18.2+ (no vllm-omni needed). The
-# `apertus-vllm-13.0-prod` image (vLLM 0.19.1.dev) carries the registration.
-#
-# The accompanying `vllm_apertus_1.5.toml` env points to that image and
-# keeps the standard Clariden NCCL / OFI tuning that the Apertus serving
-# tree already validated.
+# is registered in stock vLLM 0.19+ (no vllm-omni needed). The generic
+# `vllm.toml` env points at the ci/vllm_cuda13 image (vLLM 0.19.1rc1,
+# transformers 5.5.4, torchaudio 2.11) which has the full audio arch set
+# and the newer Qwen3ASRConfig schema (with thinker_config). The image
+# is missing librosa/audioread (vLLM's audio file loader), so we install
+# them at launch via --pre-launch-cmds.
 #
 # Model weights (downloaded separately):
 #   /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B/
@@ -22,7 +22,8 @@ sml advanced \
   --slurm-time 6:00:00 \
   --serving-framework vllm \
   --worker-port 8080 \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --pre-launch-cmds "/opt/conda/bin/python -m pip install --isolated --target /tmp/extras librosa audioread && export PYTHONPATH=/tmp/extras:\${PYTHONPATH:-}" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
     --served-model-name Qwen/Qwen3-ASR-1.7B-$(whoami) \
     --data-parallel-size 4 \
