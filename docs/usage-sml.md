@@ -47,6 +47,7 @@ export SML_PARTITION=normal
 ```bash
 export SML_FIRECREST_SYSTEM=clariden
 export SML_PARTITION=normal
+export SML_RESERVATION=   # leave blank to skip reservation
 
 sml preconfigured \
   --model swiss-ai/Apertus-8B-Instruct-2509 \
