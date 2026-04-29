@@ -21,9 +21,7 @@ _CUSTOM_SCENARIOS_DIR = Path.cwd() / "scenarios"
 
 def _load_scenario_file(path: Path) -> ScenarioConfig:
     text = path.read_text()
-    data = (
-        yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
-    )
+    data = yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
     return ScenarioConfig(
         name=data["name"],
         max_tokens=data.get("max_tokens", "2048"),

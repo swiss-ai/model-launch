@@ -23,13 +23,9 @@ def _load_scenario_definition(name: str) -> dict | None:
                 continue
 
             text = path.read_text()
-            data = (
-                yaml.safe_load(text) if ext in (".yaml", ".yml") else json.loads(text)
-            )
+            data = yaml.safe_load(text) if ext in (".yaml", ".yml") else json.loads(text)
             if not isinstance(data, dict):
-                raise ValueError(
-                    f"Scenario file must contain a top-level object: {path}"
-                )
+                raise ValueError(f"Scenario file must contain a top-level object: {path}")
             return data
     return None
 
