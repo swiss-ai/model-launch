@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -11,7 +12,7 @@ _BUILTIN_SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 _CUSTOM_SCENARIOS_DIR = Path.cwd() / "scenarios"
 
 
-def _load_scenario_definition(name: str) -> dict | None:
+def _load_scenario_definition(name: str) -> dict[str, Any] | None:
     """Load a scenario definition from custom or built-in scenario files.
 
     Supports .yaml, .yml, and .json; returns a plain dict ready for JSON serialization.
@@ -30,7 +31,7 @@ def _load_scenario_definition(name: str) -> dict | None:
     return None
 
 
-def build_run_config(server: ServerConfig, bench: LoadtestConfig) -> dict:
+def build_run_config(server: ServerConfig, bench: LoadtestConfig) -> dict[str, Any]:
     return {
         "server_url": server.url,
         "api_key": server.api_key,

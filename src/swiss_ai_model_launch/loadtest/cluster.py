@@ -216,8 +216,8 @@ async def submit_cluster_loadtest(
         return job_id
 
     if isinstance(launcher, FirecRESTLauncher):
-        working_dir = launcher._get_working_dir()
-        remote_run_dir = str(Path(working_dir) / run_label)
+        firecrest_working_dir = str(launcher._get_working_dir())
+        remote_run_dir = str(Path(firecrest_working_dir) / run_label)
         await launcher.client.mkdir(
             system_name=launcher.system_name,
             path=remote_run_dir,
@@ -243,7 +243,7 @@ async def submit_cluster_loadtest(
 
         report = await launcher.client.submit(
             system_name=launcher.system_name,
-            working_dir=working_dir,
+            working_dir=firecrest_working_dir,
             script_str=script,
             account=launcher.account,
         )
@@ -252,13 +252,13 @@ async def submit_cluster_loadtest(
             await _wait_for_firecrest_job(
                 launcher,
                 job_id,
-                log_path=str(Path(working_dir) / "logs" / str(job_id) / "loadtest.out"),
+                log_path=str(Path(firecrest_working_dir) / "logs" / str(job_id) / "loadtest.out"),
             )
             summary_path.parent.mkdir(parents=True, exist_ok=True)
             try:
                 await launcher.client.download(
                     system_name=launcher.system_name,
-                    source_path=str(Path(working_dir) / run_label / "summary.json"),
+                    source_path=str(Path(firecrest_working_dir) / run_label / "summary.json"),
                     target_path=summary_path,
                     account=launcher.account,
                     blocking=True,
