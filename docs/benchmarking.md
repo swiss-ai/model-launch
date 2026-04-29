@@ -35,6 +35,8 @@ A throughput number without the concurrency it was measured at is meaningless �
 
 > _More methodologies welcome — open a PR adding a section here._
 
+For cluster-native k6 workflows, see [Loadtesting](loadtesting.md). That page covers the `sml loadtest` commands, prompt corpus handling, custom scenarios, custom k6 scripts, and result paths.
+
 (Placeholder — add a "How we measured X" subsection per benchmark you publish, with the exact `sml advanced` invocation, the load generator, and the resulting numbers.)
 
 ## Contributing a benchmark
@@ -50,4 +52,5 @@ The goal is a small, browseable library of "we tried X, got Y" so the next perso
 ## Next
 
 - [How to size a model](sizing.md) — pick the layout you're benchmarking
+- [Loadtesting](loadtesting.md) — run k6 from inside the cluster
 - [Architecture](architecture.md) — what's actually in the request path
