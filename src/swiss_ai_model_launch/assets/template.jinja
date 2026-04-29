@@ -207,13 +207,7 @@ done
 # The batch node (index 0) runs directly; worker nodes run via srun --overlap.
 # The batch node scrapes framework metrics (8080) + DCGM (9400); workers scrape only DCGM (9400).
 if [ -n "$METRICS_REMOTE_WRITE_URL" ] && [ -x "$METRICS_AGENT_BIN" ]; then
-    VMAGENT_COMMON_ARGS="
-        -remoteWrite.url=${METRICS_REMOTE_WRITE_URL}
-        -remoteWrite.label=slurm_job_id=${SLURM_JOB_ID}
-        -remoteWrite.label=model=${SERVED_MODEL_NAME}
-        -remoteWrite.label=framework=${FRAMEWORK}
-        -remoteWrite.label=user=${USER}
-    "
+    VMAGENT_COMMON_ARGS="-remoteWrite.url=${METRICS_REMOTE_WRITE_URL} -remoteWrite.label=slurm_job_id=${SLURM_JOB_ID} -remoteWrite.label=model=${SERVED_MODEL_NAME} -remoteWrite.label=framework=${FRAMEWORK} -remoteWrite.label=user=${USER}"
     METRICS_CONFIG_DIR="/capstor/store/cscs/swissai/infra01/ocf-share"
     DCGM_COMMON_ARGS="--address 0.0.0.0:9400 -f $METRICS_CONFIG_DIR/default-counters.csv"
     DCGM_LOG="/tmp/dcgm-exporter-${SLURM_JOB_ID}.log"
