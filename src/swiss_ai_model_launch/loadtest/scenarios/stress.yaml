@@ -1,0 +1,17 @@
+name: stress
+executor: ramping-vus
+startVUs: 0
+stages:
+  - duration: 2m
+    target: 20
+  - duration: 4m
+    target: 50
+  - duration: 4m
+    target: 100
+  - duration: 4m
+    target: 150
+  - duration: 2m
+    target: 0
+gracefulRampDown: 1m
+think_time: "2"
+max_tokens: "2048"

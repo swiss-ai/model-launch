@@ -1,0 +1,6 @@
+name: realistic
+executor: constant-vus
+vus: 20
+duration: 15m
+think_time: "30"
+max_tokens: "2048"
