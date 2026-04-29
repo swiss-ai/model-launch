@@ -30,6 +30,9 @@ METRICS_AGENT_BIN="{{ metrics_agent_binary }}"
 DCGM_EXPORTER_BIN="{{ dcgm_exporter_binary }}"
 USE_DCGM_EXPORTER={{ "false" if disable_dcgm_exporter else "true" }}
 USE_METRICS={{ "false" if disable_metrics else "true" }}
+MODEL="{{ model or '' }}"
+MODEL_LOCAL_PATH="{{ model_local_path or '' }}"
+DOWNLOAD_MODEL_IF_MISSING={{ "true" if download_model_if_missing else "false" }}
 
 
 {% if telemetry_endpoint %}
@@ -49,15 +52,42 @@ if [[ "$ARCH" == "aarch64" ]]; then
     export OCF_BIN=/ocfbin/ocf-arm
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-arm64"
     DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-arm64"
+    UV_BIN="uv"
 elif [[ "$ARCH" == "x86_64" ]]; then
     echo "Running on x86_64"
     export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/
     export OCF_BIN=/ocfbin/ocf-amd64
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-amd64"
     DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-amd64"
+    UV_BIN="uv"
 else
     echo "Unknown architecture: $ARCH"
     exit 1
+fi
+
+# Download model if not already present on shared storage
+if [ "$DOWNLOAD_MODEL_IF_MISSING" = "true" ] && [ -n "$MODEL_LOCAL_PATH" ]; then
+    if [ ! -d "$MODEL_LOCAL_PATH" ] || [ -z "$(ls -A "$MODEL_LOCAL_PATH" 2>/dev/null)" ]; then
+        echo "Model not found at $MODEL_LOCAL_PATH, downloading from HuggingFace ($MODEL)..."
+        DOWNLOAD_SCRIPT=$(mktemp /tmp/download_model_XXXXXX.py)
+        cat > "$DOWNLOAD_SCRIPT" << 'PYEOF'
+# /// script
+# dependencies = ["huggingface_hub"]
+# ///
+import os
+from huggingface_hub import snapshot_download
+model = os.environ["HF_MODEL"]
+target = os.environ["HF_TARGET"]
+print(f"Downloading {model} to: {target}", flush=True)
+snapshot_download(repo_id=model, local_dir=target, local_dir_use_symlinks=False, max_workers=1)
+print("Download complete.", flush=True)
+PYEOF
+        HF_MODEL="$MODEL" HF_TARGET="$MODEL_LOCAL_PATH" "$UV_BIN" run "$DOWNLOAD_SCRIPT"
+        rm -f "$DOWNLOAD_SCRIPT"
+        echo "Model download complete."
+    else
+        echo "Model already present at $MODEL_LOCAL_PATH, skipping download."
+    fi
 fi
 
 # Node setup
