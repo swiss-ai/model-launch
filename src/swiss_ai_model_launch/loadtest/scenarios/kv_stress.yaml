@@ -1,0 +1,17 @@
+name: kv_stress
+executor: ramping-vus
+startVUs: 0
+stages:
+  - duration: 2m
+    target: 30
+  - duration: 12m
+    target: 30
+  - duration: 1m
+    target: 0
+gracefulRampDown: 30s
+think_time: "0"
+max_tokens: "4096"
+prompt_labels:
+  - long_input
+  - xl_input
+  - conv_long

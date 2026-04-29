@@ -1,0 +1,9 @@
+name: decode
+executor: constant-vus
+vus: 50
+duration: 15m
+think_time: "0"
+max_tokens: "4096"
+prompt_labels:
+  - short
+  - medium

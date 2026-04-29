@@ -1,0 +1,6 @@
+name: throughput
+executor: constant-vus
+vus: 20
+duration: 15m
+think_time: "2"
+max_tokens: "2048"
