@@ -13,4 +13,5 @@ sml advanced \
     --port 8080 \
     --trust-remote-code \
     --tool-call-parser kimi_k2 \
-    --reasoning-parser kimi_k2"
+    --reasoning-parser kimi_k2 \
+    --enable-metrics"

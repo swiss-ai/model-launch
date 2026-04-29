@@ -10,4 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --served-model-name Qwen/Qwen3-8B-$(whoami) \
-    --dp-size 4"
+    --dp-size 4 \
+    --enable-metrics"

@@ -14,6 +14,7 @@ sml advanced \
     --context-length 262144 \
     --reasoning-parser qwen3 \
     --tool-call-parser qwen3_coder \
-    --served-model-name Qwen/Qwen3.5-397B-A17B-$(whoami)" \
+    --served-model-name Qwen/Qwen3.5-397B-A17B-$(whoami) \
+    --enable-metrics" \
   --pre-launch-cmds "pip install nvidia-cudnn-cu12==9.16.0.29"
 

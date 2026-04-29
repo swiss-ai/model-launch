@@ -10,4 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --served-model-name Qwen/Qwen3-235B-A22B-Instruct-2507-$(whoami) \
-    --tp-size 8"
+    --tp-size 8 \
+    --enable-metrics"

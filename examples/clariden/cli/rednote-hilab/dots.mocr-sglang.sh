@@ -25,4 +25,5 @@ sml advanced \
     --tp-size 1 \
     --trust-remote-code \
     --context-length 16384 \
-    --mem-fraction-static 0.85"
+    --mem-fraction-static 0.85 \
+    --enable-metrics"

@@ -116,34 +116,34 @@
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 8,
-    "framework_args": "--tp-size 32 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 32 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "model": "zai-org/GLM-5-FP8",
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 4,
-    "framework_args": "--tp-size 16 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 16 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "model": "zai-org/GLM-5.1",
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 8,
-    "framework_args": "--tp-size 32 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 32 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "model": "zai-org/GLM-5.1-FP8",
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 4,
-    "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85"
+    "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },
   {
     "model": "rednote-hilab/dots.mocr",
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 1,
-    "framework_args": "--dp-size 4 --tp-size 1 --trust-remote-code --context-length 16384 --mem-fraction-static 0.85"
+    "framework_args": "--dp-size 4 --tp-size 1 --trust-remote-code --context-length 16384 --mem-fraction-static 0.85 --enable-metrics"
   }
 ]

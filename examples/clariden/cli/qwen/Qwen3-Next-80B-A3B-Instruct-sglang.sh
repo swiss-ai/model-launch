@@ -9,4 +9,5 @@ sml advanced \
     --served-model-name Qwen/Qwen3-Next-80B-A3B-Instruct-$(whoami) \
     --host 0.0.0.0 \
     --port 8080 \
-    --tp-size 4"
+    --tp-size 4 \
+    --enable-metrics"
