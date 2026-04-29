@@ -152,6 +152,6 @@
     "environment": null,
     "nodes_per_worker": 1,
     "framework_args": "--data-parallel-size 4 --tensor-parallel-size 1 --dtype bfloat16 --max-model-len 32768 --trust-remote-code",
-    "pre_launch_cmds": "/opt/conda/bin/python -m pip install --isolated --target /tmp/extras librosa audioread && export PYTHONPATH=/tmp/extras:${PYTHONPATH:-}"
+    "pre_launch_cmds": "pip install librosa audioread"
   }
 ]

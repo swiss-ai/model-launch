@@ -23,7 +23,7 @@ sml advanced \
   --serving-framework vllm \
   --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
-  --pre-launch-cmds "/opt/conda/bin/python -m pip install --isolated --target /tmp/extras librosa audioread && export PYTHONPATH=/tmp/extras:\${PYTHONPATH:-}" \
+  --pre-launch-cmds "pip install librosa audioread" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
     --served-model-name Qwen/Qwen3-ASR-1.7B-$(whoami) \
     --data-parallel-size 4 \
