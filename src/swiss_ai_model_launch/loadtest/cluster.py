@@ -258,7 +258,6 @@ async def submit_cluster_loadtest(
             try:
                 await launcher.client.download(
                     system_name=launcher.system_name,
-<<<<<<< HEAD
                     source_path=str(Path(firecrest_working_dir) / run_label / "summary.json"),
                     target_path=summary_path,
                     account=launcher.account,
