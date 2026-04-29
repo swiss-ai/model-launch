@@ -25,7 +25,7 @@ You can pre-fill any prompt with a CLI flag or environment variable. Whatever yo
 | `--reservation`      | `SML_RESERVATION`        | SLURM reservation (optional)                           |
 | `--model`            |                          | Model to launch (`<vendor>/<model>`)                   |
 | `--framework`        |                          | Inference framework                                    |
-| `--replicas`         |                          | Number of replicas                                     |
+| `--workers`          |                          | Number of workers (replicas)                           |
 | `--use-router`       |                          | Load-balance across replicas (`yes` / `no`)            |
 | `--time`             |                          | Job time limit (`HH:MM:SS`)                            |
 
@@ -48,10 +48,10 @@ export SML_PARTITION=normal
 export SML_FIRECREST_SYSTEM=clariden
 export SML_PARTITION=normal
 
-sml \
+sml preconfigured \
   --model swiss-ai/Apertus-8B-Instruct-2509 \
   --framework sglang \
-  --replicas 1 \
+  --workers 1 \
   --time 02:00:00
 ```
 
