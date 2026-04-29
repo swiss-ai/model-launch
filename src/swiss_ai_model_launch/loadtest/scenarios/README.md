@@ -4,7 +4,7 @@ Built-in scenarios live in this package directory. User-defined scenarios should
 
 ## Example: ramp.yaml
 
-```
+```yaml
 name: ramp
 executor: ramping-vus
 startVUs: 0
@@ -30,7 +30,7 @@ max_tokens: "2048"
 
 ## Example: throughput.yaml
 
-```
+```yaml
 name: throughput
 executor: constant-vus
 vus: 20
