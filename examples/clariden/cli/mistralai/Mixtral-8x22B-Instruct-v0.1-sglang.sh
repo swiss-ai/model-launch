@@ -10,4 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --tp-size 8 \
-    --served-model-name mistralai/Mixtral-8x22B-Instruct-v0.1-$(whoami)"
+    --served-model-name mistralai/Mixtral-8x22B-Instruct-v0.1-$(whoami) \
+    --enable-metrics"

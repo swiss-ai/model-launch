@@ -12,4 +12,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --tp-size 4 \
-    --mem-fraction-static 0.5"
+    --mem-fraction-static 0.5 \
+    --enable-metrics"

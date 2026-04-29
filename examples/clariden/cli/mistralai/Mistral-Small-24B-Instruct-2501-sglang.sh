@@ -10,4 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --served-model-name mistralai/Mistral-Small-24B-Instruct-2501-$(whoami) \
-    --dp-size 4"
+    --dp-size 4 \
+    --enable-metrics"

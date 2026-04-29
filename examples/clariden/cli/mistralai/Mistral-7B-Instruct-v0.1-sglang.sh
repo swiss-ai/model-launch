@@ -8,4 +8,5 @@ sml advanced \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mistral-7B-Instruct-v0.1 \
     --served-model-name mistralai/Mistral-7B-Instruct-v0.1-$(whoami) \
     --host 0.0.0.0 \
-    --port 8080"
+    --port 8080 \
+    --enable-metrics"

@@ -34,7 +34,8 @@ async def main() -> None:
             "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
             f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-{username} "
             "--host 0.0.0.0 "
-            "--port 8080"
+            "--port 8080 "
+            "--enable-metrics"
         ),
         time="02:00:00",
         worker_port=8080,
