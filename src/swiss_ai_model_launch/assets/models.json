@@ -145,5 +145,13 @@
     "environment": null,
     "nodes_per_worker": 1,
     "framework_args": "--dp-size 4 --tp-size 1 --trust-remote-code --context-length 16384 --mem-fraction-static 0.85 --enable-metrics"
+  },
+  {
+    "model": "Qwen/Qwen3-ASR-1.7B",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--data-parallel-size 4 --tensor-parallel-size 1 --dtype bfloat16 --max-model-len 32768 --trust-remote-code",
+    "pre_launch_cmds": "pip install librosa audioread"
   }
 ]
