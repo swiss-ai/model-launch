@@ -15,7 +15,7 @@ LOADTEST_SCENARIO="throughput"
 MODEL="/capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509"
 ENV="src/swiss_ai_model_launch/assets/envs/sglang.toml"
 TIME="04:00:00"
-SUFFIX="$(whoami)"
+SUFFIX="$(whoami)-$(date +%Y%m%d-%H%M%S)"
 export SML_RESERVATION=SD-69241-apertus-1-5
 
 SERVED_1="swiss-ai/Apertus-8B-Instruct-2509-tp4-${SUFFIX}"
