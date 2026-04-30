@@ -5,7 +5,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).parent
 K6_SCRIPT = PACKAGE_ROOT / "k6" / "script.js"
-DEFAULT_CLUSTER_CONTAINER_IMAGE = Path("/capstor/scratch/cscs/bsezen/container-images/k6.sqsh")
+DEFAULT_CLUSTER_CONTAINER_IMAGE = Path("/capstor/store/cscs/swissai/infra01/container-images/ci/k6.sqsh")
 DEFAULT_CLUSTER_PROMPTS_FILE = Path("/capstor/scratch/cscs/bsezen/loadtest/prompts.json")
 
 
