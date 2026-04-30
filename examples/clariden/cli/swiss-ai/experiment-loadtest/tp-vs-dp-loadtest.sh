@@ -65,7 +65,6 @@ sml loadtest run \
   --firecrest-system clariden \
   --partition normal \
   --loadtest-server-url "$LOADTEST_SERVER_URL" \
-  --loadtest-api-key "$CSCS_SERVING_API" \
   --loadtest-model "$SERVED_1" \
   --loadtest-scenario "$LOADTEST_SCENARIO" \
   --loadtest-prompts-file "$LOADTEST_PROMPTS_FILE" \
@@ -83,7 +82,6 @@ sml loadtest run \
   --firecrest-system clariden \
   --partition normal \
   --loadtest-server-url "$LOADTEST_SERVER_URL" \
-  --loadtest-api-key "$CSCS_SERVING_API" \
   --loadtest-model "$SERVED_2" \
   --loadtest-scenario "$LOADTEST_SCENARIO" \
   --loadtest-prompts-file "$LOADTEST_PROMPTS_FILE" \

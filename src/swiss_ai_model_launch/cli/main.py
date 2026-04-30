@@ -183,12 +183,6 @@ def _add_loadtest_arguments(
         help=f"OpenAI-compatible API base URL for k6 traffic (default: {_DEFAULT_LOADTEST_SERVER_URL}).",
     )
     parser.add_argument(
-        "--loadtest-api-key",
-        dest="loadtest_api_key",
-        default=None,
-        help="API key for the loadtest endpoint. Defaults to the configured CSCS API key.",
-    )
-    parser.add_argument(
         "--loadtest-chat-mode",
         dest="loadtest_chat_mode",
         action=argparse.BooleanOptionalAction,
@@ -820,7 +814,7 @@ def _make_loadtest_config(args: argparse.Namespace) -> LoadtestConfig:
 def _make_loadtest_server(args: argparse.Namespace, api_key: str, model_name: str) -> ServerConfig:
     return ServerConfig(
         url=args.loadtest_server_url.rstrip("/"),
-        api_key=args.loadtest_api_key or api_key,
+        api_key=api_key,
         chat_mode=args.loadtest_chat_mode,
         model=model_name,
         is_swissai=True,
@@ -979,24 +973,20 @@ async def _submit_and_run_loadtest(
 
 
 async def _run_loadtest_against_existing_model(args: argparse.Namespace) -> None:
-    config = InitConfig.load() if InitConfig.exists() else None
-    api_key = args.loadtest_api_key
-    if api_key is None and config is not None:
-        api_key = config.get_non_none_value("cscs_api_key")
-    if api_key is None:
-        raise ValueError("Provide --loadtest-api-key or run `sml init` first.")
+    if not InitConfig.exists():
+        raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
 
+    config = InitConfig.load()
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
     served_model_name = args.served_model_name
     request_model = args.loadtest_model or served_model_name or ""
     loadtest_config = _make_loadtest_config(args)
-    if config is None:
-        raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
     launcher = await _create_launcher(config, args, non_interactive=True)
 
     if args.wait_until_healthy and served_model_name:
         await _wait_until_model_healthy(
             served_model_name,
-            api_key,
+            cscs_api_key,
             server_url=args.loadtest_server_url,
             timeout_seconds=args.loadtest_ready_timeout,
             poll_interval_seconds=args.loadtest_ready_poll_interval,
@@ -1009,7 +999,7 @@ async def _run_loadtest_against_existing_model(args: argparse.Namespace) -> None
     results_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary_path = results_dir / f"summary_{loadtest_config.scenario}_{timestamp}.json"
-    server = _make_loadtest_server(args, api_key, request_model)
+    server = _make_loadtest_server(args, cscs_api_key, request_model)
     await _run_k6_on_cluster(
         launcher=launcher,
         server=server,
