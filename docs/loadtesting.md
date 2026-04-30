@@ -83,7 +83,7 @@ By default, SML waits for the launched model to become healthy before submitting
 
 ## Scenarios
 
-Built-in scenarios are packaged under `src/swiss_ai_model_launch/loadtest/scenarios`.
+Built-in scenarios are packaged under `src/swiss_ai_model_launch/assets/scenarios`.
 
 | Scenario     | Pattern                         | Duration | Think time | Max tokens | Prompt labels                         | Use case                                                  |
 | ------------ | ------------------------------- | -------- | ---------- | ---------- | ------------------------------------- | --------------------------------------------------------- |
