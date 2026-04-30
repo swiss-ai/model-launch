@@ -8,7 +8,8 @@ ARG DEEPGEMM_REF=main
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_HTTP_TIMEOUT=500 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_BREAK_SYSTEM_PACKAGES=1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
