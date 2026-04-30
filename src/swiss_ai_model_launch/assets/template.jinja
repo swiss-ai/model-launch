@@ -20,10 +20,10 @@ USE_ROUTER={{ "true" if use_router else "false" }}
 ROUTER_ENVIRONMENT="{{ environment }}"
 ROUTER_PORT=30000
 ROUTER_ARGS="{{ router_args }}"
-USE_OCF={{ "false" if disable_ocf else "true" }}
-OCF_SERVICE_NAME="llm"
-OCF_SERVICE_PORT=8080
-OCF_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+USE_OPENTELA={{ "false" if disable_opentela else "true" }}
+OPENTELA_SERVICE_NAME="llm"
+OPENTELA_SERVICE_PORT=8080
+OPENTELA_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 SERVED_MODEL_NAME="{{ served_model_name }}"
 METRICS_REMOTE_WRITE_URL="{{ metrics_remote_write_url or '' }}"
 METRICS_AGENT_BIN="{{ metrics_agent_binary }}"
@@ -35,7 +35,7 @@ USE_METRICS={{ "false" if disable_metrics else "true" }}
 {% if telemetry_endpoint %}
 curl -sf -X POST "{{ telemetry_endpoint }}" \
     -H "Content-Type: application/json" \
-    -d '{"user": "'"${USER}"'", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": {{ nodes }}, "slurm_job_name": "{{ job_name }}", "slurm_partition": "{{ partition }}", "slurm_time": "{{ time }}", "slurm_account": "{{ account }}", "slurm_environment": "{{ environment }}", "interactive": false, "serving_framework": "{{ framework }}", "framework_args": "{{ framework_args }}", "pre_launch_cmds": "{{ pre_launch_cmds }}", "model_name": "{{ served_model_name }}", "workers": {{ workers }}, "nodes_per_worker": {{ nodes_per_worker }}, "worker_port": {{ worker_port }}, "use_router": {{ "true" if use_router else "false" }}, "router_environment": "{{ environment }}", "router_port": 30000, "router_args": "{{ router_args }}", "ocf_enabled": {{ "false" if disable_ocf else "true" }}, "ocf_bootstrap_addr": "'"${OCF_BOOTSTRAP_ADDR}"'", "ocf_service_name": "llm", "ocf_service_port": 8080}' || true
+    -d '{"user": "'"${USER}"'", "job_id": "'"${SLURM_JOB_ID}"'", "slurm_nodes": {{ nodes }}, "slurm_job_name": "{{ job_name }}", "slurm_partition": "{{ partition }}", "slurm_time": "{{ time }}", "slurm_account": "{{ account }}", "slurm_environment": "{{ environment }}", "interactive": false, "serving_framework": "{{ framework }}", "framework_args": "{{ framework_args }}", "pre_launch_cmds": "{{ pre_launch_cmds }}", "model_name": "{{ served_model_name }}", "workers": {{ workers }}, "nodes_per_worker": {{ nodes_per_worker }}, "worker_port": {{ worker_port }}, "use_router": {{ "true" if use_router else "false" }}, "router_environment": "{{ environment }}", "router_port": 30000, "router_args": "{{ router_args }}", "opentela_enabled": {{ "false" if disable_opentela else "true" }}, "opentela_bootstrap_addr": "'"${OPENTELA_BOOTSTRAP_ADDR}"'", "opentela_service_name": "llm", "opentela_service_port": 8080}' || true
 {% endif %}
 
 {% raw %}
@@ -50,13 +50,13 @@ ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
     echo "Running on ARM64 (aarch64)"
     export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/
-    export OCF_BIN=/ocfbin/ocf-arm
+    export OPENTELA_BIN=/ocfbin/ocf-arm
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-arm64"
     DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-arm64"
 elif [[ "$ARCH" == "x86_64" ]]; then
     echo "Running on x86_64"
     export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/
-    export OCF_BIN=/ocfbin/ocf-amd64
+    export OPENTELA_BIN=/ocfbin/ocf-amd64
     METRICS_AGENT_BIN="${METRICS_AGENT_BIN}-amd64"
     DCGM_EXPORTER_BIN="${DCGM_EXPORTER_BIN}-amd64"
 else
@@ -184,9 +184,9 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
             FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
         fi
 
-        # Wrap with OCF if enabled (only on master node - rank 0)
-        if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
-            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
+        # Wrap with OPENTELA if enabled (only on master node - rank 0)
+        if [ "$USE_OPENTELA" = "true" ] && [ $local_rank -eq 0 ]; then
+            FRAMEWORK_CMD="\$OPENTELA_BIN start --bootstrap.addr \"$OPENTELA_BOOTSTRAP_ADDR\" --service.name $OPENTELA_SERVICE_NAME --service.port $OPENTELA_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
         fi
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \
