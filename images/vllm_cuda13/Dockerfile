@@ -32,9 +32,12 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
 RUN pip install --no-cache-dir "ray[default]==2.55.0"
 
 # Symlink cuDNN and NCCL headers into conda include path.
-RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
-    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
-    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
+RUN CUDNN_H=$(find /usr -name 'cudnn.h' -print -quit) && \
+    if [ -n "${CUDNN_H}" ]; then \
+        find "$(dirname "${CUDNN_H}")" -maxdepth 1 -name 'cudnn*.h' -exec ln -sf {} /opt/conda/include/ \; ; \
+    fi && \
+    NCCL_H=$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit) && \
+    if [ -n "${NCCL_H}" ]; then ln -sf "${NCCL_H}" /opt/conda/include/nccl.h; fi
 
 # Remove nvidia-cublas (pulled as transitive dep) — conflicts with CUDA 13 toolkit's cuBLAS.
 RUN pip uninstall -y nvidia-cublas 2>/dev/null; true
