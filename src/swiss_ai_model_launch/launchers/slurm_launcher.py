@@ -117,7 +117,7 @@ class SlurmLauncher(Launcher):
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         launch_args = launch_args.model_copy(
             update={
-                "reservation": self.reservation,
+                "reservation": launch_args.reservation or self.reservation,
                 "environment": str(Path(launch_args.environment).resolve()),
             }
         )

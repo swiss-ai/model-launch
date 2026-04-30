@@ -1,0 +1,6 @@
+name: soak
+executor: constant-vus
+vus: 20
+duration: 30m
+think_time: "2"
+max_tokens: "2048"

@@ -146,7 +146,12 @@ class FirecRESTLauncher(Launcher):
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
-        launch_args = launch_args.model_copy(update={"environment": remote_env_path, "reservation": self.reservation})
+        launch_args = launch_args.model_copy(
+            update={
+                "environment": remote_env_path,
+                "reservation": launch_args.reservation or self.reservation,
+            }
+        )
         script_str = render_job_script(launch_args)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,

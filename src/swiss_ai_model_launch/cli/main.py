@@ -7,6 +7,8 @@ import logging
 import os
 import re
 from collections.abc import Awaitable, Callable, Coroutine
+from datetime import datetime
+from pathlib import Path
 from typing import Any, cast
 
 import firecrest as f7t
@@ -27,9 +29,19 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.loadtest.cluster import ClusterLoadtestConfig, submit_cluster_loadtest
+from swiss_ai_model_launch.loadtest.models import LoadtestConfig, ServerConfig, load_scenarios
+from swiss_ai_model_launch.loadtest.setup import (
+    DEFAULT_CLUSTER_CONTAINER_IMAGE,
+    resolve_k6_script,
+    resolve_prompts_file,
+)
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
+_DEFAULT_LOADTEST_SERVER_URL = "https://api.swissai.svc.cscs.ch"
+_DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1800
+_DEFAULT_LOADTEST_READY_POLL_SECONDS = 10
 
 
 def _make_firecrest_launcher_config(
@@ -133,6 +145,238 @@ def _make_launch_request_config(
     )
 
 
+def _add_loadtest_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_cancel: bool = True,
+    include_health_wait: bool = True,
+) -> None:
+    parser.add_argument(
+        "--loadtest-k6-script",
+        dest="loadtest_k6_script",
+        default=None,
+        help="k6 JavaScript file to stage into the cluster loadtest job (env: SML_LOADTEST_K6_SCRIPT).",
+    )
+    parser.add_argument(
+        "--loadtest-job-time",
+        dest="loadtest_job_time",
+        default="00:30:00",
+        help="SLURM time limit for the cluster loadtest job (default: 00:30:00).",
+    )
+    parser.add_argument(
+        "--loadtest-cpus-per-task",
+        dest="loadtest_cpus_per_task",
+        type=int,
+        default=4,
+        help="CPUs assigned to the cluster k6 task (default: 4).",
+    )
+    parser.add_argument(
+        "--wait-for-loadtest",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Wait for the cluster loadtest job and download/copy the summary (default: true).",
+    )
+    parser.add_argument(
+        "--loadtest-server-url",
+        dest="loadtest_server_url",
+        default=_DEFAULT_LOADTEST_SERVER_URL,
+        help=f"OpenAI-compatible API base URL for k6 traffic (default: {_DEFAULT_LOADTEST_SERVER_URL}).",
+    )
+    parser.add_argument(
+        "--loadtest-chat-mode",
+        dest="loadtest_chat_mode",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use /v1/chat/completions for loadtest requests (default: true).",
+    )
+    parser.add_argument(
+        "--loadtest-scenario",
+        dest="loadtest_scenario",
+        default="throughput",
+        help="Built-in or custom loadtest scenario name (default: throughput).",
+    )
+    parser.add_argument(
+        "--loadtest-think-time",
+        dest="loadtest_think_time",
+        default=None,
+        help="Override max think time between requests in seconds.",
+    )
+    parser.add_argument(
+        "--loadtest-max-tokens",
+        dest="loadtest_max_tokens",
+        default=None,
+        help="Override max output tokens.",
+    )
+    parser.add_argument(
+        "--loadtest-request-timeout",
+        dest="loadtest_request_timeout",
+        default=None,
+        help="Override request timeout passed to k6 (for example: 120s).",
+    )
+    parser.add_argument(
+        "--loadtest-prompt-labels",
+        dest="loadtest_prompt_labels",
+        default=None,
+        help="Comma-separated prompt labels to include.",
+    )
+    parser.add_argument(
+        "--loadtest-prompts-file",
+        dest="loadtest_prompts_file",
+        default=None,
+        help=(
+            "Cluster-visible prompt corpus JSON path. Defaults to SML_LOADTEST_PROMPTS_FILE, "
+            "then the shared cluster path."
+        ),
+    )
+    if include_health_wait:
+        parser.add_argument(
+            "--wait-until-healthy",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Wait for the target model to become healthy before running k6 (default: true).",
+        )
+        parser.add_argument(
+            "--loadtest-ready-timeout",
+            dest="loadtest_ready_timeout",
+            type=int,
+            default=_DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS,
+            help="Seconds to wait for the target model to become healthy.",
+        )
+        parser.add_argument(
+            "--loadtest-ready-poll-interval",
+            dest="loadtest_ready_poll_interval",
+            type=int,
+            default=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
+            help="Seconds between model health checks while waiting.",
+        )
+    if include_cancel:
+        parser.add_argument(
+            "--cancel-after-loadtest",
+            action="store_true",
+            help="Cancel the launched SLURM job after the loadtest finishes.",
+        )
+
+
+def _add_advanced_launch_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    tui_default: bool | None,
+) -> None:
+    parser.add_argument(
+        "--serving-framework",
+        dest="framework",
+        required=True,
+        help="Inference framework to use (e.g. sglang, vllm).",
+    )
+    parser.add_argument(
+        "--slurm-environment",
+        dest="slurm_environment",
+        required=True,
+        metavar="PATH",
+        help="Local path to the environment .toml file.",
+    )
+    parser.add_argument(
+        "--framework-args",
+        dest="framework_args",
+        default="",
+        metavar="ARGS",
+        help="Arguments forwarded to the inference framework.",
+    )
+    parser.add_argument(
+        "--slurm-workers",
+        dest="workers",
+        type=int,
+        default=1,
+        help="Number of workers (default: 1).",
+    )
+    parser.add_argument(
+        "--slurm-nodes-per-worker",
+        dest="nodes_per_worker",
+        type=int,
+        default=1,
+        help="Number of nodes per worker (default: 1).",
+    )
+    parser.add_argument(
+        "--slurm-nodes",
+        dest="nodes",
+        type=int,
+        default=None,
+        help="Total number of nodes. Defaults to workers * nodes-per-worker.",
+    )
+    parser.add_argument(
+        "--slurm-time",
+        dest="time",
+        default="00:05:00",
+        metavar="HH:MM:SS",
+        help="Job time limit (default: 00:05:00).",
+    )
+    parser.add_argument(
+        "--slurm-reservation",
+        dest="reservation",
+        default=None,
+        metavar="RESERVATION",
+        help="SLURM reservation name (optional).",
+    )
+    parser.add_argument(
+        "--served-model-name",
+        dest="served_model_name",
+        default=None,
+        help="Name under which the model will be served. Auto-generated if omitted.",
+    )
+    parser.add_argument(
+        "--worker-port",
+        dest="worker_port",
+        type=int,
+        default=5000,
+        help="Port used by workers (default: 5000).",
+    )
+    parser.add_argument(
+        "--use-router",
+        dest="use_router",
+        action="store_true",
+        help="Enable router to load balance across workers.",
+    )
+    parser.add_argument(
+        "--router-args",
+        dest="router_args",
+        default="",
+        metavar="ARGS",
+        help="Arguments forwarded to the router.",
+    )
+    parser.add_argument(
+        "--disable-ocf",
+        dest="disable_ocf",
+        action="store_true",
+        help="Disable OCF.",
+    )
+    parser.add_argument(
+        "--disable-dcgm-exporter",
+        dest="disable_dcgm_exporter",
+        action="store_true",
+        help="Disable the DCGM exporter.",
+    )
+    parser.add_argument(
+        "--disable-metrics",
+        dest="disable_metrics",
+        action="store_true",
+        help="Disable metrics collection.",
+    )
+    parser.add_argument(
+        "--pre-launch-cmds",
+        dest="pre_launch_cmds",
+        default="",
+        metavar="CMDS",
+        help="Commands to run before launching the model.",
+    )
+    if tui_default is not None:
+        parser.add_argument(
+            "--tui",
+            action=argparse.BooleanOptionalAction,
+            default=tui_default,
+            help="Launch the interactive TUI after submitting the job.",
+        )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sml",
@@ -159,118 +403,7 @@ def _build_parser() -> argparse.ArgumentParser:
     advanced_parser = subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
     _make_firecrest_launcher_config().add_to_parser(advanced_parser)
     _make_partition_config().add_to_parser(advanced_parser)
-    advanced_parser.add_argument(
-        "--serving-framework",
-        dest="framework",
-        required=True,
-        help="Inference framework to use (e.g. sglang, vllm).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-environment",
-        dest="slurm_environment",
-        required=True,
-        metavar="PATH",
-        help="Local path to the environment .toml file.",
-    )
-    advanced_parser.add_argument(
-        "--framework-args",
-        dest="framework_args",
-        default="",
-        metavar="ARGS",
-        help="Arguments forwarded to the inference framework.",
-    )
-    advanced_parser.add_argument(
-        "--slurm-workers",
-        dest="workers",
-        type=int,
-        default=1,
-        help="Number of workers (default: 1).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-nodes-per-worker",
-        dest="nodes_per_worker",
-        type=int,
-        default=1,
-        help="Number of nodes per worker (default: 1).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-nodes",
-        dest="nodes",
-        type=int,
-        default=None,
-        help="Total number of nodes. Defaults to workers * nodes-per-worker.",
-    )
-    advanced_parser.add_argument(
-        "--slurm-time",
-        dest="time",
-        default="00:05:00",
-        metavar="HH:MM:SS",
-        help="Job time limit (default: 00:05:00).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-reservation",
-        dest="reservation",
-        default=None,
-        metavar="RESERVATION",
-        help="SLURM reservation name (optional).",
-    )
-    advanced_parser.add_argument(
-        "--served-model-name",
-        dest="served_model_name",
-        default=None,
-        help="Name under which the model will be served. Auto-generated if omitted.",
-    )
-    advanced_parser.add_argument(
-        "--worker-port",
-        dest="worker_port",
-        type=int,
-        default=5000,
-        help="Port used by workers (default: 5000).",
-    )
-    advanced_parser.add_argument(
-        "--use-router",
-        dest="use_router",
-        action="store_true",
-        help="Enable router to load balance across workers.",
-    )
-    advanced_parser.add_argument(
-        "--router-args",
-        dest="router_args",
-        default="",
-        metavar="ARGS",
-        help="Arguments forwarded to the router.",
-    )
-    advanced_parser.add_argument(
-        "--disable-ocf",
-        dest="disable_ocf",
-        action="store_true",
-        help="Disable OCF.",
-    )
-    advanced_parser.add_argument(
-        "--disable-dcgm-exporter",
-        dest="disable_dcgm_exporter",
-        action="store_true",
-        help="Disable the DCGM exporter.",
-    )
-    advanced_parser.add_argument(
-        "--disable-metrics",
-        dest="disable_metrics",
-        action="store_true",
-        help="Disable metrics collection.",
-    )
-    advanced_parser.add_argument(
-        "--pre-launch-cmds",
-        dest="pre_launch_cmds",
-        default="",
-        metavar="CMDS",
-        help="Commands to run before launching the model.",
-    )
-    advanced_parser.add_argument(
-        "--tui",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Launch the interactive TUI after submitting the job.",
-    )
+    _add_advanced_launch_arguments(advanced_parser, tui_default=False)
 
     preconfigured_parser.add_argument(
         "--tui",
@@ -278,6 +411,56 @@ def _build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Launch the interactive TUI after submitting the job.",
     )
+
+    loadtest_parser = subparsers.add_parser("loadtest", help="Launch models and run loadtests")
+    loadtest_subparsers = loadtest_parser.add_subparsers(dest="loadtest_command", required=True)
+
+    loadtest_preconfigured_parser = loadtest_subparsers.add_parser(
+        "preconfigured",
+        help="Launch one preconfigured model, wait until healthy, then run a loadtest",
+    )
+    _make_firecrest_launcher_config().add_to_parser(loadtest_preconfigured_parser)
+    _make_partition_config().add_to_parser(loadtest_preconfigured_parser)
+    _make_reservation_config().add_to_parser(loadtest_preconfigured_parser)
+    _make_launch_request_config().add_to_parser(loadtest_preconfigured_parser)
+    _add_loadtest_arguments(loadtest_preconfigured_parser)
+
+    loadtest_advanced_parser = loadtest_subparsers.add_parser(
+        "advanced",
+        help="Launch a model with the same arguments as `sml advanced`, then run a loadtest",
+    )
+    _make_firecrest_launcher_config().add_to_parser(loadtest_advanced_parser)
+    _make_partition_config().add_to_parser(loadtest_advanced_parser)
+    _add_advanced_launch_arguments(loadtest_advanced_parser, tui_default=None)
+    _add_loadtest_arguments(loadtest_advanced_parser)
+
+    loadtest_run_parser = loadtest_subparsers.add_parser(
+        "run",
+        help="Run a loadtest against an already launched model or external OpenAI-compatible URL",
+    )
+    _make_firecrest_launcher_config().add_to_parser(loadtest_run_parser)
+    _make_partition_config().add_to_parser(loadtest_run_parser)
+    _make_reservation_config().add_to_parser(loadtest_run_parser)
+    loadtest_run_parser.add_argument(
+        "--served-model-name",
+        default=None,
+        help=(
+            "Served SwissAI model name to target with loadtest traffic. "
+            "Optional when using --loadtest-server-url for an external endpoint."
+        ),
+    )
+    loadtest_run_parser.add_argument(
+        "--loadtest-model",
+        dest="loadtest_model",
+        default=None,
+        help="Model field to send in OpenAI-compatible requests. Defaults to --served-model-name when provided.",
+    )
+    loadtest_run_parser.add_argument(
+        "--job-id",
+        default=None,
+        help="Optional launched job id to use in the loadtest results path.",
+    )
+    _add_loadtest_arguments(loadtest_run_parser, include_cancel=False)
 
     subparsers.add_parser("mcp", help="Start the SML MCP server")
 
@@ -524,15 +707,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
-async def _run_advanced(args: argparse.Namespace) -> None:
-    if not InitConfig.exists():
-        print("SML is not configured. Run `sml init` first.")
-        return
-
-    config = InitConfig.load()
-    launcher = await _create_launcher(config, args, non_interactive=True)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
-
+def _make_advanced_launch_args(args: argparse.Namespace, launcher: Launcher, config: InitConfig) -> LaunchArgs:
     if args.served_model_name:
         served_model_name = args.served_model_name
     else:
@@ -545,7 +720,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
-    launch_args = LaunchArgs(
+    return LaunchArgs(
         job_name=job_name,
         served_model_name=served_model_name,
         account=launcher.account,
@@ -568,6 +743,17 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 
+
+async def _run_advanced(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args, non_interactive=True)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    launch_args = _make_advanced_launch_args(args, launcher, config)
+
     launch_coro = launcher.launch_with_args(launch_args)
     if args.tui:
         await _run_monitor(launcher, launch_coro, cscs_api_key)
@@ -576,6 +762,291 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         print(f"Job submitted: {job_id}")
         print(f"Served model name: {served}")
         print(f"Logs: {launcher.get_log_dir(job_id)}")
+
+
+def _split_loadtest_prompt_labels(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    labels = [part.strip() for part in raw.split(",") if part.strip()]
+    return labels or None
+
+
+def _loadtest_results_dir(run_id: int | str) -> Path:
+    config_dir = Path(os.environ.get("SML_CONFIG_DIR", str(Path.home() / ".sml")))
+    return config_dir / "loadtest" / str(run_id)
+
+
+def _make_loadtest_config_from_values(
+    *,
+    scenario: str,
+    think_time: str | None,
+    max_tokens: str | None,
+    request_timeout: str | None,
+    prompt_labels: str | list[str] | None,
+) -> LoadtestConfig:
+    scenarios = {s.name: s for s in load_scenarios()}
+    scenario_cfg = scenarios.get(scenario)
+    if scenario_cfg is None:
+        raise ValueError(f"Unknown loadtest scenario '{scenario}'. Available: {', '.join(sorted(scenarios))}")
+
+    parsed_prompt_labels = (
+        prompt_labels if isinstance(prompt_labels, list) else _split_loadtest_prompt_labels(prompt_labels)
+    )
+    return LoadtestConfig(
+        scenario=scenario,
+        think_time=think_time or scenario_cfg.think_time or "2",
+        max_tokens=max_tokens or scenario_cfg.max_tokens,
+        request_timeout=request_timeout,
+        prompt_labels=parsed_prompt_labels if parsed_prompt_labels is not None else scenario_cfg.prompt_labels,
+    )
+
+
+def _make_loadtest_config(args: argparse.Namespace) -> LoadtestConfig:
+    return _make_loadtest_config_from_values(
+        scenario=args.loadtest_scenario,
+        think_time=args.loadtest_think_time,
+        max_tokens=args.loadtest_max_tokens,
+        request_timeout=args.loadtest_request_timeout,
+        prompt_labels=args.loadtest_prompt_labels,
+    )
+
+
+def _make_loadtest_server(args: argparse.Namespace, api_key: str, model_name: str) -> ServerConfig:
+    return ServerConfig(
+        url=args.loadtest_server_url.rstrip("/"),
+        api_key=api_key,
+        chat_mode=args.loadtest_chat_mode,
+        model=model_name,
+        is_swissai=True,
+    )
+
+
+def _make_cluster_loadtest_config(
+    args: argparse.Namespace,
+    *,
+    reservation: str | None = None,
+) -> ClusterLoadtestConfig:
+    if getattr(args, "cancel_after_loadtest", False) and not args.wait_for_loadtest:
+        raise ValueError("--cancel-after-loadtest requires --wait-for-loadtest.")
+    if args.loadtest_cpus_per_task <= 0:
+        raise ValueError("--loadtest-cpus-per-task must be greater than 0.")
+    if args.loadtest_ready_timeout <= 0:
+        raise ValueError("--loadtest-ready-timeout must be greater than 0.")
+    if args.loadtest_ready_poll_interval <= 0:
+        raise ValueError("--loadtest-ready-poll-interval must be greater than 0.")
+    return ClusterLoadtestConfig(
+        container_image=str(DEFAULT_CLUSTER_CONTAINER_IMAGE),
+        time=args.loadtest_job_time,
+        cpus_per_task=args.loadtest_cpus_per_task,
+        wait=args.wait_for_loadtest,
+        reservation=reservation or getattr(args, "reservation", None),
+    )
+
+
+async def _run_k6_on_cluster(
+    *,
+    launcher: Launcher,
+    server: ServerConfig,
+    loadtest_config: LoadtestConfig,
+    summary_path: Path,
+    args: argparse.Namespace,
+    k6_script: str | Path | None = None,
+    reservation: str | None = None,
+) -> None:
+    k6_script_path = resolve_k6_script(k6_script or args.loadtest_k6_script)
+    if not k6_script_path.exists():
+        raise FileNotFoundError(f"k6 script not found: {k6_script_path}")
+
+    prompts_file = resolve_prompts_file(args.loadtest_prompts_file)
+
+    cluster_config = _make_cluster_loadtest_config(args, reservation=reservation)
+    print(f"Loadtest container image: {cluster_config.container_image}")
+    print(f"Loadtest prompts file: {prompts_file}")
+    job_id = await submit_cluster_loadtest(
+        launcher=launcher,
+        server=server,
+        bench=loadtest_config,
+        k6_script=k6_script_path,
+        prompts_file=prompts_file,
+        summary_path=summary_path,
+        cluster=cluster_config,
+    )
+    print(f"Cluster loadtest job submitted: {job_id}")
+    if cluster_config.wait:
+        print(f"Loadtest summary: {summary_path}")
+
+
+async def _wait_until_model_healthy(
+    served_model_name: str,
+    api_key: str,
+    *,
+    server_url: str,
+    timeout_seconds: int,
+    poll_interval_seconds: int,
+) -> None:
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    print(f"Waiting for model health: {served_model_name} via {server_url.rstrip('/')}")
+
+    while True:
+        health = await check_model_health(served_model_name, api_key, base_url=server_url)
+        if health == ModelHealth.HEALTHY:
+            print(f"Model is healthy: {served_model_name}")
+            return
+
+        elapsed = loop.time() - started
+        if elapsed >= timeout_seconds:
+            raise TimeoutError(
+                f"Timed out after {timeout_seconds}s waiting for model to become healthy: {served_model_name}"
+            )
+
+        print(f"Model health is {health.value}; checking again in {poll_interval_seconds}s")
+        await asyncio.sleep(poll_interval_seconds)
+
+
+async def _run_loadtest_for_submitted_job(
+    *,
+    launcher: Launcher,
+    job_id: int,
+    served_model_name: str,
+    cscs_api_key: str,
+    args: argparse.Namespace,
+    loadtest_config: LoadtestConfig,
+    k6_script: str | Path | None = None,
+    loadtest_reservation: str | None = None,
+) -> None:
+    try:
+        if args.wait_until_healthy:
+            await _wait_until_model_healthy(
+                served_model_name,
+                cscs_api_key,
+                server_url=args.loadtest_server_url,
+                timeout_seconds=args.loadtest_ready_timeout,
+                poll_interval_seconds=args.loadtest_ready_poll_interval,
+            )
+
+        results_dir = _loadtest_results_dir(job_id)
+        results_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_path = results_dir / f"summary_{loadtest_config.scenario}_{timestamp}.json"
+        server = _make_loadtest_server(args, cscs_api_key, served_model_name)
+        await _run_k6_on_cluster(
+            launcher=launcher,
+            server=server,
+            loadtest_config=loadtest_config,
+            summary_path=summary_path,
+            args=args,
+            k6_script=k6_script,
+            reservation=loadtest_reservation,
+        )
+    finally:
+        if args.cancel_after_loadtest:
+            print(f"Cancelling job after loadtest: {job_id}")
+            await launcher.cancel_job(job_id)
+
+
+async def _submit_and_run_loadtest(
+    *,
+    launcher: Launcher,
+    launch_coro: Coroutine[Any, Any, tuple[int, str]],
+    cscs_api_key: str,
+    args: argparse.Namespace,
+    loadtest_config: LoadtestConfig,
+    k6_script: str | Path | None = None,
+    loadtest_reservation: str | None = None,
+) -> None:
+    _make_cluster_loadtest_config(args, reservation=loadtest_reservation)
+    job_id, served = await launch_coro
+    print(f"Job submitted: {job_id}")
+    print(f"Served model name: {served}")
+    print(f"Logs: {launcher.get_log_dir(job_id)}")
+    await _run_loadtest_for_submitted_job(
+        launcher=launcher,
+        job_id=job_id,
+        served_model_name=served,
+        cscs_api_key=cscs_api_key,
+        args=args,
+        loadtest_config=loadtest_config,
+        k6_script=k6_script,
+        loadtest_reservation=loadtest_reservation,
+    )
+
+
+async def _run_loadtest_against_existing_model(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
+
+    config = InitConfig.load()
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    served_model_name = args.served_model_name
+    request_model = args.loadtest_model or served_model_name or ""
+    loadtest_config = _make_loadtest_config(args)
+    launcher = await _create_launcher(config, args, non_interactive=True)
+
+    if args.wait_until_healthy and served_model_name:
+        await _wait_until_model_healthy(
+            served_model_name,
+            cscs_api_key,
+            server_url=args.loadtest_server_url,
+            timeout_seconds=args.loadtest_ready_timeout,
+            poll_interval_seconds=args.loadtest_ready_poll_interval,
+        )
+    elif args.wait_until_healthy:
+        print("Skipping model health check because --served-model-name was not provided.")
+
+    run_id = args.job_id or (served_model_name.replace("/", "_") if served_model_name else "external")
+    results_dir = _loadtest_results_dir(run_id)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    summary_path = results_dir / f"summary_{loadtest_config.scenario}_{timestamp}.json"
+    server = _make_loadtest_server(args, cscs_api_key, request_model)
+    await _run_k6_on_cluster(
+        launcher=launcher,
+        server=server,
+        loadtest_config=loadtest_config,
+        summary_path=summary_path,
+        args=args,
+    )
+
+
+async def _run_loadtest_preconfigured(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    launch_request = await _get_launch_request(launcher, args)
+    loadtest_config = _make_loadtest_config(args)
+
+    await _submit_and_run_loadtest(
+        launcher=launcher,
+        launch_coro=launcher.launch_model(launch_request),
+        cscs_api_key=cscs_api_key,
+        args=args,
+        loadtest_config=loadtest_config,
+    )
+
+
+async def _run_loadtest_advanced(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args, non_interactive=True)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    launch_args = _make_advanced_launch_args(args, launcher, config)
+    loadtest_config = _make_loadtest_config(args)
+
+    await _submit_and_run_loadtest(
+        launcher=launcher,
+        launch_coro=launcher.launch_with_args(launch_args),
+        cscs_api_key=cscs_api_key,
+        args=args,
+        loadtest_config=loadtest_config,
+    )
 
 
 def _run_mcp() -> None:
@@ -590,6 +1061,13 @@ async def _main(args: argparse.Namespace) -> None:
         await _run_preconfigured(args)
     elif subcommand == "advanced":
         await _run_advanced(args)
+    elif subcommand == "loadtest":
+        if args.loadtest_command == "preconfigured":
+            await _run_loadtest_preconfigured(args)
+        elif args.loadtest_command == "advanced":
+            await _run_loadtest_advanced(args)
+        elif args.loadtest_command == "run":
+            await _run_loadtest_against_existing_model(args)
 
 
 def main() -> None:
