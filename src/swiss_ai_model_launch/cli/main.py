@@ -298,6 +298,7 @@ def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFi
             client_id=config.get_non_none_value("firecrest_client_id"),
             client_secret=config.get_non_none_value("firecrest_client_secret"),
             token_uri=config.get_non_none_value("firecrest_token_uri"),
+            min_token_validity=90,
         ),
     )
 
