@@ -20,6 +20,7 @@ nav:
   - Usage:
       - Interactive (sml): usage-sml.md
       - Advanced (sml advanced): usage-advanced.md
+      - Python API: usage-python.md
   - Performance:
       - Sizing a Model: sizing.md
       - Benchmarking: benchmarking.md

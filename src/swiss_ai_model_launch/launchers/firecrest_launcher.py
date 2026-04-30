@@ -81,6 +81,7 @@ class FirecRESTLauncher(Launcher):
         model = launch_request.model
         job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
         served_model_name = launch_request.served_model_name or f"{model}-{create_salt(4)}"
+        model_local_path = resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -93,7 +94,7 @@ class FirecRESTLauncher(Launcher):
             framework=launch_request.framework,
             served_model_name=served_model_name,
             framework_args=(
-                f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
+                f"--model {model_local_path} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 "
                 "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
@@ -101,6 +102,9 @@ class FirecRESTLauncher(Launcher):
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
             use_router=launch_request.use_router,
+            model=model,
+            model_local_path=model_local_path,
+            download_model_if_missing=(launch_request.model_path is None),
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:

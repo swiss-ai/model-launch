@@ -27,7 +27,6 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import create_salt
-from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 
@@ -579,6 +578,8 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
 
 def _run_mcp() -> None:
+    from swiss_ai_model_launch.mcp import mcp as _mcp
+
     _mcp.run()
 
 

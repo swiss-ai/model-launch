@@ -4,6 +4,7 @@ import grp
 import os
 import re
 import subprocess
+import sys
 from typing import Annotated, Any, Literal
 
 import fastmcp
@@ -11,7 +12,8 @@ import firecrest as f7t
 from fastmcp import Context
 
 from swiss_ai_model_launch.cli.configuration import InitConfig
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
+from swiss_ai_model_launch.cli.healthcheck import ModelHealth
+from swiss_ai_model_launch.cli.healthcheck import check_model_health as check_model_health_fn
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus
@@ -43,20 +45,19 @@ mcp = fastmcp.FastMCP(
         "   vendor/model + framework combinations can be deployed. The model string is in\n"
         "   'vendor/name' format (e.g. 'swiss-ai/Apertus-70B').\n\n"
         "4. **Launch** — call `launch_preconfigured_model` with the model, framework, and job\n"
-        "   parameters. The tool submits the SLURM job, then streams live stdout/stderr and\n"
-        "   periodic [status] lines as MCP notifications while you wait. It returns only when\n"
-        "   the model is healthy or the job reaches a terminal state. The return value includes\n"
-        "   the served_model_name — a unique identifier (e.g. 'swiss-ai/Apertus-70B-a1b2')\n"
-        "   that you pass as the 'model' field when sending inference requests to the cluster\n"
-        "   API endpoint.\n\n"
-        "5. **Operate** — use `get_job_status` to poll a running job (returns PENDING, RUNNING,\n"
-        "   TIMEOUT, or UNKNOWN), `get_job_logs` to stream its stdout/stderr, and `cancel_job`\n"
-        "   to stop it.\n\n"
+        "   parameters. The tool blocks until the model is healthy or the job terminates,\n"
+        "   emitting each new log line as an MCP notification (prefixed '[stdout]' or '[stderr]')\n"
+        "   and periodic '[status]' lines. The return value includes the served_model_name —\n"
+        "   a unique identifier (e.g. 'swiss-ai/Apertus-70B-a1b2') and the full accumulated log.\n\n"
+        "5. **Operate** — use `get_job_status` to poll a running job, `get_job_logs` to read\n"
+        "   the current stdout/stderr, `check_model_health` to verify the inference endpoint\n"
+        "   (requires CSCS_API_KEY), and `cancel_job` to stop it.\n\n"
         "## Health monitoring\n\n"
         "When CSCS_API_KEY is configured, `launch_preconfigured_model` actively polls the\n"
         "inference endpoint and returns as soon as the model is HEALTHY. Without the key,\n"
         "health checks are skipped and the tool only returns when the job terminates — so for\n"
-        "long-running servers you may want to cancel the tool call and query job status manually.\n\n"
+        "long-running servers you may want to cancel the tool call and use `get_job_status` /\n"
+        "`get_job_logs` to monitor manually.\n\n"
         "## Common errors\n\n"
         "- 'SML is not configured' → the user must run `sml init` in a terminal and restart the\n"
         "  MCP server.\n"
@@ -253,21 +254,19 @@ async def launch_preconfigured_model(
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
-    Looks up the model in the catalogue by vendor/name and framework, then submits a
-    SLURM job using the preconfigured settings (nodes, environment, framework arguments).
-    Call `list_preconfigured_models` first to verify the model and framework are available.
+    Looks up the model in the catalogue by vendor/name and framework, submits a SLURM
+    job using the preconfigured settings, and blocks until the model is healthy or the
+    job reaches a terminal state.
 
-    While waiting, this tool emits MCP notifications for each new log line (prefixed
-    '[stdout]' or '[stderr]') and periodic '[status]' lines with the current job state
-    and health. It returns when:
-    - the model is HEALTHY — returns the served_model_name (e.g. 'swiss-ai/Apertus-70B-a1b2')
-      and job ID. Pass the served_model_name as the 'model' field in inference requests.
-    - the job reaches a terminal state (TIMEOUT or UNKNOWN) — returns the job ID and
-      final status.
+    While waiting, emits each new log line as an MCP notification ('[stdout]' / '[stderr]')
+    and periodic '[status]' lines with the current job state and health check result.
 
-    If CSCS_API_KEY is not configured, health checks are skipped and the tool only
-    returns on job termination. For long-running inference servers without the key,
-    cancel this call and use `get_job_status` / `get_job_logs` to monitor manually.
+    Returns the served_model_name, job ID, and full accumulated log. The served_model_name
+    (e.g. 'swiss-ai/Apertus-70B-a1b2') is passed as the 'model' field in inference requests.
+
+    If CSCS_API_KEY is not configured, health checks are skipped and the tool only returns
+    on job termination. For long-running servers without the key, cancel this call and use
+    `get_job_status` / `get_job_logs` to monitor manually.
     """
     try:
         launcher = await _get_launcher()
@@ -291,13 +290,20 @@ async def launch_preconfigured_model(
         use_router=use_router,
     )
     job_id, served = await launcher.launch_model(request)
-    await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")
+
+    async def _emit(msg: str) -> None:
+        print(msg, file=sys.stderr, flush=True)
+        await ctx.info(msg)
+        log_lines.append(msg)
+
     config = InitConfig.load()
     cscs_api_key = config.get_value("cscs_api_key")
     stdout_lines_sent = 0
     stderr_lines_sent = 0
     ever_healthy = False
     seen_active = False
+    log_lines: list[str] = []
+    await _emit(f"Job submitted — job_id={job_id}, served_model_name={served}")
     while True:
         await asyncio.sleep(_POLL_INTERVAL_SECONDS)
         job_status = await launcher.get_job_status(job_id)
@@ -307,23 +313,25 @@ async def launch_preconfigured_model(
         stdout_lines = stdout.splitlines() if stdout else []
         stderr_lines = stderr.splitlines() if stderr else []
         for line in stdout_lines[stdout_lines_sent:]:
-            await ctx.info(f"[stdout] {line}")
+            await _emit(f"[stdout] {line}")
         for line in stderr_lines[stderr_lines_sent:]:
-            await ctx.info(f"[stderr] {line}")
+            await _emit(f"[stderr] {line}")
         stdout_lines_sent = len(stdout_lines)
         stderr_lines_sent = len(stderr_lines)
         if cscs_api_key:
-            health = await check_model_health(served, cscs_api_key)
+            health = await check_model_health_fn(served, cscs_api_key)
             if health == ModelHealth.NOT_RESPONDING and not ever_healthy:
                 health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or health == ModelHealth.HEALTHY
-            await ctx.info(f"[status] job={job_status.value}, health={health.value}")
+            await _emit(f"[status] job={job_status.value}, health={health.value}")
             if health == ModelHealth.HEALTHY:
-                return f"Model {served} is healthy. Job ID: {job_id}."
+                log = "\n".join(log_lines)
+                return f"Model {served} is healthy. Job ID: {job_id}.\n\nLog:\n{log}"
         else:
-            await ctx.info(f"[status] job={job_status.value}")
+            await _emit(f"[status] job={job_status.value}")
         if seen_active and job_status in _TERMINAL_STATUSES:
-            return f"Job {job_id} terminated with status {job_status.value}."
+            log = "\n".join(log_lines)
+            return f"Job {job_id} terminated with status {job_status.value}.\n\nLog:\n{log}"
 
 
 @mcp.tool
@@ -345,30 +353,45 @@ async def get_job_status(
 @mcp.tool
 async def get_job_logs(
     job_id: Annotated[int, "SLURM job ID to retrieve logs for."],
-    ctx: Context,
 ) -> str:
-    """Retrieve and stream the full stdout and stderr logs for a SLURM job.
+    """Retrieve the current stdout and stderr logs for a SLURM job.
 
-    Emits each log line as an MCP notification and returns a summary of how many
-    lines were streamed. Useful for diagnosing startup failures or checking progress
-    on a job launched outside this session.
+    Returns the full log content collected so far. Call repeatedly to see new output
+    as the job runs.
     """
     try:
         launcher = await _get_launcher()
     except RuntimeError as e:
         return str(e)
     stdout, stderr = await launcher.get_job_logs(job_id)
+    parts = []
     if stdout:
-        await ctx.info("=== stdout ===")
-        for line in stdout.splitlines():
-            await ctx.info(line)
+        parts.append(f"=== stdout ===\n{stdout.rstrip()}")
     if stderr:
-        await ctx.info("=== stderr ===")
-        for line in stderr.splitlines():
-            await ctx.info(line)
-    stdout_lines = len(stdout.splitlines()) if stdout else 0
-    stderr_lines = len(stderr.splitlines()) if stderr else 0
-    return f"Streamed {stdout_lines} stdout line(s) and {stderr_lines} stderr line(s) for job {job_id}."
+        parts.append(f"=== stderr ===\n{stderr.rstrip()}")
+    if not parts:
+        return f"No logs available yet for job {job_id}."
+    return "\n\n".join(parts)
+
+
+@mcp.tool
+async def check_model_health(
+    served_model_name: Annotated[str, "served_model_name returned by launch_preconfigured_model."],
+) -> str:
+    """Check whether a launched model's inference endpoint is healthy.
+
+    Requires CSCS_API_KEY to be configured. Returns one of:
+    - HEALTHY     — the endpoint is responding and ready for requests
+    - NOT_DEPLOYED — the endpoint has not come up yet
+    - NOT_RESPONDING — the endpoint was previously healthy but is no longer responding
+    - UNKNOWN     — health could not be determined (e.g. API key not configured)
+    """
+    config = InitConfig.load()
+    cscs_api_key = config.get_value("cscs_api_key")
+    if not cscs_api_key:
+        return "UNKNOWN — CSCS_API_KEY is not configured. Run `sml init` to set it."
+    health = await check_model_health_fn(served_model_name, cscs_api_key)
+    return health.value
 
 
 @mcp.tool

@@ -50,7 +50,7 @@ A SLURM concept — a named subset of cluster nodes with its own queue, time lim
 
 ## Replica
 
-One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-why-dp-is-replicas) unit). Set via `--slurm-replicas`. More replicas = more throughput. Distinct from `--slurm-nodes-per-replica`, which sets how many nodes one replica spans.
+One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-why-dp-is-replicas) unit), called a *worker* in the CLI. Set via `--slurm-workers`. More workers = more throughput. Distinct from `--slurm-nodes-per-worker`, which sets how many nodes one worker spans.
 
 ## Reservation
 
