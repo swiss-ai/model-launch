@@ -24,5 +24,5 @@ RUN uv pip install --system "vllm==${VLLM_VERSION}" "ray[default]"
 # quant scheme (block_size=[128,128]). Kernels are JIT-compiled at first use;
 # no GPU is required at image-build time.
 RUN git clone --depth 1 https://github.com/deepseek-ai/DeepGEMM.git /tmp/deepgemm && \
-    uv pip install --system --no-build-isolation /tmp/deepgemm && \
+    uv pip install --system /tmp/deepgemm && \
     rm -rf /tmp/deepgemm
