@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -8,8 +10,16 @@ import yaml
 
 from .models import LoadtestConfig, ServerConfig
 
-_BUILTIN_SCENARIOS_DIR = Path(__file__).parent / "scenarios"
+_BUILTIN_SCENARIOS_DIR = files("swiss_ai_model_launch.assets").joinpath("scenarios")
 _CUSTOM_SCENARIOS_DIR = Path.cwd() / "scenarios"
+
+
+def _load_scenario_definition_file(path: Traversable | Path, ext: str) -> dict[str, Any]:
+    text = path.read_text()
+    data = yaml.safe_load(text) if ext in (".yaml", ".yml") else json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError(f"Scenario file must contain a top-level object: {path}")
+    return data
 
 
 def _load_scenario_definition(name: str) -> dict[str, Any] | None:
@@ -17,17 +27,16 @@ def _load_scenario_definition(name: str) -> dict[str, Any] | None:
 
     Supports .yaml, .yml, and .json; returns a plain dict ready for JSON serialization.
     """
-    for base_dir in (_CUSTOM_SCENARIOS_DIR, _BUILTIN_SCENARIOS_DIR):
-        for ext in (".yaml", ".yml", ".json"):
-            path = base_dir / f"{name}{ext}"
-            if not path.exists():
-                continue
+    for ext in (".yaml", ".yml", ".json"):
+        custom_path = _CUSTOM_SCENARIOS_DIR / f"{name}{ext}"
+        if custom_path.exists():
+            return _load_scenario_definition_file(custom_path, ext)
 
-            text = path.read_text()
-            data = yaml.safe_load(text) if ext in (".yaml", ".yml") else json.loads(text)
-            if not isinstance(data, dict):
-                raise ValueError(f"Scenario file must contain a top-level object: {path}")
-            return data
+    for ext in (".yaml", ".yml", ".json"):
+        builtin_path = _BUILTIN_SCENARIOS_DIR.joinpath(f"{name}{ext}")
+        if builtin_path.is_file():
+            return _load_scenario_definition_file(builtin_path, ext)
+
     return None
 
 

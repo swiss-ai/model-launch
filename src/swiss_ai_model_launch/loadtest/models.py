@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 
 import yaml
@@ -15,13 +17,17 @@ class ScenarioConfig:
     prompt_labels: list[str] | None = None  # None = all labels (weighted mix)
 
 
-_BUILTIN_SCENARIOS_DIR = Path(__file__).parent / "scenarios"
+_BUILTIN_SCENARIOS_DIR = files("swiss_ai_model_launch.assets").joinpath("scenarios")
 _CUSTOM_SCENARIOS_DIR = Path.cwd() / "scenarios"
 
 
-def _load_scenario_file(path: Path) -> ScenarioConfig:
+def _scenario_suffix(path: Traversable | Path) -> str:
+    return Path(path.name).suffix
+
+
+def _load_scenario_file(path: Traversable | Path) -> ScenarioConfig:
     text = path.read_text()
-    data = yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
+    data = yaml.safe_load(text) if _scenario_suffix(path) in (".yaml", ".yml") else json.loads(text)
     return ScenarioConfig(
         name=data["name"],
         max_tokens=data.get("max_tokens", "2048"),
@@ -33,13 +39,13 @@ def _load_scenario_file(path: Path) -> ScenarioConfig:
 def load_scenarios() -> list[ScenarioConfig]:
     """Load built-in scenarios, with any user-defined ones from CWD/scenarios/ appended."""
     scenarios: dict[str, ScenarioConfig] = {}
-    for path in sorted(_BUILTIN_SCENARIOS_DIR.glob("*")):
-        if path.suffix in (".yaml", ".yml", ".json"):
+    for path in sorted(_BUILTIN_SCENARIOS_DIR.iterdir(), key=lambda p: p.name):
+        if _scenario_suffix(path) in (".yaml", ".yml", ".json"):
             s = _load_scenario_file(path)
             scenarios[s.name] = s
     if _CUSTOM_SCENARIOS_DIR.exists():
         for path in sorted(_CUSTOM_SCENARIOS_DIR.glob("*")):
-            if path.suffix in (".yaml", ".yml", ".json"):
+            if _scenario_suffix(path) in (".yaml", ".yml", ".json"):
                 s = _load_scenario_file(path)
                 scenarios[s.name] = s
     # custom is always appended last as the catch-all

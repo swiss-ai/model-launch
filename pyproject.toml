@@ -45,7 +45,7 @@ sml = "swiss_ai_model_launch.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-swiss_ai_model_launch = ["assets/**", "loadtest/k6/**", "loadtest/scenarios/**"]
+swiss_ai_model_launch = ["assets/**", "loadtest/k6/**"]
 
 [tool.isort]
 profile = "black"
