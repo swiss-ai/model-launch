@@ -48,7 +48,6 @@ sml loadtest run \
   --firecrest-system clariden \
   --partition normal \
   --loadtest-server-url https://your.endpoint.example \
-  --loadtest-api-key "$API_KEY" \
   --loadtest-model your-model-name \
   --loadtest-scenario throughput \
   --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json
@@ -106,7 +105,6 @@ Use the packaged k6 script by default, or stage your own:
 ```bash
 sml loadtest run \
   --loadtest-server-url https://your.endpoint.example \
-  --loadtest-api-key "$API_KEY" \
   --loadtest-model your-model-name \
   --loadtest-k6-script ./my-script.js
 ```

@@ -32,5 +32,12 @@ def test_loadtest_parser_does_not_expose_container_image_override() -> None:
         )
 
 
+def test_loadtest_parser_does_not_expose_api_key_override() -> None:
+    parser = _build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["loadtest", "run", "--loadtest-api-key", "secret"])
+
+
 def test_loadtest_uses_packaged_container_image() -> None:
-    assert str(DEFAULT_CLUSTER_CONTAINER_IMAGE).endswith("/container-images/k6.sqsh")
+    assert str(DEFAULT_CLUSTER_CONTAINER_IMAGE).endswith("/container-images/ci/k6.sqsh")
