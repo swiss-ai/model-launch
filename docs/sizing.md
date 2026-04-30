@@ -109,7 +109,7 @@ Use this when **a single user is waiting for a response** — chat, interactive 
 | Framework batching | Keep `--max-num-seqs` low (e.g. 8) so requests don't queue behind a giant batch. |
 | Context length | Cap `--max-model-len` to what you actually need. Smaller KV cache = faster prefill. |
 | TP | Just enough to fit the model. Past that, TP communication starts costing more than it saves. |
-| OCF | If you're driving load directly from another job on the cluster, `--disable-ocf` removes the mesh hop. For end-user traffic via the public gateway, keep it on. |
+| OCF/OpenTela | If you're driving load directly from another job on the cluster, `--disable-opentela` removes the mesh hop. For end-user traffic via the public gateway, keep it on. |
 
 Measure TTFT and P50/P99 at concurrency = 1 and concurrency = your realistic ceiling — they will tell different stories. See [Benchmarking](benchmarking.md).
 
@@ -127,7 +127,7 @@ Use this when **you have a lot of work to push through** — batch eval, dataset
 | Context length | Cap `--max-model-len` to the longest request you'll actually send. Wasted KV cache = lost batch slots. |
 | Concurrency at the client | Don't ramp slower than the server can absorb — keep ≥ `replicas × max-num-seqs` requests in flight. |
 
-If you're benchmarking, **disable OCF** to take the mesh hop out of the measurement (see [When to disable OCF](usage-advanced.md#when-to-disable-ocf)).
+If you're benchmarking, **disable OpenTela** to take the mesh hop out of the measurement (see [When to disable OpenTela](usage-advanced.md#when-to-disable-opentela)).
 
 ## When in doubt
 

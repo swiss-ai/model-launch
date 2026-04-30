@@ -42,7 +42,7 @@ How SML submits jobs: `firecrest` (REST API, works from a laptop) or `slurm` (di
 
 The same thing — the [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
 
-`OCF` is the on-disk binary name; `OpenTela` is the project. The CLI flag `--disable-ocf` is named for the binary for historical reasons — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf).
+`OCF` is the on-disk binary name; `OpenTela` is the project. The CLI flag `--disable-opentela` is named for the binary — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-opentela).
 
 ## Partition
 

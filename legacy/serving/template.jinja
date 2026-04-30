@@ -20,10 +20,10 @@ USE_ROUTER={{ "true" if use_router else "false" }}
 ROUTER_ENVIRONMENT="{{ router_environment }}"
 ROUTER_PORT={{ router_port }}
 ROUTER_ARGS="{{ router_args }}"
-USE_OCF={{ "true" if use_ocf else "false" }}
-OCF_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
-OCF_SERVICE_NAME="{{ ocf_service_name }}"
-OCF_SERVICE_PORT={{ ocf_service_port }}
+USE_OPENTELA={{ "true" if use_opentela else "false" }}
+OPENTELA_BOOTSTRAP_ADDR="/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+OPENTELA_SERVICE_NAME="{{ opentela_service_name }}"
+OPENTELA_SERVICE_PORT={{ opentela_service_port }}
 
 {% raw %}
 mkdir -p "${LOG_DIR}"
@@ -36,11 +36,11 @@ ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
     echo "Running on ARM64 (aarch64)"
     export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/
-    export OCF_BIN=/ocfbin/ocf-arm
+    export OPENTELA_BIN=/ocfbin/ocf-arm
 elif [[ "$ARCH" == "x86_64" ]]; then
     echo "Running on x86_64"
     export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/
-    export OCF_BIN=/ocfbin/ocf-amd64
+    export OPENTELA_BIN=/ocfbin/ocf-amd64
 else
     echo "Unknown architecture: $ARCH"
     exit 1
@@ -166,9 +166,9 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
             FRAMEWORK_CMD="$FRAMEWORK_LAUNCH $FRAMEWORK_DIST_ARGS_EXPANDED $FRAMEWORK_ARGS"
         fi
 
-        # Wrap with OCF if enabled (only on master node - rank 0)
-        if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
-            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
+        # Wrap with OpenTela if enabled (only on master node - rank 0)
+        if [ "$USE_OPENTELA" = "true" ] && [ $local_rank -eq 0 ]; then
+            FRAMEWORK_CMD="\$OPENTELA_BIN start --bootstrap.addr \"$OPENTELA_BOOTSTRAP_ADDR\" --service.name $OPENTELA_SERVICE_NAME --service.port $OPENTELA_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
         fi
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \

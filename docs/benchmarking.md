@@ -23,7 +23,7 @@ A throughput number without the concurrency it was measured at is meaningless �
 - **Vary one thing at a time.** Replicas × precision × batch size × context length is a 4D space; sweep one axis with the others fixed.
 - **Pin the framework version.** Both sglang and vLLM iterate fast — record exact image tag / git SHA in your write-up.
 - **Match the partition's nodes.** Performance on `normal` vs. a debug partition can differ; benchmarks should target the partition users will use.
-- **Disable OpenTela for raw numbers.** Pass `--disable-ocf` to skip the OpenTela mesh registration on each replica (the flag name is historical — `OCF` and `OpenTela` are the same thing). You then drive load directly to the framework's host:port, which gives you the framework's true throughput. Leave it on for end-to-end numbers that include the mesh + gateway hop. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf).
+- **Disable OpenTela for raw numbers.** Pass `--disable-opentela` to skip the OpenTela mesh registration on each replica (the flag name is historical — `OCF` and `OpenTela` are the same thing). You then drive load directly to the framework's host:port, which gives you the framework's true throughput. Leave it on for end-to-end numbers that include the mesh + gateway hop. See [When to disable OpenTela](usage-advanced.md#when-to-disable-opentela).
 
 ## Observability
 

@@ -159,7 +159,7 @@ python serving/submit_job.py \
   --serving-framework vllm \
   --worker-port 8080 \
   --slurm-environment $(pwd)/serving/envs/vllm.toml \
-  --disable-ocf \
+  --disable-opentela \
   --framework-args "--model mistralai/Mistral-Large-3-675B-Instruct-2512 \
     --host 0.0.0.0 \
     --port 8080 \
@@ -179,7 +179,7 @@ python serving/submit_job.py \
 python serving/submit_job.py \
   --slurm-nodes 2 \
   --serving-framework sglang \
-  --disable-ocf \
+  --disable-opentela \
   --worker-port 8080 \
   --slurm-environment $(pwd)/serving/envs/sglang.toml \
   --framework-args "--model mistralai/Mixtral-8x22B-Instruct-v0.1 \
@@ -289,7 +289,7 @@ python serving/submit_job.py \
   --serving-framework sglang \
   --worker-port 8080 \
   --slurm-environment $(pwd)/serving/envs/sglang.toml \
-  --disable-ocf \
+  --disable-opentela \
   --framework-args "--model-path Qwen/Qwen3-235B-A22B-Instruct-2507 \
     --host 0.0.0.0 \
     --port 8080 \
@@ -305,7 +305,7 @@ python serving/submit_job.py \
   --serving-framework vllm \
   --worker-port 8080 \
   --slurm-environment $(pwd)/serving/envs/vllm.toml \
-  --disable-ocf \
+  --disable-opentela \
   --framework-args "--model Qwen/Qwen3-235B-A22B-Instruct-2507 \
     --host 0.0.0.0 \
     --port 8080 \
@@ -391,7 +391,7 @@ python serving/submit_job.py \
 python serving/submit_job.py \
   --slurm-nodes 4 \
   --serving-framework vllm \
-  --disable-ocf \
+  --disable-opentela \
   --worker-port 8080 \
   --slurm-environment $(pwd)/serving/envs/vllm.toml \
   --framework-args "--model Qwen/Qwen3.5-397B-A17B \
@@ -787,14 +787,14 @@ python serving/submit_job.py \
 - `--router-port`: Router port (default: 30000)
 - `--router-args`: Arguments passed to the router
 
-### OCF (Open Compute Framework) Options
+### OpenTela Options
 
-**OCF is enabled by default** for model discovery, adds external + API-key access on serving [website](https://serving.swissai.cscs.ch) and health monitoring. It runs on the master node (rank 0) of each worker.
+**OpenTela is enabled by default** for model discovery, adds external + API-key access on serving [website](https://serving.swissai.cscs.ch) and health monitoring. It runs on the master node (rank 0) of each worker.
 
-- `--disable-ocf`: Disable OCF wrapper (OCF is enabled by default)
-- `--ocf-bootstrap-addr`: OCF bootstrap address (default: `/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu`)
-- `--ocf-service-name`: OCF service name (default: `llm`)
-- `--ocf-service-port`: OCF service port - must match the port your framework listens on (default: 8080)
+- `--disable-opentela`: Disable OpenTela wrapper (OpenTela is enabled by default)
+- `--opentela-bootstrap-addr`: OpenTela bootstrap address (default: `/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu`)
+- `--opentela-service-name`: OpenTela service name (default: `llm`)
+- `--opentela-service-port`: OpenTela service port - must match the port your framework listens on (default: 8080)
 
 ## Interactive Mode
 
