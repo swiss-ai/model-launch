@@ -22,6 +22,8 @@ SERVED_1="swiss-ai/Apertus-8B-Instruct-2509-tp4-${SUFFIX}"
 SERVED_2="swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX}"
 
 # --- Submit both jobs up-front ---
+
+# Job 1: TP=4
 OUT_1=$(sml advanced \
   --firecrest-system clariden \
   --partition normal \
@@ -37,6 +39,7 @@ OUT_1=$(sml advanced \
 echo "$OUT_1"
 JOB_1=$(echo "$OUT_1" | grep "Job submitted:" | awk '{print $3}')
 
+# Job 2: TP=1, DP=4
 OUT_2=$(sml advanced \
   --firecrest-system clariden \
   --partition normal \
