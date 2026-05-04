@@ -80,7 +80,7 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
     uv pip install --system \
         torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1 \
         --torch-backend=${CUDA_VERSION_PATH} && \
-    uv pip install --system \
+    uv pip install --system --prerelease=allow \
         "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_aarch64.whl" \
         "sglang[all]==0.5.10.post1" \
         sglang-router==0.3.2 && \
