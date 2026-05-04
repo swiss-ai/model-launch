@@ -1,12 +1,8 @@
 # vLLM on the CSCS Alps extended NGC PyTorch base.
 #
-# The base ships an NGC PyTorch image with the Slingshot HPC stack baked in
-# (libfabric/CXI, NCCL 2.28.7, NVSHMEM, OpenMPI 5, aws-ofi-nccl, GDRCopy/XPMEM)
-# and an /opt/alps/env/alps-runtime.env that configures Slingshot defaults.
-# See: https://github.com/eth-cscs/alps-extended-images
-#
-# CSCS internal mirror (faster on Alps): jfrog.svc.cscs.ch/docker-group-csstaff/alps-images/ngc-pytorch:26.02-py3-alps4
-# Override via: --build-arg BASE_IMAGE=...
+# Base image courtesy of CSCS — see https://github.com/eth-cscs/alps-extended-images
+# for the Slingshot-tuned NGC PyTorch builds (NCCL, NVSHMEM, OpenMPI, libfabric/CXI).
+
 ARG BASE_IMAGE=ghcr.io/eth-cscs/alps-extended-images/ngc-pytorch:26.02-py3-alps4
 FROM ${BASE_IMAGE}
 
@@ -20,30 +16,19 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_LINK_MODE=copy \
     UV_BREAK_SYSTEM_PACKAGES=1
 
-# vLLM nightly cu130 wheel. Pin --torch-backend=cu130 explicitly: `auto`
-# probes nvcc/nvidia-smi at install time and falls back to a CPU torch
-# wheel on hosts without a CUDA driver (e.g. GH-hosted runners), which
-# clobbers the alps-built torch 2.10 with torch +cpu.
-# 26.02-py3-alps4's Python 3.12 is Debian-marked externally-managed
-# (PEP 668); the BREAK_SYSTEM_PACKAGES envs above let pip/uv write into it.
+# Pin --torch-backend=cu130 explicitly: `auto` falls back to a CPU wheel when
+# nvcc/nvidia-smi aren't visible on the build host (e.g. GH-hosted runners).
+# Drop pip NCCL/cuBLAS in the same layer so torch dlopens the alps-built
+# libnccl from /usr and the CUDA 13 toolkit's cuBLAS, and the wheels don't
+# linger as dead weight in an earlier layer.
 RUN pip install --no-cache-dir uv==0.11.7 && \
-    uv pip install --system -U vllm \
+    uv pip install --system -U vllm "ray[default]==2.55.0" \
         --extra-index-url https://wheels.vllm.ai/nightly/cu130 \
-        --torch-backend=cu130
+        --torch-backend=cu130 && \
+    uv pip uninstall --system nvidia-nccl-cu13 nvidia-nccl-cu12 \
+                              nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas
 
-# Drop pip-installed NCCL wheels so torch dlopens the alps-built libnccl
-# on the system path (avoids version-skew with the slingshot-tuned build).
-RUN pip uninstall -y nvidia-nccl-cu13 nvidia-nccl-cu12 || true
-
-# nvidia-cublas pip wheel conflicts with the CUDA 13 toolkit's cuBLAS in the
-# NGC base; the toolkit version is already correct, so drop the wheel.
-RUN pip uninstall -y nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas || true
-
-RUN pip install --no-cache-dir "ray[default]==2.55.0"
-
-# Verify the NGC base provides curl (used by router health checks at runtime),
-# assert torch is a CUDA build (catches a CPU-wheel regression early), and
-# print the loaded NCCL version (expect 2.28.7 from the alps build).
+# Verify curl (for router health checks) and assert torch is a CUDA build.
 RUN command -v curl >/dev/null 2>&1 || { echo "curl missing from base image"; exit 1; } && \
     python - <<'PY'
 import sys, torch
@@ -52,5 +37,3 @@ if torch.version.cuda is None:
     sys.exit(f"expected a CUDA torch build, got {torch.__version__}")
 print(f"nccl: {torch.cuda.nccl.version()}")
 PY
-
-WORKDIR /opt
