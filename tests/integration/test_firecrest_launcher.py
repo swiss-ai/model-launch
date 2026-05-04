@@ -60,6 +60,7 @@ async def launcher(env: dict[str, str]) -> FirecRESTLauncher:
             client_id=env["SML_FIRECREST_CLIENT_ID"],
             client_secret=env["SML_FIRECREST_CLIENT_SECRET"],
             token_uri=env["SML_FIRECREST_TOKEN_URI"],
+            min_token_validity=90,
         ),
     )
     return await FirecRESTLauncher.from_client(

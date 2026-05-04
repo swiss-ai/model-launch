@@ -35,8 +35,7 @@ def _build_slurm_script(
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
     ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest"
-    return dedent(
-        f"""
+    return dedent(f"""
         #!/bin/bash
         #SBATCH --job-name=build-{image_name}
         #SBATCH --nodes=1
@@ -90,8 +89,7 @@ def _build_slurm_script(
         chmod o+rx "{output_sqsh}"
 
         echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
-    """
-    ).lstrip("\n")
+    """).lstrip("\n")
 
 
 async def _print_logs(
@@ -132,8 +130,15 @@ async def main(image_name: str) -> int:
     ghcr_token = os.environ["GHCR_TOKEN"]
     ghcr_actor = os.environ["GHCR_ACTOR"]
 
-    auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri)
-    client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
+    client = f7t.v2.AsyncFirecrest(
+        firecrest_url=firecrest_url,
+        authorization=f7t.ClientCredentialsAuth(
+            client_id=client_id,
+            client_secret=client_secret,
+            token_uri=token_uri,
+            min_token_validity=90,
+        ),
+    )
 
     user_info = await client.userinfo(system_name)
     username = user_info["user"]["name"]
