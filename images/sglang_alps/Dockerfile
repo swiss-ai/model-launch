@@ -68,20 +68,22 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_LINK_MODE=copy \
     UV_BREAK_SYSTEM_PACKAGES=1
 
-# Single resolve: sglang[all] + router + cu130 sgl-kernel + cu130 torch.
-# `--torch-backend=cu130` redirects torch to cu130 wheels despite sglang's
-# deps preferring cu12; this avoids the install-then-force-reinstall-torch
-# dance that the multi-step pip variant required.
+# Two-step install: pin cu130 torch first via --torch-backend, then install
+# sglang + router + cu130 sgl-kernel. The second resolve doesn't disturb the
+# already-installed torch (its torch==2.9.1 constraint matches the cu130
+# local-version wheel), and sglang's transitive torchao dep resolves from
+# PyPI normally — unlike the single-resolve form, where --torch-backend's
+# scope confuses torchao resolution.
 # Drop pip NCCL/cuBLAS in the same layer so torch dlopens the alps-built
 # libnccl from /usr and the CUDA 13 toolkit's cuBLAS.
 RUN pip install --no-cache-dir uv==0.11.7 && \
     uv pip install --system \
+        torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1 \
+        --torch-backend=${CUDA_VERSION_PATH} && \
+    uv pip install --system \
         "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_aarch64.whl" \
         "sglang[all]==0.5.10.post1" \
-        sglang-router==0.3.2 \
-        torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1 \
-        --extra-index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
-        --torch-backend=${CUDA_VERSION_PATH} && \
+        sglang-router==0.3.2 && \
     uv pip uninstall --system nvidia-nccl-cu13 nvidia-nccl-cu12 \
                               nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas
 
