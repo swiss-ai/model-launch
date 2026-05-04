@@ -9,8 +9,6 @@ ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${U
 
 FROM ${DEVEL_BASE_IMAGE} AS build
 
-# NOTE: libnuma1 is mounted from the host via the toml file.
-
 WORKDIR /app/build
 
 # Install miniconda, Python, and Python build dependencies.
