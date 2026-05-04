@@ -14,12 +14,16 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
     UV_HTTP_TIMEOUT=500 \
     UV_INDEX_STRATEGY=unsafe-best-match \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_BREAK_SYSTEM_PACKAGES=1
 
 # vLLM nightly cu130 wheel. NGC PyTorch 26.02 already provides torch 2.10
 # linked against the alps-built NCCL on /usr; --torch-backend=auto adapts.
+# 26.02-py3-alps4's Python 3.12 is Debian-marked externally-managed
+# (PEP 668); the BREAK_SYSTEM_PACKAGES envs above let pip/uv write into it.
 RUN pip install --no-cache-dir uv==0.11.7 && \
     uv pip install --system -U vllm \
         --extra-index-url https://wheels.vllm.ai/nightly/cu130 \
