@@ -11,8 +11,8 @@ from textwrap import dedent
 import firecrest as f7t
 
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
-_POLL_INTERVAL = 60
-_TIMEOUT = 4 * 3600
+_POLL_INTERVAL = 30
+_TIMEOUT = 30 * 60
 _TERMINAL_STATES = {
     "COMPLETED",
     "FAILED",
@@ -37,11 +37,11 @@ def _build_slurm_script(
     ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest"
     return dedent(f"""
         #!/bin/bash
-        #SBATCH --job-name=build-{image_name}
+        #SBATCH --job-name=sqsh-{image_name}
         #SBATCH --nodes=1
         #SBATCH --ntasks=1
-        #SBATCH --cpus-per-task=64
-        #SBATCH --time=04:00:00
+        #SBATCH --cpus-per-task=8
+        #SBATCH --time=00:30:00
         #SBATCH --account={account}
         #SBATCH --partition={partition}
         {reservation_line}
@@ -50,33 +50,29 @@ def _build_slurm_script(
 
         set -euo pipefail
 
-        # Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
-        # Point podman's runtime dir to a writable temp location.
         export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
-        IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
         SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
 
         cleanup() {{
             podman logout ghcr.io 2>/dev/null || true
-            podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+            podman rmi "{ghcr_image}" 2>/dev/null || true
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
             rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
         }}
         trap cleanup EXIT
 
-        echo "=== Building {image_name} on $(hostname) at $(date) ==="
-        podman build -t "${{IMAGE_TAG}}" .
-
-        echo "=== Pushing to GHCR ==="
+        echo "=== Logging in to GHCR ==="
         echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
-        podman push "${{IMAGE_TAG}}" "{ghcr_image}"
+
+        echo "=== Pulling {ghcr_image} on $(hostname) at $(date) ==="
+        podman pull "{ghcr_image}"
 
         echo "=== Converting to sqsh ==="
         rm -f "${{SCRATCH_SQSH}}"
-        enroot import -o "${{SCRATCH_SQSH}}" "podman://${{IMAGE_TAG}}" || true
+        enroot import -o "${{SCRATCH_SQSH}}" "podman://{ghcr_image}" || true
         if [ ! -s "${{SCRATCH_SQSH}}" ]; then
             echo "ERROR: enroot import produced no output"
             exit 1
@@ -88,7 +84,7 @@ def _build_slurm_script(
         mv "{output_sqsh}.tmp" "{output_sqsh}"
         chmod o+rx "{output_sqsh}"
 
-        echo "=== Done: {image_name} -> {output_sqsh} at $(date) ==="
+        echo "=== Done: {ghcr_image} -> {output_sqsh} at $(date) ==="
     """).lstrip("\n")
 
 
@@ -144,26 +140,12 @@ async def main(image_name: str) -> int:
     username = user_info["user"]["name"]
     account = user_info["group"]["name"]
 
-    remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}"
-    remote_logs_dir = f"/users/{username}/.sml/image-builds/logs"
+    remote_work_dir = f"/users/{username}/.sml/sqsh-imports/{image_name}"
+    remote_logs_dir = f"/users/{username}/.sml/sqsh-imports/logs"
 
     print("Creating remote directories...")
-    await client.mkdir(system_name, remote_build_dir, create_parents=True)
+    await client.mkdir(system_name, remote_work_dir, create_parents=True)
     await client.mkdir(system_name, remote_logs_dir, create_parents=True)
-
-    local_image_dir = Path("images") / image_name
-    print(f"Uploading {local_image_dir} -> {remote_build_dir}")
-    for local_file in sorted(local_image_dir.iterdir()):
-        if local_file.is_file():
-            print(f"  {local_file.name}")
-            await client.upload(
-                system_name=system_name,
-                local_file=str(local_file),
-                directory=remote_build_dir,
-                filename=local_file.name,
-                account=account,
-                blocking=True,
-            )
 
     output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}.sqsh"
 
@@ -178,10 +160,10 @@ async def main(image_name: str) -> int:
         ghcr_actor=ghcr_actor,
     )
 
-    print(f"Submitting SLURM job for {image_name}...")
+    print(f"Submitting SLURM job for {image_name} sqsh import...")
     result = await client.submit(
         system_name=system_name,
-        working_dir=remote_build_dir,
+        working_dir=remote_work_dir,
         script_str=script,
         account=account,
     )
@@ -197,11 +179,11 @@ async def main(image_name: str) -> int:
         print(f"[{elapsed}s] Job {job_id}: {state}")
 
         if state == "COMPLETED":
-            print(f"Build succeeded: {output_sqsh}")
+            print(f"sqsh ready: {output_sqsh}")
             return 0
 
         if state in _TERMINAL_STATES:
-            print(f"Build failed with state: {state}")
+            print(f"Import failed with state: {state}")
             await _print_logs(client, system_name, account, remote_logs_dir, job_id)
             return 1
 

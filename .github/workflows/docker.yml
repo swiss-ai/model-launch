@@ -77,3 +77,29 @@ jobs:
           tags: ghcr.io/swiss-ai/${{ matrix.image }}:latest
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  sqsh-import:
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+      fail-fast: false
+    env:
+      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      SML_FIRECREST_URL: ${{ secrets.SML_FIRECREST_URL }}
+      SML_FIRECREST_SYSTEM: ${{ secrets.SML_FIRECREST_SYSTEM }}
+      SML_PARTITION: ${{ secrets.SML_PARTITION }}
+      SML_RESERVATION: ${{ secrets.SML_RESERVATION }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: python .github/scripts/import_sqsh.py "${{ matrix.image }}"
+        timeout-minutes: 35
