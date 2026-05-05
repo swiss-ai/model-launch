@@ -13,7 +13,7 @@
 
 <p align="center"><strong>Easy to launch LLM models 🚀</strong></p>
 
-A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST. Public serving endpoint: <https://serving.swissai.svc.cscs.ch/>.
+A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST, and making them accessible via [OpenTela](https://github.com/eth-easl/OpenTela). Public serving endpoint: <https://serving.swissai.svc.cscs.ch/>.
 
 ## Quickstart
 
@@ -38,7 +38,7 @@ Prefer a script you can copy? Browse [`examples/`](examples/) and run any of the
 | [How to Size a Model](docs/sizing.md)              | Picking replica/node layout for a given model    |
 | [Benchmarking](docs/benchmarking.md)               | Measuring throughput and latency                 |
 | [MCP Server](docs/mcp.md)                          | Driving SML from Claude Desktop / Cursor         |
-| [Architecture](docs/architecture.md)               | How SML fits with serving-api and opentela       |
+| [Architecture](docs/architecture.md)               | How SML fits with serving-api and [OpenTela](https://github.com/eth-easl/opentela)       |
 | [Development](docs/development.md)                 | Contributing to SML itself                       |
 | [CI/CD](docs/ci-cd.md)                             | Pipeline structure                               |
 | [FAQ](docs/faq.md)                                 | Always-on hosting, common gotchas                |

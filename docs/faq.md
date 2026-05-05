@@ -19,7 +19,7 @@ See [How to size a model](sizing.md). The short answer is "enough VRAM to fit we
 
 Yes — by default OCF/OpenTela does random assignment among peers. There is a PR in progress which can change this to different assignment modes: <https://github.com/swiss-ai/OpenTela/pull/4>
 
-In SML, you can pass `--use-router` to put a router in front of N replicas. Without it, you get N independent endpoints with no traffic shaping; this works both with and without OpenTela. OpenTela gives you external access via <https://serving.swissai.svc.cscs.ch> and the API. Without OpenTela (using `--disable-ocf`), the model will not appear there and must be accessed directly from the cluster.
+In SML, you can pass `--use-router` to put a router in front of N replicas. Without it, you get N independent endpoints with no traffic shaping; this works both with and without OpenTela. OpenTela gives you external access via <https://serving.swissai.svc.cscs.ch> and the API. Without OpenTela (using `--disable-opentela`), the model will not appear there and must be accessed directly from the cluster.
 
 ## My job is stuck in `PENDING`
 
@@ -37,9 +37,9 @@ Yes — use [`sml advanced`](usage-advanced.md) and pass the model's path on the
 
 ## How do I keep a model private (not publicly routable)?
 
-Pass `--disable-ocf` to `sml advanced`. By default each replica registers itself on the OpenTela p2p mesh — that registration is what the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) routes through. Disabling it means the replica never joins the mesh, so the model is only reachable from inside the cluster. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf).
+Pass `--disable-opentela` to `sml advanced`. By default each replica registers itself on the OpenTela p2p mesh — that registration is what the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) routes through. Disabling it means the replica never joins the mesh, so the model is only reachable from inside the cluster. See [When to disable OpenTela](usage-advanced.md#when-to-disable-opentela).
 
-> "OCF" and "OpenTela" are the same thing — `OCF` is the on-disk binary name; `OpenTela` is the project. The flag is named `--disable-ocf` for historical reasons.
+> "OCF" and "OpenTela" are the same thing — `OCF` is the on-disk binary name; `OpenTela` is the project. The flag is named `--disable-opentela`.
 
 ## How do I see metrics?
 

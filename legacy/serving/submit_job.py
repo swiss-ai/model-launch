@@ -45,13 +45,13 @@ def parse_args():
     parser.add_argument("--router-port", type=int, default=30000, help="Router port")
     parser.add_argument("--router-args", type=str, default="", help="Arguments to pass to the router")
 
-    # OCF (Open Compute Framework) parameters
-    parser.add_argument("--disable-ocf", action="store_true", help="Disable OCF wrapper (OCF is enabled by default)")
+    # OpenTela (Open Compute Framework) parameters
+    parser.add_argument("--disable-opentela", action="store_true", help="Disable OpenTela wrapper (OpenTela is enabled by default)")
     parser.add_argument(
-        "--ocf-bootstrap-addr", type=str, default=None, help="OCF bootstrap address (fetched from API if not specified)"
+        "--opentela-bootstrap-addr", type=str, default=None, help="OpenTela bootstrap address (fetched from API if not specified)"
     )
-    parser.add_argument("--ocf-service-name", type=str, default="llm", help="OCF service name")
-    parser.add_argument("--ocf-service-port", type=int, default=8080, help="OCF service port")
+    parser.add_argument("--opentela-service-name", type=str, default="llm", help="OpenTela service name")
+    parser.add_argument("--opentela-service-port", type=int, default=8080, help="OpenTela service port")
 
     return parser.parse_args()
 
@@ -82,14 +82,14 @@ def main():
     # Calculate nodes_per_worker if not specified
     nodes_per_worker = args.nodes_per_worker if args.nodes_per_worker else args.slurm_nodes // args.workers
 
-    # Fetch bootstrap address if not specified and OCF is enabled
-    ocf_bootstrap_addr = args.ocf_bootstrap_addr
-    if not args.disable_ocf and ocf_bootstrap_addr is None:
-        ocf_bootstrap_addr = fetch_bootstrap_addresses()
-        if ocf_bootstrap_addr is None:
+    # Fetch bootstrap address if not specified and OpenTela is enabled
+    opentela_bootstrap_addr = args.opentela_bootstrap_addr
+    if not args.disable_opentela and opentela_bootstrap_addr is None:
+        opentela_bootstrap_addr = fetch_bootstrap_addresses()
+        if opentela_bootstrap_addr is None:
             # Fall back to hardcoded address if API fetch fails
-            ocf_bootstrap_addr = "/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu"
-            logging.warning(f"Falling back to hardcoded bootstrap address: {ocf_bootstrap_addr}")
+            opentela_bootstrap_addr = "/ip4/148.187.108.172/tcp/43905/p2p/QmQsNxJVa2rnidp998qAz4FCutgmjBsuZqtrxUUy5YfgBu"
+            logging.warning(f"Falling back to hardcoded bootstrap address: {opentela_bootstrap_addr}")
 
     # Build template args
     template_args = {
@@ -109,10 +109,10 @@ def main():
         "router_environment": router_environment,
         "router_port": args.router_port,
         "router_args": args.router_args,
-        "use_ocf": not args.disable_ocf,
-        "ocf_bootstrap_addr": ocf_bootstrap_addr,
-        "ocf_service_name": args.ocf_service_name,
-        "ocf_service_port": args.ocf_service_port,
+        "use_opentela": not args.disable_opentela,
+        "opentela_bootstrap_addr": opentela_bootstrap_addr,
+        "opentela_service_name": args.opentela_service_name,
+        "opentela_service_port": args.opentela_service_port,
     }
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as temp_file:

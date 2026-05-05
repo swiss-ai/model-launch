@@ -11,7 +11,7 @@ from jinja2 import Template
 
 
 def fetch_bootstrap_addresses(bootstrap_api_url="http://148.187.108.172:8092/v1/dnt/bootstraps", timeout=10):
-    """Fetch bootstrap addresses from the OCF bootstrap API.
+    """Fetch bootstrap addresses from the OpenTela bootstrap API.
 
     Args:
         bootstrap_api_url: URL to fetch bootstrap addresses from

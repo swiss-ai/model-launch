@@ -241,10 +241,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded to the router.",
     )
     advanced_parser.add_argument(
-        "--disable-ocf",
-        dest="disable_ocf",
+        "--disable-opentela",
+        dest="disable_opentela",
         action="store_true",
-        help="Disable OCF.",
+        help="Disable OpenTela.",
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -562,7 +562,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         worker_port=args.worker_port,
         use_router=args.use_router,
         router_args=args.router_args,
-        disable_ocf=args.disable_ocf,
+        disable_opentela=args.disable_opentela,
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),

@@ -26,7 +26,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--replica-port`            |                         | Port used by replicas (default: `5000`)                           |
 | `--use-router`              |                         | Enable router to load-balance across replicas                     |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
-| `--disable-ocf`             |                         | Disable OCF wrapper                                               |
+| `--disable-opentela`             |                         | Disable OCF/OpenTela wrapper                                               |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
 
 ## Example: Apertus 8B on Clariden with sglang
@@ -49,13 +49,13 @@ sml advanced \
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
 
-## When to disable OCF
+## When to disable OCF/OpenTela
 
-> "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-ocf` for historical reasons.
+> "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-opentela`.
 
-By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf) for the longer story.
+By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-opentela) for the longer story.
 
-Pass `--disable-ocf` when:
+Pass `--disable-opentela` when:
 
 - **You're benchmarking max throughput.** OpenTela adds a hop on the request path; disabling it gives you the framework's raw numbers. See [Benchmarking](benchmarking.md).
 - **You want the model kept private.** With OpenTela disabled, the replica never registers with the mesh — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
