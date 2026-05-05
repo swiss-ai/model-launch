@@ -3,6 +3,7 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
+  --slurm-time 12:00:00 \
   --serving-framework sglang \
   --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
