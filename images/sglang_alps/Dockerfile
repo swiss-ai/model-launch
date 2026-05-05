@@ -45,13 +45,23 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
                               nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas
 
 # Verify curl (for router health checks), assert torch is a CUDA build, and
-# confirm sgl_kernel imports cleanly (the failure mode this image fixes).
+# confirm the sm90 common_ops .so was shipped in the installed kernel wheel.
+# We can't actually `import sgl_kernel` at build time — its loader probes the
+# GPU via libcuda.so.1, which isn't present without an NVIDIA runtime mount.
+# Checking the .so's presence on disk catches the "wrong wheel architecture"
+# failure mode (the bug this image fixes) without needing a GPU.
 RUN command -v curl >/dev/null 2>&1 || { echo "curl missing from base image"; exit 1; } && \
     python - <<'PY'
-import sys, torch, sgl_kernel
+import sys, glob, sysconfig, importlib.metadata, torch
 print(f"torch {torch.__version__}, cuda {torch.version.cuda}")
-print(f"sgl_kernel ok: {sgl_kernel.__file__}")
 if torch.version.cuda is None:
     sys.exit(f"expected a CUDA torch build, got {torch.__version__}")
 print(f"nccl: {torch.cuda.nccl.version()}")
+kv = importlib.metadata.version("sglang-kernel")
+print(f"sglang-kernel {kv}")
+sp = sysconfig.get_paths()["purelib"]
+sos = glob.glob(f"{sp}/sgl_kernel/sm90/common_ops*.so")
+if not sos:
+    sys.exit(f"sm90/common_ops*.so missing under {sp}/sgl_kernel — wrong arch wheel?")
+print(f"sm90 ops: {sos[0]}")
 PY
