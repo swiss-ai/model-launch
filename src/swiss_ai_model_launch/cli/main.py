@@ -210,9 +210,9 @@ def _build_parser() -> argparse.ArgumentParser:
     advanced_parser.add_argument(
         "--slurm-reservation",
         dest="reservation",
-        default=None,
+        default=os.environ.get("SML_RESERVATION"),
         metavar="RESERVATION",
-        help="SLURM reservation name (optional).",
+        help="SLURM reservation name (optional, env: SML_RESERVATION).",
     )
     advanced_parser.add_argument(
         "--served-model-name",

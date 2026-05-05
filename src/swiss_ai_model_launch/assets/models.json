@@ -7,11 +7,32 @@
     "framework_args": "--tensor-parallel-size 4"
   },
   {
+    "model": "google/gemma-3-27b-it",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--tensor-parallel-size 4"
+  },
+  {
     "model": "google/gemma-4-31B-it",
     "framework": "vllm",
     "environment": null,
     "nodes_per_worker": 1,
     "framework_args": "--tensor-parallel-size 4"
+  },
+  {
+    "model": "google/gemma-4-E2B-it",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--data-parallel-size 4"
+  },
+  {
+    "model": "google/gemma-4-E4B-it",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--data-parallel-size 4"
   },
   {
     "model": "MiniMaxAI/MiniMax-M2",
@@ -160,5 +181,26 @@
     "environment": null,
     "nodes_per_worker": 1,
     "framework_args": "--data-parallel-size 2 --tensor-parallel-size 2 --max-model-len 65536 --reasoning-parser qwen3"
+  },
+  {
+    "model": "Qwen/Qwen3-32B",
+    "framework": "sglang",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--tp-size 4 --enable-metrics"
+  },
+  {
+    "model": "allenai/Olmo-3.1-32B-Instruct",
+    "framework": "sglang",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--tp-size 4 --enable-metrics"
+  },
+  {
+    "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+    "framework": "sglang",
+    "environment": null,
+    "nodes_per_worker": 1,
+    "framework_args": "--tp-size 4 --reasoning-parser deepseek-r1 --enable-metrics"
   }
 ]
