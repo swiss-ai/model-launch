@@ -29,6 +29,10 @@ class LaunchArgs(BaseModel):
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
 
+    model: str | None = None
+    model_local_path: str | None = None
+    download_model_if_missing: bool = False
+
     @model_validator(mode="after")
     def set_defaults(self) -> "LaunchArgs":
         if self.nodes is None:

@@ -14,17 +14,17 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | --------------------------- | ----------------------- | ----------------------------------------------------------------- |
 | `--firecrest-system`        | `SML_FIRECREST_SYSTEM`  | Target HPC system                                                 |
 | `--partition`               | `SML_PARTITION`         | SLURM partition                                                   |
-| `--slurm-reservation`       | `SML_RESERVATION`       | SLURM reservation (optional)                                      |
+| `--slurm-reservation`       |                         | SLURM reservation (optional)                                      |
 | `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-nodes`             |                         | Total nodes (default: `replicas × nodes-per-replica`)             |
-| `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
-| `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
+| `--slurm-nodes`             |                         | Total nodes (default: `workers × nodes-per-worker`)               |
+| `--slurm-workers`           |                         | Number of workers / replicas (default: `1`)                       |
+| `--slurm-nodes-per-worker`  |                         | Nodes per worker (default: `1`)                                   |
 | `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `00:05:00`)                   |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--replica-port`            |                         | Port used by replicas (default: `5000`)                           |
-| `--use-router`              |                         | Enable router to load-balance across replicas                     |
+| `--worker-port`             |                         | Port used by workers (default: `5000`)                            |
+| `--use-router`              |                         | Enable router to load-balance across workers                      |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
@@ -35,8 +35,8 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-replicas 1 \
-  --slurm-nodes-per-replica 1 \
+  --slurm-workers 1 \
+  --slurm-nodes-per-worker 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
