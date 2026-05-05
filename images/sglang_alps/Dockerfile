@@ -40,28 +40,34 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
         "sglang[all]==${SGLANG_VERSION}" \
         "sglang-router==${SGLANG_ROUTER_VERSION}" \
         "flash-attn-4>=4.0.0b4" \
-        "nvidia-cutlass-dsl>=4.4.1" && \
+        "nvidia-cutlass-dsl>=4.4.1" \
+        "nvidia-cuda-nvrtc-cu12" && \
     uv pip uninstall --system nvidia-nccl-cu13 nvidia-nccl-cu12 \
                               nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas
 
-# Verify curl (for router health checks), assert torch is a CUDA build, and
-# confirm the sm90 common_ops .so was shipped in the installed kernel wheel.
-# We can't actually `import sgl_kernel` at build time — its loader probes the
-# GPU via libcuda.so.1, which isn't present without an NVIDIA runtime mount.
-# Checking the .so's presence on disk catches the "wrong wheel architecture"
-# failure mode (the bug this image fixes) without needing a GPU.
+# Verify curl (for router health checks), assert torch is a CUDA build, confirm
+# the sm90 common_ops .so was shipped in the installed kernel wheel, and resolve
+# its NEEDED libraries against the install set. We can't actually `import
+# sgl_kernel` at build time — its loader probes the GPU via libcuda.so.1, which
+# isn't present without an NVIDIA runtime mount. The ldd check + arch presence
+# check together catch both "wrong wheel arch" and "missing libnvrtc/libnvjit"
+# at build time, instead of at job launch.
 RUN command -v curl >/dev/null 2>&1 || { echo "curl missing from base image"; exit 1; } && \
     python - <<'PY'
-import sys, glob, sysconfig, importlib.metadata, torch
+import sys, glob, sysconfig, subprocess, importlib.metadata, torch
 print(f"torch {torch.__version__}, cuda {torch.version.cuda}")
 if torch.version.cuda is None:
     sys.exit(f"expected a CUDA torch build, got {torch.__version__}")
 print(f"nccl: {torch.cuda.nccl.version()}")
-kv = importlib.metadata.version("sglang-kernel")
-print(f"sglang-kernel {kv}")
+print(f"sglang-kernel {importlib.metadata.version('sglang-kernel')}")
 sp = sysconfig.get_paths()["purelib"]
 sos = glob.glob(f"{sp}/sgl_kernel/sm90/common_ops*.so")
 if not sos:
     sys.exit(f"sm90/common_ops*.so missing under {sp}/sgl_kernel — wrong arch wheel?")
 print(f"sm90 ops: {sos[0]}")
+ldd = subprocess.run(["ldd", sos[0]], capture_output=True, text=True).stdout
+missing = [ln.strip() for ln in ldd.splitlines() if "not found" in ln and "libcuda.so.1" not in ln]
+if missing:
+    sys.exit("unresolved deps in common_ops.so (libcuda.so.1 expected at runtime):\n  " + "\n  ".join(missing))
+print("ldd: all deps resolved (modulo libcuda.so.1)")
 PY
