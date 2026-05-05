@@ -2,7 +2,7 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --slurm-nodes 2 \
   --serving-framework sglang \
   --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
@@ -10,5 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --served-model-name openai/gpt-oss-120b-$(whoami) \
-    --tp-size 4 \
+    --tp-size 8 \
     --enable-metrics"
