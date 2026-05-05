@@ -10,5 +10,5 @@ sml advanced \
     --host 0.0.0.0 \
     --port 8080 \
     --served-model-name openai/gpt-oss-120b-$(whoami) \
-    --dp-size 4 \
+    --tp-size 4 \
     --enable-metrics"
