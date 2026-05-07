@@ -45,6 +45,20 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
     uv pip uninstall --system nvidia-nccl-cu13 nvidia-nccl-cu12 \
                               nvidia-cublas-cu13 nvidia-cublas-cu12 nvidia-cublas
 
+# Register pip-installed nvidia/* lib dirs in the dynamic linker cache.
+# The alps container hooks rewrite LD_LIBRARY_PATH at job launch to point at
+# host CUDA mounts, which removes the NGC base image's defaults — without
+# this ldconfig step, dlopen("libnvrtc.so.12") from sgl_kernel can't find
+# the wheel-shipped libs even though ldd resolved them at build time.
+RUN python - <<'PY' >/etc/ld.so.conf.d/zz-nvidia-pip.conf
+import sysconfig, glob, os
+sp = sysconfig.get_paths()["purelib"]
+for d in sorted(glob.glob(f"{sp}/nvidia/*/lib")):
+    if any(f.endswith(".so") or ".so." in f for f in os.listdir(d)):
+        print(d)
+PY
+RUN ldconfig && cat /etc/ld.so.conf.d/zz-nvidia-pip.conf
+
 # Verify curl (for router health checks), assert torch is a CUDA build, confirm
 # the sm90 common_ops .so was shipped in the installed kernel wheel, and resolve
 # its NEEDED libraries against the install set. We can't actually `import
@@ -70,4 +84,11 @@ missing = [ln.strip() for ln in ldd.splitlines() if "not found" in ln and "libcu
 if missing:
     sys.exit("unresolved deps in common_ops.so (libcuda.so.1 expected at runtime):\n  " + "\n  ".join(missing))
 print("ldd: all deps resolved (modulo libcuda.so.1)")
+# Confirm dlopen against ld.so.cache (LD_LIBRARY_PATH-independent) — this
+# catches the runtime-only failure where the alps hooks rewrite LD paths.
+ldcache = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True).stdout
+for needed in ["libnvrtc.so.12"]:
+    if needed not in ldcache:
+        sys.exit(f"{needed} not in ld.so.cache — dlopen will fail at runtime")
+    print(f"ld.so.cache has {needed}")
 PY
