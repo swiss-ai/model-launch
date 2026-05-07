@@ -1,11 +1,8 @@
 import secrets
 import string
-from importlib.resources import files
 from pathlib import Path
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-
-_SCRIPT_PATH = files("swiss_ai_model_launch.assets").joinpath("script.sh")
 
 
 def resolve_model_path(model: str, registry: Path, model_path: str | None = None) -> str:
@@ -23,10 +20,6 @@ def resolve_model_path(model: str, registry: Path, model_path: str | None = None
 
 def create_salt(length: int) -> str:
     return "".join(secrets.choice(string.ascii_letters) for _ in range(length))
-
-
-def get_job_script() -> str:
-    return _SCRIPT_PATH.read_text()
 
 
 def render_sbatch_header(launch_args: LaunchArgs) -> str:

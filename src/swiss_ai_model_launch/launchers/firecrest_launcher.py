@@ -6,6 +6,7 @@ from pathlib import Path
 
 import firecrest as f7t
 
+from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
@@ -13,7 +14,6 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
-    get_job_script,
     render_sbatch_header,
     resolve_model_path,
 )
@@ -149,12 +149,11 @@ class FirecRESTLauncher(Launcher):
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
         launch_args = launch_args.model_copy(update={"environment": remote_env_path, "reservation": self.reservation})
-        script_str = render_sbatch_header(launch_args) + get_job_script()
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args, embed_rank_scripts=True)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,
             working_dir=self._get_working_dir(),
             script_str=script_str,
-            env_vars=launch_args.to_job_env(),
             account=self.account,
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
@@ -172,12 +171,11 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
-        script_str = render_sbatch_header(launch_args) + get_job_script()
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args, embed_rank_scripts=True)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,
             working_dir=self._get_working_dir(),
             script_str=script_str,
-            env_vars=launch_args.to_job_env(),
             account=self.account,
         )
 

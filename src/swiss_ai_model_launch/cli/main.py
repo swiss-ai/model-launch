@@ -306,6 +306,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Launch the interactive TUI after submitting the job.",
     )
+    advanced_parser.add_argument(
+        "--output-script",
+        dest="output_script",
+        action="store_true",
+        help=(
+            "Render the job submission script (master.sh + rank scripts) to stdout "
+            "and exit without submitting. Useful for inspecting/debugging what would "
+            "be run. Pipe to a file: `sml advanced ... --output-script > job.sh`."
+        ),
+    )
 
     preconfigured_parser.add_argument(
         "--tui",
@@ -631,6 +641,18 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
+
+    if args.output_script:
+        from swiss_ai_model_launch.launchers.framework import render_master
+        from swiss_ai_model_launch.launchers.utils import render_sbatch_header
+
+        # Self-contained mode: rank scripts are embedded as cat-heredocs at
+        # the top of master, materialised to /tmp at job start. Output is a
+        # single runnable bash file the user can pipe to disk and inspect or
+        # sbatch directly.
+        print(render_sbatch_header(launch_args), end="")
+        print(render_master(launch_args, embed_rank_scripts=True), end="")
+        return
 
     launch_coro = launcher.launch_with_args(launch_args)
     if args.tui:

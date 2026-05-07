@@ -1,9 +1,9 @@
 import asyncio
 import json
-import os
 from importlib.resources import files
 from pathlib import Path
 
+from swiss_ai_model_launch.launchers.framework import MASTER_FILENAME, render_all
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
@@ -11,7 +11,6 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
-    get_job_script,
     resolve_model_path,
 )
 
@@ -93,18 +92,30 @@ class SlurmLauncher(Launcher):
         working_dir = self._get_working_dir()
         working_dir.mkdir(parents=True, exist_ok=True)
 
-        script_path = working_dir / f"job_{launch_args.job_name}.sh"
-        script_path.write_text("#!/bin/bash\n" + get_job_script())
+        # Each job gets its own subdirectory holding master.sh + rank scripts.
+        # Using a per-job dir keeps debug/forensic state contained: after a job
+        # finishes you can `cat ~/.sml/job_<name>/{master,head,follower}.sh`
+        # to see exactly what ran.
+        job_dir = working_dir / f"job_{launch_args.job_name}"
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        files = render_all(launch_args)
+        for filename, content in files.items():
+            path = job_dir / filename
+            # Master gets a #!/bin/bash shebang (rank scripts already have one).
+            text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
+            path.write_text(text)
+            path.chmod(0o755)
+        master_path = job_dir / MASTER_FILENAME
 
         proc = await asyncio.create_subprocess_exec(
             "sbatch",
             "--chdir",
             str(working_dir),
             *launch_args.to_sbatch_args(),
-            str(script_path),
+            str(master_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, **launch_args.to_job_env()},
         )
         stdout, stderr = await proc.communicate()
 
