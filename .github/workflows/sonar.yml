@@ -1,0 +1,31 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Fetch full history so SonarCloud can attribute issues by blame.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+
+      - name: Run unit tests with coverage (no cluster creds required)
+        run: uv run pytest tests/unit/ --cov=src --cov-report=xml --cov-report=term-missing
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
