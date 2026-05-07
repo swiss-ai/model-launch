@@ -2,7 +2,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
   --slurm-reservation SD-69241-apertus-1-5 \
   --slurm-time 12:00:00 \
   --serving-framework vllm \
@@ -12,7 +11,6 @@ sml advanced \
     --tokenizer /capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_instruct \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
-    --port 8080 \
     --trust-remote-code \
     --trust-request-chat-template \
     --max-model-len 8192 \

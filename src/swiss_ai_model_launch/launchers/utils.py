@@ -36,7 +36,7 @@ def render_sbatch_header(launch_args: LaunchArgs) -> str:
         f"#SBATCH --account={launch_args.account}",
         f"#SBATCH --time={launch_args.time}",
         "#SBATCH --exclusive",
-        f"#SBATCH --nodes={launch_args.nodes}",
+        f"#SBATCH --nodes={launch_args.total_nodes}",
         f"#SBATCH --partition={launch_args.partition}",
     ]
     if launch_args.reservation:

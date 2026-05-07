@@ -5,6 +5,7 @@ from swiss_ai_model_launch.launchers import (
     Launcher,
     LaunchRequest,
     SlurmLauncher,
+    Topology,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "LaunchRequest",
     "Launcher",
     "SlurmLauncher",
+    "Topology",
 ]
