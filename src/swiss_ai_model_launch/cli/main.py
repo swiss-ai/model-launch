@@ -391,20 +391,39 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
 async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | None = None) -> LaunchRequest:
     catalogue = await launcher.get_preconfigured_models()
 
+    framework_count: dict[str, int] = {}
+    for entry in catalogue:
+        framework_count[entry.model] = framework_count.get(entry.model, 0) + 1
+
+    def _label_for(entry: ModelCatalogEntry) -> str:
+        if framework_count[entry.model] > 1:
+            return f"{entry.model} ({entry.framework})"
+        return entry.model
+
+    def _parse_model_label(label: str) -> tuple[str, str | None]:
+        match = re.match(r"^(.*) \(([^()]+)\)$", label)
+        if match:
+            return match.group(1), match.group(2)
+        return label, None
+
     async def _get_vendor_models() -> dict[str, tuple[str, str]]:
         seen: dict[str, tuple[str, str]] = {}
         for entry in catalogue:
-            if entry.model not in seen:
-                seen[entry.model] = (entry.model, entry.model)
-        return seen
+            label = _label_for(entry)
+            if label not in seen:
+                seen[label] = (label, "")
+        return dict(sorted(seen.items()))
 
     async def _get_frameworks(
         get_value_from_context: GetValueFn,
     ) -> dict[str, tuple[str, str]]:
-        model = get_value_from_context("model")
-        if model is None:
+        model_label = get_value_from_context("model")
+        if model_label is None:
             return {}
-        return {entry.framework: (entry.framework, entry.framework) for entry in catalogue if entry.model == model}
+        model, framework = _parse_model_label(model_label)
+        if framework is not None:
+            return {framework: (framework, "")}
+        return {entry.framework: (entry.framework, "") for entry in catalogue if entry.model == model}
 
     launch_req_config = _make_launch_request_config(
         vendor_models_factory=_get_vendor_models,
@@ -413,7 +432,8 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
     )
     await launch_req_config.aconfigure(args=args)
 
-    model = launch_req_config.get_non_none_value("model")
+    model_label = launch_req_config.get_non_none_value("model")
+    model, _ = _parse_model_label(model_label)
     framework = launch_req_config.get_non_none_value("framework")
     catalogue_entry: ModelCatalogEntry | None = next(
         (e for e in catalogue if e.model == model and e.framework == framework),
