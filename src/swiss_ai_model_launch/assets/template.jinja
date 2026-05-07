@@ -149,13 +149,19 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
 
         # For vLLM multi-node with Ray: only the head node runs the API server,
         # follower nodes just run a Ray worker and sleep.
+        RAY_HEAD_SCRIPT_SETUP=""
         if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
             RAY_PORT=6379
             NUM_GPUS=4
 
             if [ $local_rank -eq 0 ]; then
-                # Head node: start Ray head, wait for all workers, then launch vLLM
-                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
+                # Head node: write the ray-head script to a path the container
+                # can see (writable /tmp via --container-writable). Single-quoted
+                # heredoc delimiter keeps $! / $(...) / ${VAR} from being
+                # expanded by the inner shell or the OCF --subprocess wrapper.
+                RAY_HEAD_SCRIPT="/tmp/sml-ray-head-${SLURM_JOB_ID}-w${worker_id}.sh"
+                RAY_HEAD_SCRIPT_SETUP="cat > ${RAY_HEAD_SCRIPT} <<'__SML_RAY_HEAD_EOF__'
+ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
 RAY_HEAD_PID=\$!
 
 echo 'Waiting for all Ray worker nodes to connect...'
@@ -170,7 +176,9 @@ while true; do
     sleep 5
 done
 
-$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS
+__SML_RAY_HEAD_EOF__"
+                FRAMEWORK_CMD_OVERRIDE="bash ${RAY_HEAD_SCRIPT}"
             else
                 # Follower node: join Ray cluster and sleep forever
                 FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
@@ -200,10 +208,12 @@ if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     echo \"Running pre-launch commands...\"
     eval \"$PRE_LAUNCH_CMDS\"
 fi
+$RAY_HEAD_SCRIPT_SETUP
 $FRAMEWORK_CMD" &
 
         # Reset override for next iteration
         FRAMEWORK_CMD_OVERRIDE=""
+        RAY_HEAD_SCRIPT_SETUP=""
     done
 done
 

@@ -1,13 +1,12 @@
 image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_cuda13.sqsh"
 
 mounts = [
-  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
-  "/capstor",
-  "/iopsstor",
-  "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
-  "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
-  "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
-  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin:ro,rprivate",
+  "/capstor/store/cscs/swissai/infra01:/capstor/store/cscs/swissai/infra01:ro,rprivate",
+  "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15:ro,rprivate",
+  "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0:ro,rprivate",
+  "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2:ro,rprivate",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1:ro,rprivate",
 ]
 
 workdir = "/opt"

@@ -67,7 +67,16 @@
     "framework": "sglang",
     "environment": null,
     "nodes_per_worker": 2,
-    "framework_args": "--tp-size 8 --enable-metrics"
+    "framework_args": "--tp-size 8 --enable-metrics",
+    "_include_in_standard_ci": true
+  },
+  {
+    "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_worker": 2,
+    "framework_args": "--tensor-parallel-size 8",
+    "_include_in_standard_ci": true
   },
   {
     "model": "Qwen/Qwen3.5-397B-A17B",

@@ -81,8 +81,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
   "lightweight: lightweight integration tests (triggered automatically)",
-  "medium: full models.json matrix (triggered on label)",
-  "full: medium + examples/cli/*.sh scripts (triggered on label)",
+  "standard: full models.json matrix (triggered on requires-std-ci label)",
+  "full: standard + examples/cli/*.sh scripts (triggered on requires-comprehensive-ci label)",
 ]
 
 [tool.coverage.run]

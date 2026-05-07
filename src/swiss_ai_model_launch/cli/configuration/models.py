@@ -226,7 +226,7 @@ class OptionsConfiguration(_ResolvableConfiguration):
         return questionary.select(
             self.prompt or self.name,
             choices=[
-                questionary.Choice(title=title, value=value, description=description)
+                questionary.Choice(title=title, value=value, description=description or None)
                 for value, (title, description) in options.items()
             ],
         )
