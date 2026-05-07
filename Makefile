@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-medium _test-comprehensive test-lightweight test-medium test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-standard _test-comprehensive test-lightweight test-standard test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
 
 install-dev:
 	uv venv --python 3.12
@@ -55,8 +55,8 @@ test:
 _test-lightweight:
 	uv run --frozen pytest -m lightweight --cov --cov-report=term-missing -n auto
 
-_test-medium:
-	uv run --frozen pytest -m medium --cov --cov-report=term-missing -n auto
+_test-standard:
+	uv run --frozen pytest -m standard --cov --cov-report=term-missing -n auto
 
 _test-comprehensive:
 	uv run --frozen pytest -m full --cov --cov-report=term-missing -n auto
@@ -64,8 +64,8 @@ _test-comprehensive:
 test-lightweight:
 	. ./.test.sh && $(MAKE) _test-lightweight
 
-test-medium:
-	. ./.test.sh && $(MAKE) _test-medium
+test-standard:
+	. ./.test.sh && $(MAKE) _test-standard
 
 test-comprehensive:
 	. ./.test.sh && $(MAKE) _test-comprehensive

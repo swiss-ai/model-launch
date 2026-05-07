@@ -105,7 +105,11 @@ jobs:
   test-lightweight:
     name: Integration Tests (lightweight)
     needs: [detect-changes, build]
-    if: always() && needs.build.result != 'failure'
+    if: |
+      always() &&
+      needs.build.result != 'failure' &&
+      !contains(github.event.pull_request.labels.*.name, 'requires-std-ci') &&
+      !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-ci')
     runs-on: ubuntu-latest
     env:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
@@ -123,13 +127,14 @@ jobs:
           python-version: "3.12"
       - run: make _test-lightweight
 
-  test-medium:
-    name: Integration Tests (medium)
+  test-standard:
+    name: Integration Tests (standard)
     needs: [detect-changes, build]
     if: |
       always() &&
       needs.build.result != 'failure' &&
-      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-medium-tests'))
+      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-std-ci')) &&
+      !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-ci')
     runs-on: ubuntu-latest
     env:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
@@ -145,7 +150,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           python-version: "3.12"
-      - run: make _test-medium
+      - run: make _test-standard
 
   test-comprehensive:
     name: Integration Tests (comprehensive)
@@ -153,7 +158,7 @@ jobs:
     if: |
       always() &&
       needs.build.result != 'failure' &&
-      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-full-tests'))
+      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-ci'))
     runs-on: ubuntu-latest
     env:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
