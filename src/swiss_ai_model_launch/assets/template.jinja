@@ -149,17 +149,30 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
 
         # For vLLM multi-node with Ray: only the head node runs the API server,
         # follower nodes just run a Ray worker and sleep.
+        RAY_HEAD_SCRIPT_SETUP=""
         if [ "$FRAMEWORK" = "vllm" ] && [ "$NODES_PER_WORKER" -gt 1 ]; then
             RAY_PORT=6379
             NUM_GPUS=4
 
             if [ $local_rank -eq 0 ]; then
-                # Head node: start Ray head, wait for all workers, then launch vLLM
-                FRAMEWORK_CMD_OVERRIDE="ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
+                # Head node: start Ray head, wait for all workers, then launch
+                # vLLM. The container only bind-mounts a couple of read-only
+                # paths, so the script must be created from *inside* the
+                # container (writable /tmp via --container-writable).
+                # RAY_HEAD_SCRIPT_SETUP is a cat-heredoc that the inner bash -c
+                # runs before the OCF wrapper. The heredoc uses a single-quoted
+                # delimiter so $!, $(...), ${VAR} survive into the file
+                # untouched — the outer shell only fills in concrete values
+                # (RAY_PORT, NUM_GPUS, expected_gpus, FRAMEWORK_LAUNCH,
+                # FRAMEWORK_ARGS) that are known at submit time.
+                expected_gpus=$((NODES_PER_WORKER * NUM_GPUS))
+                RAY_HEAD_SCRIPT_PATH="/tmp/sml-ray-head-${SLURM_JOB_ID}-w${worker_id}.sh"
+                RAY_HEAD_SCRIPT_SETUP="cat > ${RAY_HEAD_SCRIPT_PATH} <<'__SML_RAY_HEAD_EOF__'
+ray start --head --port=${RAY_PORT} --num-gpus=${NUM_GPUS} --block &
 RAY_HEAD_PID=\$!
 
 echo 'Waiting for all Ray worker nodes to connect...'
-EXPECTED_GPUS=\$((${NODES_PER_WORKER} * ${NUM_GPUS}))
+EXPECTED_GPUS=${expected_gpus}
 while true; do
     AVAILABLE_GPUS=\$(python3 -c 'import ray; ray.init(address=\"auto\"); print(int(ray.available_resources().get(\"GPU\", 0)))' 2>/dev/null || echo 0)
     echo \"Available GPUs: \${AVAILABLE_GPUS} / \${EXPECTED_GPUS}\"
@@ -170,7 +183,9 @@ while true; do
     sleep 5
 done
 
-$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+${FRAMEWORK_LAUNCH} --distributed-executor-backend ray ${FRAMEWORK_ARGS}
+__SML_RAY_HEAD_EOF__"
+                FRAMEWORK_CMD_OVERRIDE="bash ${RAY_HEAD_SCRIPT_PATH}"
             else
                 # Follower node: join Ray cluster and sleep forever
                 FRAMEWORK_CMD_OVERRIDE="ray start --address=${worker_host_ip}:${RAY_PORT} --num-gpus=${NUM_GPUS} --block"
@@ -200,10 +215,12 @@ if [ -n \"$PRE_LAUNCH_CMDS\" ]; then
     echo \"Running pre-launch commands...\"
     eval \"$PRE_LAUNCH_CMDS\"
 fi
+$RAY_HEAD_SCRIPT_SETUP
 $FRAMEWORK_CMD" &
 
         # Reset override for next iteration
         FRAMEWORK_CMD_OVERRIDE=""
+        RAY_HEAD_SCRIPT_SETUP=""
     done
 done
 
