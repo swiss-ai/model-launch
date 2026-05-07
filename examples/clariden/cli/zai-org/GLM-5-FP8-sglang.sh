@@ -16,4 +16,5 @@ sml advanced \
     --speculative-num-steps 3 \
     --speculative-eagle-topk 1 \
     --speculative-num-draft-tokens 4 \
-    --mem-fraction-static 0.85"
+    --mem-fraction-static 0.85 \
+    --enable-metrics"

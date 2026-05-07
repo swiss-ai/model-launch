@@ -238,9 +238,9 @@ def _build_parser() -> argparse.ArgumentParser:
     advanced_parser.add_argument(
         "--slurm-reservation",
         dest="reservation",
-        default=None,
+        default=os.environ.get("SML_RESERVATION"),
         metavar="RESERVATION",
-        help="SLURM reservation name (optional).",
+        help="SLURM reservation name (optional, env: SML_RESERVATION).",
     )
     advanced_parser.add_argument(
         "--served-model-name",
@@ -282,6 +282,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable OCF.",
     )
     advanced_parser.add_argument(
+        "--disable-dcgm-exporter",
+        dest="disable_dcgm_exporter",
+        action="store_true",
+        help="Disable the DCGM exporter.",
+    )
+    advanced_parser.add_argument(
+        "--disable-metrics",
+        dest="disable_metrics",
+        action="store_true",
+        help="Disable metrics collection.",
+    )
+    advanced_parser.add_argument(
         "--pre-launch-cmds",
         dest="pre_launch_cmds",
         default="",
@@ -321,6 +333,7 @@ def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFi
             client_id=config.get_non_none_value("firecrest_client_id"),
             client_secret=config.get_non_none_value("firecrest_client_secret"),
             token_uri=config.get_non_none_value("firecrest_token_uri"),
+            min_token_validity=90,
         ),
     )
 
@@ -614,6 +627,8 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
+        disable_dcgm_exporter=args.disable_dcgm_exporter,
+        disable_metrics=args.disable_metrics,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 

@@ -8,4 +8,4 @@ sml advanced \
     --served-model-name HuggingFaceTB/SmolLM3-3B-$(whoami) \
     --dp-size 4 \
     --host 0.0.0.0 \
-    "
+    --enable-metrics"

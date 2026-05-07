@@ -12,4 +12,4 @@ sml advanced \
     --served-model-name deepseek-ai/DeepSeek-V3.1-$(whoami) \
     --tp-size 16 \
     --host 0.0.0.0 \
-    "
+    --enable-metrics"

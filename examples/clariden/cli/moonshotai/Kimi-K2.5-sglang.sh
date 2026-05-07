@@ -12,4 +12,5 @@ sml advanced \
     --host 0.0.0.0 \
     --trust-remote-code \
     --tool-call-parser kimi_k2 \
-    --reasoning-parser kimi_k2"
+    --reasoning-parser kimi_k2 \
+    --enable-metrics"

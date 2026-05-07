@@ -13,4 +13,5 @@ sml advanced \
     --tp-size 16 \
     --host 0.0.0.0 \
     --trust-remote-code \
-    --tool-call-parser kimi_k2"
+    --tool-call-parser kimi_k2 \
+    --enable-metrics"

@@ -43,7 +43,8 @@ async def launch_model(launcher: SlurmLauncher, model: dict[str, str | int]) -> 
         framework_args=(
             f"--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/{vendor}/{name} "
             f"--served-model-name {served} "
-            "--host 0.0.0.0 " + str(model.get("framework_args", ""))
+            "--host 0.0.0.0 "
+            "--enable-metrics " + str(model.get("framework_args", ""))
         ),
         nodes=model.get("nodes", 1),
         time="02:00:00",

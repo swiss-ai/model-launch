@@ -17,4 +17,5 @@ sml advanced \
     --served-model-name zai-org/GLM-4.6-$(whoami) \
     --trust-remote-code \
     --tool-call-parser glm45 \
-    --reasoning-parser glm45"
+    --reasoning-parser glm45 \
+    --enable-metrics"

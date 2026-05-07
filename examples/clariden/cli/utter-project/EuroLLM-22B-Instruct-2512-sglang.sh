@@ -8,4 +8,4 @@ sml advanced \
     --served-model-name utter-project/EuroLLM-22B-Instruct-2512-$(whoami) \
     --dp-size 4 \
     --host 0.0.0.0 \
-    "
+    --enable-metrics"
