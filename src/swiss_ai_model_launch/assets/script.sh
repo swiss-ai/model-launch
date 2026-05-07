@@ -71,12 +71,22 @@ _vllm_replica_cmd() {
     local local_rank=$1 replica_head_ip=$2
     local ray_port=6379 num_gpus=4
 
+    # Cleared by default; the head-rank multi-node branch fills it in. Read by
+    # the inner srun bash invocation to materialise the ray-head script on disk
+    # before launching it.
+    RAY_HEAD_SCRIPT_SETUP=""
+
     if [[ "$NODES_PER_REPLICA" -gt 1 ]]; then
         # For multi-node: only the head node runs the API server via Ray;
         # follower nodes join the Ray cluster and block.
         if [[ "$local_rank" -eq 0 ]]; then
-            FRAMEWORK_CMD="ray start --head --port=${ray_port} --num-gpus=${num_gpus} --block &
-
+            # Head node: write the ray-head script to a path the container can
+            # see (writable /tmp via --container-writable). Single-quoted
+            # heredoc delimiter keeps $! / $(...) / ${VAR} from being expanded
+            # by the inner shell or the OCF --subprocess wrapper.
+            local ray_head_script="/tmp/sml-ray-head-${SLURM_JOB_ID}-r${replica_id}.sh"
+            RAY_HEAD_SCRIPT_SETUP="cat > ${ray_head_script} <<'__SML_RAY_HEAD_EOF__'
+ray start --head --port=${ray_port} --num-gpus=${num_gpus} --block &
 echo 'Waiting for all Ray nodes to connect...'
 EXPECTED_GPUS=\$((${NODES_PER_REPLICA} * ${num_gpus}))
 while true; do
@@ -88,8 +98,9 @@ while true; do
     fi
     sleep 5
 done
-
-$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
+$FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS
+__SML_RAY_HEAD_EOF__"
+            FRAMEWORK_CMD="bash ${ray_head_script}"
         else
             FRAMEWORK_CMD="ray start --address=${replica_head_ip}:${ray_port} --num-gpus=${num_gpus} --block"
         fi
@@ -133,6 +144,7 @@ for ((replica_id=0; replica_id<REPLICAS; replica_id++)); do
 
     for ((local_rank=0; local_rank<NODES_PER_REPLICA; local_rank++)); do
         node=${nodes[$((start_node + local_rank))]}
+        RAY_HEAD_SCRIPT_SETUP=""
 
         case "$FRAMEWORK" in
             sglang) _sglang_replica_cmd "$local_rank" "$replica_head_ip" ;;
@@ -154,6 +166,7 @@ if [[ -n \"$PRE_LAUNCH_CMDS\" ]]; then
     echo \"Running pre-launch commands...\"
     eval \"$PRE_LAUNCH_CMDS\"
 fi
+$RAY_HEAD_SCRIPT_SETUP
 $FRAMEWORK_CMD" &
     done
 done
