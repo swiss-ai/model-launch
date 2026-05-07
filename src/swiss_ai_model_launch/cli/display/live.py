@@ -61,6 +61,7 @@ class _SMLApp(App[bool]):
         super().__init__()
         self._state = state
         self._work = work
+        self._heart_visible = True
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -75,6 +76,13 @@ class _SMLApp(App[bool]):
     async def on_mount(self) -> None:
         self._state._on_change = self._refresh_all
         self.run_worker(self._work, exclusive=True)
+        self.set_interval(0.6, self._beat_heart)
+
+    def _beat_heart(self) -> None:
+        if self._state.model_health != ModelHealth.HEALTHY:
+            return
+        self._heart_visible = not self._heart_visible
+        self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -102,6 +110,9 @@ class _SMLApp(App[bool]):
     def _render_status(self) -> Table:
         s = self._state
         job_status = _JOB_STATUS_STYLE[s.job_status] if s.job_status is not None else "[dim]—[/dim]"
+        model_health = _MODEL_HEALTH_STYLE[s.model_health]
+        if s.model_health == ModelHealth.HEALTHY:
+            model_health += " 💚" if self._heart_visible else "   "
         table = Table.grid(expand=True, padding=(0, 2))
         table.add_column(ratio=1)
         table.add_column(ratio=1)
@@ -115,7 +126,7 @@ class _SMLApp(App[bool]):
         )
         table.add_row(
             f"[bold]Job Status:[/bold] {job_status}",
-            f"[bold]Model Health:[/bold] {_MODEL_HEALTH_STYLE[s.model_health]}",
+            f"[bold]Model Health:[/bold] {model_health}",
         )
         return table
 
