@@ -18,10 +18,8 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
   --slurm-time 6:00:00 \
   --serving-framework vllm \
-  --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --pre-launch-cmds "pip install librosa audioread" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
@@ -29,7 +27,6 @@ sml advanced \
     --data-parallel-size 4 \
     --tensor-parallel-size 1 \
     --host 0.0.0.0 \
-    --port 8080 \
     --dtype bfloat16 \
     --max-model-len 32768 \
     --trust-remote-code"

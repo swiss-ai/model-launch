@@ -2,13 +2,10 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
   --slurm-time 12:00:00 \
   --serving-framework sglang \
-  --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/allenai/Olmo-3.1-32B-Instruct \
     --host 0.0.0.0 \
-    --port 8080 \
     --served-model-name allenai/Olmo-3.1-32B-Instruct-$(whoami) \
     --tp-size 4"
