@@ -3,6 +3,7 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes-per-replica 2 \
+  --slurm-time 02:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3-235B-A22B-Instruct-2507 \
