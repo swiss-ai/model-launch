@@ -483,17 +483,24 @@ MASTER_FILENAME = "master.sh"
 
 
 def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
-    """Bash that materialises rank scripts to a per-job tmp dir at run time.
+    """Bash that materialises rank scripts to a per-job dir on shared FS.
 
     Used by launchers (firecrest) that submit a single script_str rather
     than a directory of files. Each script is laid down via a single-quoted
     heredoc so its body lands on disk verbatim.
+
+    The location must be on a filesystem visible to every compute node — the
+    master runs `cat` on the batch node but later srun-dispatches to compute
+    nodes which need to see the same files. ``$HOME/.sml/...`` is shared
+    across batch and compute nodes on CSCS systems; ``/tmp`` is per-node and
+    would break.
     """
     blocks = [
         "# Self-extract rank scripts: this master.sh was submitted standalone\n"
-        "# (no sibling files), so we materialise the rank scripts to /tmp at\n"
-        "# job start time. The single-quoted heredoc keeps the body literal.",
-        'RANKS_DIR="/tmp/sml-${SLURM_JOB_ID}"',
+        "# (no sibling files), so we materialise the rank scripts under HOME\n"
+        "# (shared FS, visible to all compute nodes) at job start time. The\n"
+        "# single-quoted heredoc keeps each body literal.",
+        'RANKS_DIR="$HOME/.sml/job-${SLURM_JOB_ID}"',
         'mkdir -p "$RANKS_DIR"',
     ]
     for filename, content in rank_scripts.items():
