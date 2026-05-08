@@ -517,27 +517,21 @@ def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
     return "\n\n".join(blocks)
 
 
-def render_master(launch_args: LaunchArgs, *, embed_rank_scripts: bool = False) -> str:
+def render_master(launch_args: LaunchArgs) -> str:
     """Render ``master.sh`` content (without ``#SBATCH`` header — launchers
     attach those via CLI args or :func:`render_sbatch_header`).
 
-    When ``embed_rank_scripts=True`` the rank scripts are inlined as
-    self-extracting cat-heredocs at the top, materialised to ``/tmp`` at
-    job start. Use this for launchers (firecrest) that submit a single
-    script string; for slurm we write files to disk and reference them.
+    Rank scripts are always inlined as self-extracting cat-heredocs at the
+    top of master.sh and materialised at job start to a per-job dir under
+    ``$HOME/.sml/``. We can't use ``$(dirname $0)`` to find sibling files
+    because SLURM copies the batch script to ``/var/spool/slurmd/job<id>/``
+    before running, so ``$0`` doesn't point at the original location.
     """
     sections: list[str] = [
         "# shellcheck shell=bash",
         "set -euo pipefail",
+        _render_self_extracting_ranks(render_rank_scripts(launch_args)),
     ]
-    if embed_rank_scripts:
-        sections.append(_render_self_extracting_ranks(render_rank_scripts(launch_args)))
-    else:
-        sections.append(
-            "# Rank scripts live next to this file. master.sh is dispatched\n"
-            "# by SLURM and the rank scripts are siblings in the same dir.\n"
-            'RANKS_DIR="$(dirname "$(readlink -f "$0")")"'
-        )
 
     telemetry = _render_telemetry(launch_args)
     if telemetry:

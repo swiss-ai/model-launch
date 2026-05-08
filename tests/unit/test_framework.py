@@ -6,11 +6,9 @@ from pathlib import Path
 import pytest
 
 from swiss_ai_model_launch.launchers.framework import (
-    MASTER_FILENAME,
     Sglang,
     Vllm,
     _make_framework,
-    render_all,
     render_master,
     render_rank_scripts,
 )
@@ -148,11 +146,24 @@ def test_master_replica_loop_unrolled():
             assert f"# replica {r}, rank {k} ({role})" in master
 
 
-def test_embed_rank_scripts_inlines_via_cat_heredocs():
+def test_master_self_extracts_rank_scripts():
     args = _make_args(framework="vllm", topology=Topology(replicas=1, nodes_per_replica=4))
-    embedded = render_master(args, embed_rank_scripts=True)
-    assert 'cat > "$RANKS_DIR/head.sh"' in embedded
-    assert 'cat > "$RANKS_DIR/follower.sh"' in embedded
+    master = render_master(args)
+    assert 'cat > "$RANKS_DIR/head.sh"' in master
+    assert 'cat > "$RANKS_DIR/follower.sh"' in master
+    assert 'RANKS_DIR="$HOME/.sml/job-${SLURM_JOB_ID}"' in master
+
+
+def test_master_binds_ranks_dir_into_container():
+    """Each srun must bind-mount RANKS_DIR so the rank script is visible
+    inside the pyxis container — see the vllm.toml mount restrictions."""
+    args = _make_args(framework="vllm", topology=Topology(replicas=2, nodes_per_replica=4))
+    master = render_master(args)
+    # Every srun line should have the --container-mounts flag for $RANKS_DIR.
+    srun_lines = [ln for ln in master.splitlines() if "--container-mounts" in ln]
+    assert len(srun_lines) >= 1
+    for ln in srun_lines:
+        assert "$RANKS_DIR:$RANKS_DIR" in ln
 
 
 # ── env_exports ────────────────────────────────────────────────────────────
@@ -211,16 +222,16 @@ def test_rendered_scripts_pass_bash_n(
         disable_ocf=disable_ocf,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )
-    files = render_all(args)
-    for filename, content in files.items():
+    master_path = tmp_path / "master.sh"
+    master_path.write_text("#!/bin/bash\n" + render_master(args))
+    result = subprocess.run(["bash", "-n", str(master_path)], capture_output=True)
+    assert result.returncode == 0, f"bash -n failed for master.sh:\n{result.stderr.decode()}"
+    # Also bash -n each individual rank script (renders should be standalone-valid).
+    for filename, content in render_rank_scripts(args).items():
         path = tmp_path / filename
-        # Master gets the shebang the launcher would have prepended.
-        text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
-        path.write_text(text)
-        result = subprocess.run(["bash", "-n", str(path)], capture_output=True)
-        assert result.returncode == 0, (
-            f"bash -n failed for {filename}:\n{result.stderr.decode()}\n--- content ---\n{text}"
-        )
+        path.write_text(content)
+        r = subprocess.run(["bash", "-n", str(path)], capture_output=True)
+        assert r.returncode == 0, f"bash -n failed for {filename}:\n{r.stderr.decode()}"
 
 
 @pytest.mark.skipif(not _HAS_SHELLCHECK, reason="shellcheck not installed")
@@ -241,45 +252,15 @@ def test_rendered_scripts_pass_shellcheck(
         disable_ocf=disable_ocf,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )
-    files = render_all(args)
-    for filename, content in files.items():
-        path = tmp_path / filename
-        text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
-        path.write_text(text)
-        result = subprocess.run(
-            ["shellcheck", "-S", "warning", str(path)],
-            capture_output=True,
-        )
-        assert result.returncode == 0, (
-            f"shellcheck failed for {filename}:\n{result.stdout.decode()}\n--- content ---\n{text}"
-        )
-
-
-@pytest.mark.skipif(not _HAS_SHELLCHECK, reason="shellcheck not installed")
-@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_ocf,telemetry", _MATRIX_CONFIGS)
-def test_embedded_master_passes_shellcheck(
-    tmp_path: Path,
-    framework: str,
-    replicas: int,
-    npr: int,
-    use_router: bool,
-    disable_ocf: bool,
-    telemetry: bool,
-):
-    """The firecrest path produces a single self-extracting master.sh — make
-    sure that variant is also shellcheck-clean."""
-    args = _make_args(
-        framework=framework,
-        topology=Topology(replicas=replicas, nodes_per_replica=npr),
-        use_router=use_router,
-        disable_ocf=disable_ocf,
-        telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
-    )
-    embedded = render_master(args, embed_rank_scripts=True)
-    path = tmp_path / "master_embedded.sh"
-    path.write_text("#!/bin/bash\n" + embedded)
+    master_path = tmp_path / "master.sh"
+    master_path.write_text("#!/bin/bash\n" + render_master(args))
     result = subprocess.run(
-        ["shellcheck", "-S", "warning", str(path)],
+        ["shellcheck", "-S", "warning", str(master_path)],
         capture_output=True,
     )
-    assert result.returncode == 0, f"shellcheck failed for embedded master:\n{result.stdout.decode()}"
+    assert result.returncode == 0, f"shellcheck failed for master.sh:\n{result.stdout.decode()}"
+    for filename, content in render_rank_scripts(args).items():
+        path = tmp_path / filename
+        path.write_text(content)
+        r = subprocess.run(["shellcheck", "-S", "warning", str(path)], capture_output=True)
+        assert r.returncode == 0, f"shellcheck failed for {filename}:\n{r.stdout.decode()}"

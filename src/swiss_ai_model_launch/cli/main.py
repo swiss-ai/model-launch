@@ -672,7 +672,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         # single runnable bash file the user can pipe to disk and inspect or
         # sbatch directly.
         print(render_sbatch_header(launch_args), end="")
-        print(render_master(launch_args, embed_rank_scripts=True), end="")
+        print(render_master(launch_args), end="")
         return
 
     launch_coro = launcher.launch_with_args(launch_args)

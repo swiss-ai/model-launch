@@ -3,7 +3,7 @@ import json
 from importlib.resources import files
 from pathlib import Path
 
-from swiss_ai_model_launch.launchers.framework import MASTER_FILENAME, render_all
+from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
@@ -92,28 +92,19 @@ class SlurmLauncher(Launcher):
         working_dir = self._get_working_dir()
         working_dir.mkdir(parents=True, exist_ok=True)
 
-        # Each job gets its own subdirectory holding master.sh + rank scripts.
-        # Using a per-job dir keeps debug/forensic state contained: after a job
-        # finishes you can `cat ~/.sml/job_<name>/{master,head,follower}.sh`
-        # to see exactly what ran.
-        job_dir = working_dir / f"job_{launch_args.job_name}"
-        job_dir.mkdir(parents=True, exist_ok=True)
-
-        files = render_all(launch_args)
-        for filename, content in files.items():
-            path = job_dir / filename
-            # Master gets a #!/bin/bash shebang (rank scripts already have one).
-            text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
-            path.write_text(text)
-            path.chmod(0o755)
-        master_path = job_dir / MASTER_FILENAME
+        # Master.sh self-extracts its rank scripts at job start time
+        # (under $HOME/.sml/job-${SLURM_JOB_ID}/). We only write master
+        # locally so sbatch has something to submit.
+        script_path = working_dir / f"job_{launch_args.job_name}.sh"
+        script_path.write_text("#!/bin/bash\n" + render_master(launch_args))
+        script_path.chmod(0o755)
 
         proc = await asyncio.create_subprocess_exec(
             "sbatch",
             "--chdir",
             str(working_dir),
             *launch_args.to_sbatch_args(),
-            str(master_path),
+            str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

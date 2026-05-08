@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from swiss_ai_model_launch.cli.main import _build_parser, build_launch_args_from_advanced
-from swiss_ai_model_launch.launchers.framework import MASTER_FILENAME, render_all
+from swiss_ai_model_launch.launchers.framework import render_master, render_rank_scripts
 
 _HAS_SHELLCHECK = shutil.which("shellcheck") is not None
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -71,12 +71,15 @@ def test_example_renders_valid_bash(tmp_path: Path, example_path: str):
         partition="normal",
     )
 
-    files = render_all(launch_args)
-    for filename, content in files.items():
-        path = tmp_path / filename
-        text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
-        path.write_text(text)
-
+    master_path = tmp_path / "master.sh"
+    master_path.write_text("#!/bin/bash\n" + render_master(launch_args))
+    rank_paths = []
+    for filename, content in render_rank_scripts(launch_args).items():
+        p = tmp_path / filename
+        p.write_text(content)
+        rank_paths.append(p)
+    files = {"master.sh": master_path, **{p.name: p for p in rank_paths}}
+    for filename, path in files.items():
         result = subprocess.run(["bash", "-n", str(path)], capture_output=True)
         assert result.returncode == 0, f"bash -n failed for {example_path} → {filename}:\n{result.stderr.decode()}"
 
@@ -95,12 +98,15 @@ def test_example_passes_shellcheck(tmp_path: Path, example_path: str):
         partition="normal",
     )
 
-    files = render_all(launch_args)
-    for filename, content in files.items():
-        path = tmp_path / filename
-        text = ("#!/bin/bash\n" + content) if filename == MASTER_FILENAME else content
-        path.write_text(text)
-
+    master_path = tmp_path / "master.sh"
+    master_path.write_text("#!/bin/bash\n" + render_master(launch_args))
+    rank_paths = []
+    for filename, content in render_rank_scripts(launch_args).items():
+        p = tmp_path / filename
+        p.write_text(content)
+        rank_paths.append(p)
+    files = {"master.sh": master_path, **{p.name: p for p in rank_paths}}
+    for filename, path in files.items():
         result = subprocess.run(
             ["shellcheck", "-S", "warning", str(path)],
             capture_output=True,
