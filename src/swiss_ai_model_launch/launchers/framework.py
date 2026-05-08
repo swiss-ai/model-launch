@@ -386,6 +386,12 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             f"# {comment}\n"
             f'srun --nodes=1 --ntasks=1 --nodelist="${{nodes[{node_index}]}}" \\\n'
             f"    --container-writable \\\n"
+            # Bind RANKS_DIR into the container so the rank script (on the
+            # host's shared FS) is visible to the bash invocation inside the
+            # pyxis container. The toml's static mount list (per PR #124) is
+            # being narrowed and read-only-ed, so we attach this dir on a
+            # per-srun basis instead of mutating the user's env toml.
+            f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
             f'    --environment="{env}" \\\n'
             f'    bash "$RANKS_DIR/{script}" {args} &'
         )
@@ -452,6 +458,7 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         'router_host_ip="$replica_0_head_ip"\n'
         'srun --nodes=1 --ntasks=1 --nodelist="$router_host_node" \\\n'
         "    --container-writable \\\n"
+        '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
         f'    --environment="{launch_args.environment}" \\\n'
         "    --overlap \\\n"
         f'    bash "$RANKS_DIR/router.sh" {ip_args} &\n'
