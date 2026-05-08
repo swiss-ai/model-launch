@@ -573,15 +573,19 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
-async def _run_advanced(args: argparse.Namespace) -> None:
-    if not InitConfig.exists():
-        print("SML is not configured. Run `sml init` first.")
-        return
+def build_launch_args_from_advanced(
+    args: argparse.Namespace,
+    *,
+    account: str,
+    partition: str,
+    telemetry_endpoint: str | None = None,
+) -> LaunchArgs:
+    """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
-    config = InitConfig.load()
-    launcher = await _create_launcher(config, args, non_interactive=True)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
-
+    Pure: no side effects beyond stderr warnings for legacy flags. Tests can
+    drive this directly to validate that example shell scripts produce a
+    valid LaunchArgs without going through the launcher / InitConfig.
+    """
     if args.served_model_name:
         served_model_name = args.served_model_name
     else:
@@ -619,11 +623,11 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
-    launch_args = LaunchArgs(
+    return LaunchArgs(
         job_name=job_name,
         served_model_name=served_model_name,
-        account=launcher.account,
-        partition=launcher.partition,
+        account=account,
+        partition=partition,
         topology=Topology(
             replicas=replicas,
             nodes_per_replica=nodes_per_replica,
@@ -639,6 +643,23 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         disable_ocf=args.disable_ocf,
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
+        telemetry_endpoint=telemetry_endpoint,
+    )
+
+
+async def _run_advanced(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args, non_interactive=True)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+
+    launch_args = build_launch_args_from_advanced(
+        args,
+        account=launcher.account,
+        partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
 

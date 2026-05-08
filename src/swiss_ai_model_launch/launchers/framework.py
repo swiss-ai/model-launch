@@ -100,7 +100,16 @@ def _ocf_wrap(inner_cmd: str) -> str:
 def _shebang_and_setup(framework: Framework, pre_launch_cmds: str) -> str:
     """Common header for every rank script: shebang, set -ex, env exports,
     optional pre-launch hook."""
-    lines = ["#!/bin/bash", "set -ex", ""]
+    lines = [
+        "#!/bin/bash",
+        # SC2046/SC2086: user-supplied framework_args is inlined bare on the
+        # python3 -m ... command line. Constructs like ``$(whoami)`` in the
+        # args are intentional (and safe in practice since usernames don't
+        # contain spaces).
+        "# shellcheck disable=SC2046,SC2086",
+        "set -ex",
+        "",
+    ]
     lines.extend(framework.env_exports)
     if pre_launch_cmds:
         lines += [
