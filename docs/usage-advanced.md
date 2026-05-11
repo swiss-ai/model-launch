@@ -50,6 +50,38 @@ sml advanced \
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
 
+## Inspecting what would be submitted (`--output-script`)
+
+`--output-script` renders the SLURM submission script to stdout and exits without submitting:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 --enable-metrics" \
+  --output-script > /tmp/debug.sh
+```
+
+The output is a single self-contained bash script:
+
+```bash
+less /tmp/debug.sh        # inspect — every srun, every env export, every framework-arg
+shellcheck /tmp/debug.sh  # lint
+sbatch /tmp/debug.sh      # submit manually if you want
+```
+
+Useful for:
+
+- **Debugging a launch failure:** see exactly what `--framework-args` your invocation translated to (the `--port 8080` auto-injection, etc.) and which `srun` calls would run.
+- **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the output.
+- **Starting point for a hand-tuned job:** the output is normal bash you can edit and submit directly.
+
+After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/{master,head,follower}.sh` for post-mortem inspection — those are what the running job actually executed.
+
 ## When to disable OCF
 
 > "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-ocf` for historical reasons.

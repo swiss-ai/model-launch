@@ -82,6 +82,56 @@ The SML team can't take a "please add my model" request for every checkpoint tha
     - Does it fail to load? Architecture not supported by the framework version in the [environment toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/) — try the other framework, or a newer image.
 5. **Only if you've gotten through 1-4 and are still stuck**, file an issue with the failing command, the trailing 50 lines of logs, and what you've already ruled out.
 
+## Modifying the SLURM submission script
+
+The SLURM script is **rendered from Python at submit time** — there is no static `script.sh` or `template.jinja` to edit. The renderer is in [`src/swiss_ai_model_launch/launchers/framework.py`](https://github.com/swiss-ai/model-launch/blob/main/src/swiss_ai_model_launch/launchers/framework.py).
+
+### What gets rendered
+
+A single `master.sh` (visible via `--output-script` — see [usage](usage-advanced.md#inspecting-what-would-be-submitted---output-script)) containing in order:
+
+1. **Telemetry** POST (omitted if no endpoint configured)
+2. **Arch detection** — sets `OCF_BIN`, `SP_NCCL_SO_PATH`, `metrics_agent_bin` per `aarch64` / `x86_64`
+3. **Node mapping** — `mapfile -t nodes < <(scontrol show hostnames ...)`
+4. **Self-extracting rank scripts** — single-quoted `cat`-heredocs that lay down `head.sh`, optionally `follower.sh`, optionally `router.sh` under `$HOME/.sml/job-${SLURM_JOB_ID}/`
+5. **Per-replica head IP discovery** — one `hostname -i` srun per replica
+6. **Per-rank `srun` calls** — one block per (replica, rank). Each binds the rank dir into the pyxis container via `--container-mounts="$RANKS_DIR:$RANKS_DIR"` and invokes `bash $RANKS_DIR/<role>.sh`
+7. **vmagent** (optional) — metrics scraper on the batch node
+8. **Router** (optional) — `sglang_router` on `nodes[0]` when `replicas > 1 && --use-router`
+9. **Footer** — connect/cancel hints, `wait`, "Script finished"
+
+### Where to make changes
+
+| If you want to change… | Edit… |
+| --- | --- |
+| What runs **inside** the container per rank | `_render_sglang_head`, `_render_sglang_follower`, `_render_vllm_head`, `_render_vllm_follower` |
+| Framework env exports (NCCL flags, `no_proxy`, JIT DeepGEMM toggle, …) | `Sglang.env_exports` / `Vllm.env_exports` |
+| Add a new inference framework | Subclass `Framework`, register in `_FRAMEWORKS`, write per-shape renderers |
+| The OCF wrap | `_ocf_wrap` |
+| The router rank script | `_render_router` |
+| Arch detection / node mapping / vmagent / footer | The matching `_render_<section>` functions |
+| What gets bind-mounted into the container per srun | The `--container-mounts` line in `_render_replica_launches` / `_render_router_launch` |
+| The toml mount list itself (per env: sglang, vllm, …) | The files under `src/swiss_ai_model_launch/assets/envs/` |
+| Total nodes / partition / time / SBATCH directives | `to_sbatch_args` on `LaunchArgs` (or `render_sbatch_header` for the firecrest path) |
+| New CLI flag flowing into `LaunchArgs` | Add to `LaunchArgs` (pydantic), wire through `build_launch_args_from_advanced` in `cli/main.py` |
+
+### Preview your change
+
+```bash
+sml advanced ... --output-script > /tmp/before.sh    # current behaviour
+# edit framework.py
+sml advanced ... --output-script > /tmp/after.sh     # new behaviour
+diff /tmp/before.sh /tmp/after.sh
+```
+
+For full coverage, the test matrix at `tests/unit/test_framework.py` renders 96 configurations (framework × replicas × nodes_per_replica × use_router × disable_ocf × telemetry) and runs `bash -n` + `shellcheck` against each. If your change leaves any of those broken, the test will catch it before submit time:
+
+```bash
+uv run pytest tests/unit/test_framework.py -q
+```
+
+`tests/unit/test_examples.py` also renders six real example scripts through the production CLI parser, so adding a flag that breaks one of those will fail there.
+
 ## CI / CD
 
 See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → image build → integration tests; each stage gates the next.
