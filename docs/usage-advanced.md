@@ -18,16 +18,19 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-nodes`             |                         | Total nodes (default: `replicas × nodes-per-replica`)             |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
 | `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `00:05:00`)                   |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--replica-port`            |                         | Port used by replicas (default: `5000`)                           |
-| `--use-router`              |                         | Enable router to load-balance across replicas                     |
+| `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
+| `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
+| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
+| `--output-script`           |                         | Print rendered submission script to stdout and exit (no submit)   |
+
+> Total nodes is automatically `--slurm-replicas × --slurm-nodes-per-replica`; there is no separate `--slurm-nodes` flag. The framework HTTP port is hardcoded to **8080** across every job — no `--worker-port`/`--replica-port` knob.
 
 ## Example: Apertus 8B on Clariden with sglang
 
@@ -35,14 +38,12 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-replicas 1 \
-  --slurm-nodes-per-replica 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 \
-    --port 8080"
+    --enable-metrics"
 ```
 
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
