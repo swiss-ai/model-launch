@@ -25,6 +25,11 @@ sml
 
 That's it — the second command `sml init` sets up credentials, the third launches a model interactively.
 
+You will be asked what kind of environment you are planning to use:
+
+- **FirecREST** is a remote connection, i.e. for using the model launcher on your local machine, which requires client access credentials.
+- **SLURM Commands** are intended to be run directly on the HPC cluster, for which you need just an API key.
+
 Prefer a script you can copy? Browse [`examples/`](examples/) and run any of them after `pip install`.
 
 ## Documentation
