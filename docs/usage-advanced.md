@@ -80,7 +80,9 @@ Useful for:
 - **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the output.
 - **Starting point for a hand-tuned job:** the output is normal bash you can edit and submit directly.
 
-After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/{master,head,follower}.sh` for post-mortem inspection — those are what the running job actually executed.
+After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/{head,follower,router}.sh` for post-mortem inspection — those are what the running job actually executed.
+
+> **The output is always one file**, regardless of topology. A 2-replica × 4-node-per-replica config with a router still produces a single ~250-line `master.sh` containing all rank scripts as embedded `cat`-heredocs (one per *shape*: head/follower/router, not one per rank). At job start the master self-extracts them to `~/.sml/job-${SLURM_JOB_ID}/` so each srun can `bash` the appropriate file with the right positional args.
 
 ## When to disable OCF
 
