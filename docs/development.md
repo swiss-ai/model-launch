@@ -118,10 +118,10 @@ A single `master.sh` (visible via `--output-script` — see [usage](usage-advanc
 ### Preview your change
 
 ```bash
-sml advanced ... --output-script > /tmp/before.sh    # current behaviour
+sml advanced ... --output-script /tmp/before    # current behaviour
 # edit framework.py
-sml advanced ... --output-script > /tmp/after.sh     # new behaviour
-diff /tmp/before.sh /tmp/after.sh
+sml advanced ... --output-script /tmp/after     # new behaviour
+diff -r /tmp/before /tmp/after                  # per-file diff across master + ranks
 ```
 
 For full coverage, the test matrix at `tests/unit/test_framework.py` renders 96 configurations (framework × replicas × nodes_per_replica × use_router × disable_ocf × telemetry) and runs `bash -n` + `shellcheck` against each. If your change leaves any of those broken, the test will catch it before submit time:

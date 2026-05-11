@@ -324,20 +324,30 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
 
 def _render_arch_detection(launch_args: LaunchArgs) -> str:
     base = launch_args.metrics_agent_binary
+    # Only emit metrics_agent_bin assignments when something downstream
+    # consumes it — otherwise shellcheck flags SC2034 (unused var).
+    needs_metrics_bin = not launch_args.disable_metrics and bool(launch_args.metrics_remote_write_url)
+    arm_lines = [
+        '    echo "Running on ARM64 (aarch64)"',
+        "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/",
+        "    export OCF_BIN=/ocfbin/ocf-arm",
+    ]
+    x86_lines = [
+        '    echo "Running on x86_64"',
+        "    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/",
+        "    export OCF_BIN=/ocfbin/ocf-amd64",
+    ]
+    if needs_metrics_bin:
+        arm_lines.append(f'    metrics_agent_bin="{base}-arm64"')
+        x86_lines.append(f'    metrics_agent_bin="{base}-amd64"')
+    arm_block = "\n".join(arm_lines)
+    x86_block = "\n".join(x86_lines)
     return (
         "unset SLURM_CPU_BIND SLURM_CPU_BIND_TYPE SLURM_CPU_BIND_LIST SLURM_CPU_BIND_VERBOSE\n"
         "\n"
         "ARCH=$(uname -m)\n"
-        'if [[ "$ARCH" == "aarch64" ]]; then\n'
-        '    echo "Running on ARM64 (aarch64)"\n'
-        "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/\n"
-        "    export OCF_BIN=/ocfbin/ocf-arm\n"
-        f'    metrics_agent_bin="{base}-arm64"\n'
-        'elif [[ "$ARCH" == "x86_64" ]]; then\n'
-        '    echo "Running on x86_64"\n'
-        "    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/\n"
-        "    export OCF_BIN=/ocfbin/ocf-amd64\n"
-        f'    metrics_agent_bin="{base}-amd64"\n'
+        f'if [[ "$ARCH" == "aarch64" ]]; then\n{arm_block}\n'
+        f'elif [[ "$ARCH" == "x86_64" ]]; then\n{x86_block}\n'
         "else\n"
         '    echo "Unknown architecture: $ARCH" >&2\n'
         "    exit 1\n"

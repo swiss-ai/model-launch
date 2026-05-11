@@ -309,11 +309,14 @@ def _build_parser() -> argparse.ArgumentParser:
     advanced_parser.add_argument(
         "--output-script",
         dest="output_script",
-        action="store_true",
+        metavar="DIR",
+        default=None,
         help=(
-            "Render the job submission script (master.sh + rank scripts) to stdout "
-            "and exit without submitting. Useful for inspecting/debugging what would "
-            "be run. Pipe to a file: `sml advanced ... --output-script > job.sh`."
+            "Render master.sh + per-shape rank scripts (head, follower, router) into "
+            "the given directory and exit without submitting. Each file is "
+            "independently shellcheckable; master.sh self-extracts the rank scripts "
+            "at job start so you can also `sbatch DIR/master.sh` directly. The "
+            "on-disk layout matches what a real submission writes to ~/.sml/job-<id>/."
         ),
     )
 
@@ -664,15 +667,32 @@ async def _run_advanced(args: argparse.Namespace) -> None:
     )
 
     if args.output_script:
-        from swiss_ai_model_launch.launchers.framework import render_master
+        from pathlib import Path
+
+        from swiss_ai_model_launch.launchers.framework import render_master, render_rank_scripts
         from swiss_ai_model_launch.launchers.utils import render_sbatch_header
 
-        # Self-contained mode: rank scripts are embedded as cat-heredocs at
-        # the top of master, materialised to /tmp at job start. Output is a
-        # single runnable bash file the user can pipe to disk and inspect or
-        # sbatch directly.
-        print(render_sbatch_header(launch_args), end="")
-        print(render_master(launch_args), end="")
+        # Write master.sh + per-shape rank scripts to a user-supplied dir.
+        # The on-disk shape matches what a live submission would write to
+        # ~/.sml/job-<id>/ at job start (via master's self-extract), so
+        # `sbatch <dir>/master.sh` is also a valid way to submit manually.
+        out_dir = Path(args.output_script).expanduser().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        master_path = out_dir / "master.sh"
+        master_path.write_text(render_sbatch_header(launch_args) + render_master(launch_args))
+        master_path.chmod(0o755)
+
+        written = ["master.sh"]
+        for filename, content in render_rank_scripts(launch_args).items():
+            path = out_dir / filename
+            path.write_text(content)
+            path.chmod(0o755)
+            written.append(filename)
+
+        print(f"Wrote {len(written)} file(s) to {out_dir}:", file=sys.stderr)
+        for name in written:
+            print(f"  {name}", file=sys.stderr)
         return
 
     launch_coro = launcher.launch_with_args(launch_args)

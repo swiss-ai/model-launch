@@ -28,7 +28,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
 | `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
-| `--output-script`           |                         | Print rendered submission script to stdout and exit (no submit)   |
+| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
 
 > Total nodes is automatically `--slurm-replicas × --slurm-nodes-per-replica`; there is no separate `--slurm-nodes` flag. The framework HTTP port is hardcoded to **8080** across every job — no `--worker-port`/`--replica-port` knob.
 
@@ -50,9 +50,9 @@ sml advanced \
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
 
-## Inspecting what would be submitted (`--output-script`)
+## Inspecting what would be submitted (`--output-script DIR`)
 
-`--output-script` renders the SLURM submission script to stdout and exits without submitting:
+`--output-script DIR` writes the rendered submission scripts into the given directory and exits without submitting:
 
 ```bash
 sml advanced \
@@ -63,26 +63,35 @@ sml advanced \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 --enable-metrics" \
-  --output-script > /tmp/debug.sh
+  --output-script /tmp/debug
 ```
 
-The output is a single self-contained bash script:
+Produces something like:
+
+```text
+Wrote 2 file(s) to /tmp/debug:
+  master.sh
+  head.sh
+```
+
+For a multi-node / router config the directory also gets `follower.sh` and/or `router.sh`. The layout is **byte-identical** to what a live submission writes to `~/.sml/job-${SLURM_JOB_ID}/` at job start — so each rank shape is its own bash file:
 
 ```bash
-less /tmp/debug.sh        # inspect — every srun, every env export, every framework-arg
-shellcheck /tmp/debug.sh  # lint
-sbatch /tmp/debug.sh      # submit manually if you want
+shellcheck /tmp/debug/*.sh        # lint each independently
+cat /tmp/debug/head.sh            # inspect just the head-rank logic
+sbatch /tmp/debug/master.sh       # submit manually if you want
+diff /tmp/debug/head.sh /tmp/older-debug/head.sh   # compare runs
 ```
 
 Useful for:
 
-- **Debugging a launch failure:** see exactly what `--framework-args` your invocation translated to (the `--port 8080` auto-injection, etc.) and which `srun` calls would run.
-- **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the output.
-- **Starting point for a hand-tuned job:** the output is normal bash you can edit and submit directly.
+- **Debugging a launch failure:** see exactly what `--framework-args` your invocation translated to (the `--port 8080` auto-injection, etc.), which `srun` calls would run, and what each rank shape does.
+- **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the rank scripts.
+- **Starting point for a hand-tuned job:** edit any of the rank scripts, then `sbatch master.sh` directly.
 
-After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/{head,follower,router}.sh` for post-mortem inspection — those are what the running job actually executed.
+After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/` for post-mortem inspection.
 
-> **The output is always one file**, regardless of topology. A 2-replica × 4-node-per-replica config with a router still produces a single ~250-line `master.sh` containing all rank scripts as embedded `cat`-heredocs (one per *shape*: head/follower/router, not one per rank). At job start the master self-extracts them to `~/.sml/job-${SLURM_JOB_ID}/` so each srun can `bash` the appropriate file with the right positional args.
+> **`master.sh` is self-contained.** It carries the rank scripts as embedded `cat`-heredocs and re-extracts them under `~/.sml/job-${SLURM_JOB_ID}/` at job start — that's why `sbatch master.sh` works regardless of where the directory lives. The standalone `head.sh` / `follower.sh` / `router.sh` files in the output dir are byte-equal duplicates for inspection; the heredoc bodies inside `master.sh` are what actually run.
 
 ## When to disable OCF
 
