@@ -39,6 +39,74 @@ think_time: "2"
 max_tokens: "2048"
 ```
 
+## Example: open_loop.yaml
+
+```yaml
+name: open_loop
+executor: constant-arrival-rate
+rate: 20
+timeUnit: 1s
+duration: 15m
+preAllocatedVUs: 120
+maxVUs: 300
+think_time: "0"
+max_tokens: "2048"
+request_timeout: 180s
+ignore_eos: true
+```
+
+## Example: open_loop_ramp.yaml
+
+```yaml
+name: open_loop_ramp
+executor: ramping-arrival-rate
+startRate: 2
+timeUnit: 1s
+stages:
+  - duration: 3m
+    target: 5
+  - duration: 3m
+    target: 10
+  - duration: 3m
+    target: 15
+  - duration: 3m
+    target: 20
+  - duration: 3m
+    target: 30
+preAllocatedVUs: 120
+maxVUs: 400
+think_time: "0"
+max_tokens: "2048"
+ignore_eos: true
+```
+
+## Example: open_loop_decode.yaml
+
+```yaml
+name: open_loop_decode
+executor: ramping-arrival-rate
+startRate: 2
+timeUnit: 1s
+stages:
+  - duration: 3m
+    target: 2
+  - duration: 3m
+    target: 3
+  - duration: 3m
+    target: 4
+  - duration: 3m
+    target: 5
+preAllocatedVUs: 800
+maxVUs: 1600
+think_time: "0"
+max_tokens: "512"
+request_timeout: 600s
+ignore_eos: true
+prompt_labels:
+  - short
+  - medium
+```
+
 - You can add any custom fields (e.g., `prompt_labels`) as needed.
 - The launcher will load the scenario config from the YAML or JSON file matching the scenario name (e.g., `ramp` -> `ramp.yaml`).
 - User-defined scenarios in `./scenarios/` override built-in scenarios with the same name.
