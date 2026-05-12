@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shlex
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ class ClusterLoadtestConfig:
     cpus_per_task: int = 4
     wait: bool = True
     reservation: str | None = None
+    metrics_remote_write_url: str | None = None
 
 
 def build_cluster_loadtest_script(
@@ -36,9 +38,39 @@ def build_cluster_loadtest_script(
     run_label: str,
     prompts_path: str,
     container_mounts: str,
+    model: str,
 ) -> str:
     job_name = f"sml_loadtest_{bench.scenario}_{create_salt(6)}"
     reservation_line = f"#SBATCH --reservation={reservation}\n" if reservation else ""
+    output_args: list[str] = []
+    env_assignments: list[str] = []
+    if cluster.metrics_remote_write_url:
+        output_args = ["-o", "experimental-prometheus-rw"]
+        env_assignments = [
+            f"K6_PROMETHEUS_RW_SERVER_URL={shlex.quote(cluster.metrics_remote_write_url)}",
+            "K6_PROMETHEUS_RW_TREND_STATS='min,avg,med,p(90),p(95),p(99),max'",
+        ]
+    k6_command = " ".join(
+        [
+            *env_assignments,
+            "k6",
+            "run",
+            *output_args,
+            "--tag",
+            f"scenario={shlex.quote(bench.scenario)}",
+            "--tag",
+            f"run_label={shlex.quote(run_label)}",
+            "--tag",
+            f"model={shlex.quote(model)}",
+            "--env",
+            'RUN_CONFIG_JSON="$(cat /work/run_config.json)"',
+            "--env",
+            f"PROMPTS_FILE={shlex.quote(prompts_path)}",
+            "--summary-export",
+            "/work/summary.json",
+            "/work/script.js",
+        ]
+    )
 
     return f"""#!/bin/bash
 #SBATCH --job-name={job_name}
@@ -65,11 +97,7 @@ srun --nodes=1 --ntasks=1 \\
     --container-image="{cluster.container_image}" \\
     --container-mounts="{container_mounts}" \\
     --container-workdir=/work \\
-    sh -lc 'k6 run \\
-        --env RUN_CONFIG_JSON="$(cat /work/run_config.json)" \\
-        --env PROMPTS_FILE="{prompts_path}" \\
-        --summary-export /work/summary.json \\
-        /work/script.js'
+    sh -lc {shlex.quote(k6_command)}
 
 echo "Summary written to $RUN_DIR/summary.json"
 """
@@ -189,6 +217,7 @@ async def submit_cluster_loadtest(
         run_label=run_label,
         prompts_path=prompts_path,
         container_mounts=container_mounts,
+        model=server.model,
     )
 
     if isinstance(launcher, SlurmLauncher):
