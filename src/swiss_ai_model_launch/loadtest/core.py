@@ -44,7 +44,6 @@ def build_run_config(server: ServerConfig, bench: LoadtestConfig) -> dict[str, A
     return {
         "server_url": server.url,
         "api_key": server.api_key,
-        "chat_mode": server.chat_mode,
         "model": server.model,
         "scenario": bench.scenario,
         "scenario_definition": _load_scenario_definition(bench.scenario),
@@ -52,6 +51,8 @@ def build_run_config(server: ServerConfig, bench: LoadtestConfig) -> dict[str, A
         "max_tokens": bench.max_tokens,
         "request_timeout": bench.request_timeout,
         "prompt_labels": bench.prompt_labels,
+        "ignore_eos": bench.ignore_eos,
+        "prompt_seed": bench.prompt_seed,
         "realistic": None,
         "custom": None,
     }
