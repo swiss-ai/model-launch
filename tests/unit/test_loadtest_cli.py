@@ -35,11 +35,11 @@ def test_loadtest_run_help_excludes_removed_scenario_owned_flags(capsys: pytest.
     assert "--loadtest-max-tokens" in help_text
     assert "--loadtest-ignore-eos" in help_text
     assert "--wait-until-healthy" in help_text
-    assert "--loadtest-k6-script" in help_text
     assert "--loadtest-metrics-remote-write" in help_text
     assert "--job-id" not in help_text
     assert "--loadtest-chat-mode" not in help_text
     assert "--loadtest-cpus-per-task" not in help_text
+    assert "--loadtest-k6-script" not in help_text
     assert "--loadtest-job-time" not in help_text
     assert "--loadtest-ready-poll-interval" not in help_text
     assert "--loadtest-think-time" not in help_text
@@ -144,6 +144,7 @@ def test_loadtest_parser_does_not_expose_api_key_override() -> None:
         ("--job-id", "123"),
         ("--loadtest-cpus-per-task", "8"),
         ("--loadtest-job-time", "01:00:00"),
+        ("--loadtest-k6-script", "script.js"),
         ("--loadtest-ready-poll-interval", "30"),
         ("--loadtest-think-time", "0"),
         ("--loadtest-request-timeout", "120s"),

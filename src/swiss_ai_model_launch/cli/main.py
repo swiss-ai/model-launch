@@ -33,7 +33,7 @@ from swiss_ai_model_launch.loadtest.cluster import ClusterLoadtestConfig, submit
 from swiss_ai_model_launch.loadtest.models import LoadtestConfig, ServerConfig, load_scenarios
 from swiss_ai_model_launch.loadtest.setup import (
     DEFAULT_CLUSTER_CONTAINER_IMAGE,
-    resolve_k6_script,
+    K6_SCRIPT,
     resolve_prompts_file,
 )
 from swiss_ai_model_launch.mcp import mcp as _mcp
@@ -153,12 +153,6 @@ def _add_loadtest_arguments(
     include_cancel: bool = True,
     include_health_wait: bool = True,
 ) -> None:
-    parser.add_argument(
-        "--loadtest-k6-script",
-        dest="loadtest_k6_script",
-        default=None,
-        help="k6 JavaScript file to stage into the cluster loadtest job (env: SML_LOADTEST_K6_SCRIPT).",
-    )
     parser.add_argument(
         "--loadtest-metrics-remote-write-url",
         dest="loadtest_metrics_remote_write_url",
@@ -811,12 +805,10 @@ async def _run_k6_on_cluster(
     loadtest_config: LoadtestConfig,
     summary_path: Path,
     args: argparse.Namespace,
-    k6_script: str | Path | None = None,
     reservation: str | None = None,
 ) -> None:
-    k6_script_path = resolve_k6_script(k6_script or args.loadtest_k6_script)
-    if not k6_script_path.exists():
-        raise FileNotFoundError(f"k6 script not found: {k6_script_path}")
+    if not K6_SCRIPT.exists():
+        raise FileNotFoundError(f"k6 script not found: {K6_SCRIPT}")
 
     prompts_file = resolve_prompts_file(args.loadtest_prompts_file)
 
@@ -829,7 +821,7 @@ async def _run_k6_on_cluster(
         launcher=launcher,
         server=server,
         bench=loadtest_config,
-        k6_script=k6_script_path,
+        k6_script=K6_SCRIPT,
         prompts_file=prompts_file,
         summary_path=summary_path,
         cluster=cluster_config,
@@ -885,7 +877,6 @@ async def _run_loadtest_for_submitted_job(
     cscs_api_key: str,
     args: argparse.Namespace,
     loadtest_config: LoadtestConfig,
-    k6_script: str | Path | None = None,
     loadtest_reservation: str | None = None,
 ) -> None:
     try:
@@ -909,7 +900,6 @@ async def _run_loadtest_for_submitted_job(
             loadtest_config=loadtest_config,
             summary_path=summary_path,
             args=args,
-            k6_script=k6_script,
             reservation=loadtest_reservation,
         )
     finally:
@@ -925,7 +915,6 @@ async def _submit_and_run_loadtest(
     cscs_api_key: str,
     args: argparse.Namespace,
     loadtest_config: LoadtestConfig,
-    k6_script: str | Path | None = None,
     loadtest_reservation: str | None = None,
 ) -> None:
     _make_cluster_loadtest_config(args, reservation=loadtest_reservation)
@@ -940,7 +929,6 @@ async def _submit_and_run_loadtest(
         cscs_api_key=cscs_api_key,
         args=args,
         loadtest_config=loadtest_config,
-        k6_script=k6_script,
         loadtest_reservation=loadtest_reservation,
     )
 
