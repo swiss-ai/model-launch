@@ -160,19 +160,6 @@ def _add_loadtest_arguments(
         help="k6 JavaScript file to stage into the cluster loadtest job (env: SML_LOADTEST_K6_SCRIPT).",
     )
     parser.add_argument(
-        "--loadtest-job-time",
-        dest="loadtest_job_time",
-        default="00:30:00",
-        help="SLURM time limit for the cluster loadtest job (default: 00:30:00).",
-    )
-    parser.add_argument(
-        "--loadtest-cpus-per-task",
-        dest="loadtest_cpus_per_task",
-        type=int,
-        default=4,
-        help="CPUs assigned to the cluster k6 task (default: 4).",
-    )
-    parser.add_argument(
         "--loadtest-metrics-remote-write-url",
         dest="loadtest_metrics_remote_write_url",
         default=os.environ.get("SML_LOADTEST_METRICS_REMOTE_WRITE_URL", _DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL),
@@ -248,13 +235,6 @@ def _add_loadtest_arguments(
             type=int,
             default=_DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS,
             help="Seconds to wait for the target model to become healthy.",
-        )
-        parser.add_argument(
-            "--loadtest-ready-poll-interval",
-            dest="loadtest_ready_poll_interval",
-            type=int,
-            default=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
-            help="Seconds between model health checks while waiting.",
         )
     if include_cancel:
         parser.add_argument(
@@ -453,11 +433,6 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="loadtest_model",
         default=None,
         help="Model name to health-check and send in OpenAI-compatible requests.",
-    )
-    loadtest_run_parser.add_argument(
-        "--job-id",
-        default=None,
-        help="Optional launched job id to use in the loadtest results path.",
     )
     _add_loadtest_arguments(loadtest_run_parser, include_cancel=False)
 
@@ -817,16 +792,10 @@ def _make_cluster_loadtest_config(
 ) -> ClusterLoadtestConfig:
     if getattr(args, "cancel_after_loadtest", False) and not args.wait_for_loadtest:
         raise ValueError("--cancel-after-loadtest requires --wait-for-loadtest.")
-    if args.loadtest_cpus_per_task <= 0:
-        raise ValueError("--loadtest-cpus-per-task must be greater than 0.")
     if args.loadtest_ready_timeout <= 0:
         raise ValueError("--loadtest-ready-timeout must be greater than 0.")
-    if args.loadtest_ready_poll_interval <= 0:
-        raise ValueError("--loadtest-ready-poll-interval must be greater than 0.")
     return ClusterLoadtestConfig(
         container_image=str(DEFAULT_CLUSTER_CONTAINER_IMAGE),
-        time=args.loadtest_job_time,
-        cpus_per_task=args.loadtest_cpus_per_task,
         wait=args.wait_for_loadtest,
         reservation=reservation or getattr(args, "reservation", None),
         metrics_remote_write_url=(
@@ -926,7 +895,7 @@ async def _run_loadtest_for_submitted_job(
                 cscs_api_key,
                 server_url=args.loadtest_server_url,
                 timeout_seconds=args.loadtest_ready_timeout,
-                poll_interval_seconds=args.loadtest_ready_poll_interval,
+                poll_interval_seconds=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
             )
 
         results_dir = _loadtest_results_dir(job_id)
@@ -993,12 +962,12 @@ async def _run_loadtest_against_existing_model(args: argparse.Namespace) -> None
             cscs_api_key,
             server_url=args.loadtest_server_url,
             timeout_seconds=args.loadtest_ready_timeout,
-            poll_interval_seconds=args.loadtest_ready_poll_interval,
+            poll_interval_seconds=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
         )
     elif args.wait_until_healthy:
         print("Skipping model health check because --loadtest-model was not provided.")
 
-    run_id = args.job_id or (loadtest_model.replace("/", "_") if loadtest_model else "external")
+    run_id = loadtest_model.replace("/", "_") if loadtest_model else "external"
     results_dir = _loadtest_results_dir(run_id)
     results_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
