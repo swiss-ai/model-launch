@@ -1,3 +1,4 @@
+import shlex
 from pathlib import Path
 
 import pytest
@@ -21,17 +22,19 @@ def cluster() -> ClusterLoadtestConfig:
 
 
 def _make_script(bench: LoadtestConfig, cluster: ClusterLoadtestConfig, **kwargs: object) -> str:
-    return build_cluster_loadtest_script(
-        bench=bench,
-        cluster=cluster,
-        account="testaccount",
-        partition="testpartition",
-        reservation=None,
-        run_label="loadtest_throughput_20260101_000000_XXXXXX",
-        prompts_path="/capstor/prompts.jsonl",
-        container_mounts="/work:/work,/capstor:/capstor",
-        **kwargs,
-    )
+    values = {
+        "bench": bench,
+        "cluster": cluster,
+        "account": "testaccount",
+        "partition": "testpartition",
+        "reservation": None,
+        "run_label": "loadtest_throughput_20260101_000000_XXXXXX",
+        "prompts_path": "/capstor/prompts.jsonl",
+        "container_mounts": "/work:/work,/capstor:/capstor",
+        "model": "test-model",
+    }
+    values.update(kwargs)
+    return build_cluster_loadtest_script(**values)
 
 
 def test_script_sbatch_directives(bench: LoadtestConfig, cluster: ClusterLoadtestConfig) -> None:
@@ -58,6 +61,7 @@ def test_script_reservation_line_included(bench: LoadtestConfig, cluster: Cluste
         run_label="loadtest_throughput_20260101_000000_XXXXXX",
         prompts_path="/capstor/prompts.jsonl",
         container_mounts="/work:/work",
+        model="test-model",
     )
     assert "#SBATCH --reservation=my_reservation" in script
 
@@ -77,6 +81,52 @@ def test_script_k6_run_command(bench: LoadtestConfig, cluster: ClusterLoadtestCo
     assert "k6 run" in script
     assert "--summary-export /work/summary.json" in script
     assert "/work/script.js" in script
+
+
+def test_script_k6_remote_write_disabled_by_default(bench: LoadtestConfig, cluster: ClusterLoadtestConfig) -> None:
+    script = _make_script(bench, cluster)
+    assert "experimental-prometheus-rw" not in script
+    assert "K6_PROMETHEUS_RW_SERVER_URL" not in script
+
+
+def test_script_k6_remote_write_enabled(bench: LoadtestConfig) -> None:
+    cluster = ClusterLoadtestConfig(
+        container_image="/images/k6.sqsh",
+        cpus_per_task=4,
+        metrics_remote_write_url="https://prometheus.example/api/v1/write",
+    )
+    script = _make_script(bench, cluster)
+
+    assert "-o experimental-prometheus-rw" in script
+    assert "K6_PROMETHEUS_RW_SERVER_URL=https://prometheus.example/api/v1/write" in script
+    assert "K6_PROMETHEUS_RW_TREND_STATS=" in script
+    assert "min,avg,med,p(90),p(95),p(99),max" in script
+    assert "K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM" not in script
+    assert "--tag scenario=throughput" in script
+    assert "--tag model=test-model" in script
+
+
+def test_script_k6_run_command_shell_quotes_dynamic_values(
+    bench: LoadtestConfig,
+    cluster: ClusterLoadtestConfig,
+) -> None:
+    script = _make_script(
+        bench,
+        cluster,
+        run_label="run-$USER's-label",
+        prompts_path="/capstor/prompt files/$USER/prompts.json",
+        model="model-$USER's-name",
+    )
+
+    command_line = next(line.strip() for line in script.splitlines() if line.strip().startswith("sh -lc "))
+    inner_command = shlex.split(command_line)[2]
+    tokens = shlex.split(inner_command)
+
+    assert tokens[tokens.index("--tag") + 1] == "scenario=throughput"
+    assert f"run_label=run-$USER's-label" in tokens
+    assert f"model=model-$USER's-name" in tokens
+    assert f"PROMPTS_FILE=/capstor/prompt files/$USER/prompts.json" in tokens
+    assert 'sh -lc "' not in script
 
 
 def test_container_mounts_rejects_relative_path() -> None:
