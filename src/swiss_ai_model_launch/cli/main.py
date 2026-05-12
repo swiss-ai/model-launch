@@ -40,8 +40,10 @@ from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 _DEFAULT_LOADTEST_SERVER_URL = "https://api.swissai.svc.cscs.ch"
-_DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1800
+_DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1000000
 _DEFAULT_LOADTEST_READY_POLL_SECONDS = 10
+_LOADTEST_READY_PROGRESS_SECONDS = 300
+_DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
 
 
 def _make_firecrest_launcher_config(
@@ -171,6 +173,22 @@ def _add_loadtest_arguments(
         help="CPUs assigned to the cluster k6 task (default: 4).",
     )
     parser.add_argument(
+        "--loadtest-metrics-remote-write-url",
+        dest="loadtest_metrics_remote_write_url",
+        default=os.environ.get("SML_LOADTEST_METRICS_REMOTE_WRITE_URL", _DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL),
+        help=(
+            "Prometheus remote-write URL for k6 metrics "
+            f"(default: {_DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL}; env: SML_LOADTEST_METRICS_REMOTE_WRITE_URL)."
+        ),
+    )
+    parser.add_argument(
+        "--loadtest-metrics-remote-write",
+        dest="loadtest_metrics_remote_write",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable Prometheus remote-write output for k6 metrics (default: true).",
+    )
+    parser.add_argument(
         "--wait-for-loadtest",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -183,41 +201,23 @@ def _add_loadtest_arguments(
         help=f"OpenAI-compatible API base URL for k6 traffic (default: {_DEFAULT_LOADTEST_SERVER_URL}).",
     )
     parser.add_argument(
-        "--loadtest-chat-mode",
-        dest="loadtest_chat_mode",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Use /v1/chat/completions for loadtest requests (default: true).",
-    )
-    parser.add_argument(
         "--loadtest-scenario",
         dest="loadtest_scenario",
         default="throughput",
         help="Built-in or custom loadtest scenario name (default: throughput).",
     )
     parser.add_argument(
-        "--loadtest-think-time",
-        dest="loadtest_think_time",
-        default=None,
-        help="Override max think time between requests in seconds.",
-    )
-    parser.add_argument(
         "--loadtest-max-tokens",
         dest="loadtest_max_tokens",
         default=None,
-        help="Override max output tokens.",
+        help="Override max output tokens, or pass 'prompt' to use each prompt corpus entry's max_tokens.",
     )
     parser.add_argument(
-        "--loadtest-request-timeout",
-        dest="loadtest_request_timeout",
+        "--loadtest-ignore-eos",
+        dest="loadtest_ignore_eos",
+        action=argparse.BooleanOptionalAction,
         default=None,
-        help="Override request timeout passed to k6 (for example: 120s).",
-    )
-    parser.add_argument(
-        "--loadtest-prompt-labels",
-        dest="loadtest_prompt_labels",
-        default=None,
-        help="Comma-separated prompt labels to include.",
+        help="Override whether loadtest requests ignore EOS and generate until max tokens.",
     )
     parser.add_argument(
         "--loadtest-prompts-file",
@@ -227,6 +227,13 @@ def _add_loadtest_arguments(
             "Cluster-visible prompt corpus JSON path. Defaults to SML_LOADTEST_PROMPTS_FILE, "
             "then the shared cluster path."
         ),
+    )
+    parser.add_argument(
+        "--loadtest-prompt-seed",
+        dest="loadtest_prompt_seed",
+        type=int,
+        default=1,
+        help="Seed for deterministic prompt shuffling in k6 (default: 1).",
     )
     if include_health_wait:
         parser.add_argument(
@@ -442,18 +449,10 @@ def _build_parser() -> argparse.ArgumentParser:
     _make_partition_config().add_to_parser(loadtest_run_parser)
     _make_reservation_config().add_to_parser(loadtest_run_parser)
     loadtest_run_parser.add_argument(
-        "--served-model-name",
-        default=None,
-        help=(
-            "Served SwissAI model name to target with loadtest traffic. "
-            "Optional when using --loadtest-server-url for an external endpoint."
-        ),
-    )
-    loadtest_run_parser.add_argument(
         "--loadtest-model",
         dest="loadtest_model",
         default=None,
-        help="Model field to send in OpenAI-compatible requests. Defaults to --served-model-name when provided.",
+        help="Model name to health-check and send in OpenAI-compatible requests.",
     )
     loadtest_run_parser.add_argument(
         "--job-id",
@@ -764,13 +763,6 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
-def _split_loadtest_prompt_labels(raw: str | None) -> list[str] | None:
-    if raw is None:
-        return None
-    labels = [part.strip() for part in raw.split(",") if part.strip()]
-    return labels or None
-
-
 def _loadtest_results_dir(run_id: int | str) -> Path:
     config_dir = Path(os.environ.get("SML_CONFIG_DIR", str(Path.home() / ".sml")))
     return config_dir / "loadtest" / str(run_id)
@@ -779,35 +771,33 @@ def _loadtest_results_dir(run_id: int | str) -> Path:
 def _make_loadtest_config_from_values(
     *,
     scenario: str,
-    think_time: str | None,
     max_tokens: str | None,
-    request_timeout: str | None,
-    prompt_labels: str | list[str] | None,
+    ignore_eos: bool | None,
+    prompt_seed: int = 1,
 ) -> LoadtestConfig:
     scenarios = {s.name: s for s in load_scenarios()}
     scenario_cfg = scenarios.get(scenario)
     if scenario_cfg is None:
         raise ValueError(f"Unknown loadtest scenario '{scenario}'. Available: {', '.join(sorted(scenarios))}")
 
-    parsed_prompt_labels = (
-        prompt_labels if isinstance(prompt_labels, list) else _split_loadtest_prompt_labels(prompt_labels)
-    )
+    resolved_max_tokens = None if max_tokens == "prompt" else max_tokens or scenario_cfg.max_tokens
     return LoadtestConfig(
         scenario=scenario,
-        think_time=think_time or scenario_cfg.think_time or "2",
-        max_tokens=max_tokens or scenario_cfg.max_tokens,
-        request_timeout=request_timeout,
-        prompt_labels=parsed_prompt_labels if parsed_prompt_labels is not None else scenario_cfg.prompt_labels,
+        think_time=scenario_cfg.think_time or "2",
+        max_tokens=resolved_max_tokens,
+        request_timeout=None,
+        prompt_labels=scenario_cfg.prompt_labels,
+        ignore_eos=ignore_eos,
+        prompt_seed=prompt_seed,
     )
 
 
 def _make_loadtest_config(args: argparse.Namespace) -> LoadtestConfig:
     return _make_loadtest_config_from_values(
         scenario=args.loadtest_scenario,
-        think_time=args.loadtest_think_time,
         max_tokens=args.loadtest_max_tokens,
-        request_timeout=args.loadtest_request_timeout,
-        prompt_labels=args.loadtest_prompt_labels,
+        ignore_eos=args.loadtest_ignore_eos,
+        prompt_seed=args.loadtest_prompt_seed,
     )
 
 
@@ -815,7 +805,6 @@ def _make_loadtest_server(args: argparse.Namespace, api_key: str, model_name: st
     return ServerConfig(
         url=args.loadtest_server_url.rstrip("/"),
         api_key=api_key,
-        chat_mode=args.loadtest_chat_mode,
         model=model_name,
         is_swissai=True,
     )
@@ -840,6 +829,9 @@ def _make_cluster_loadtest_config(
         cpus_per_task=args.loadtest_cpus_per_task,
         wait=args.wait_for_loadtest,
         reservation=reservation or getattr(args, "reservation", None),
+        metrics_remote_write_url=(
+            args.loadtest_metrics_remote_write_url if args.loadtest_metrics_remote_write else None
+        ),
     )
 
 
@@ -862,6 +854,8 @@ async def _run_k6_on_cluster(
     cluster_config = _make_cluster_loadtest_config(args, reservation=reservation)
     print(f"Loadtest container image: {cluster_config.container_image}")
     print(f"Loadtest prompts file: {prompts_file}")
+    if cluster_config.metrics_remote_write_url:
+        print(f"Loadtest metrics remote write: {cluster_config.metrics_remote_write_url}")
     job_id = await submit_cluster_loadtest(
         launcher=launcher,
         server=server,
@@ -886,6 +880,8 @@ async def _wait_until_model_healthy(
 ) -> None:
     loop = asyncio.get_running_loop()
     started = loop.time()
+    last_reported_health: ModelHealth | None = None
+    next_progress_at = started + _LOADTEST_READY_PROGRESS_SECONDS
     print(f"Waiting for model health: {served_model_name} via {server_url.rstrip('/')}")
 
     while True:
@@ -900,7 +896,15 @@ async def _wait_until_model_healthy(
                 f"Timed out after {timeout_seconds}s waiting for model to become healthy: {served_model_name}"
             )
 
-        print(f"Model health is {health.value}; checking again in {poll_interval_seconds}s")
+        now = loop.time()
+        if health != last_reported_health:
+            print(f"Model health is {health.value}; waiting quietly...")
+            last_reported_health = health
+        elif now >= next_progress_at:
+            elapsed_seconds = round(elapsed)
+            print(f"Still waiting for model health after {elapsed_seconds}s; current status: {health.value}")
+            next_progress_at = now + _LOADTEST_READY_PROGRESS_SECONDS
+
         await asyncio.sleep(poll_interval_seconds)
 
 
@@ -978,23 +982,23 @@ async def _run_loadtest_against_existing_model(args: argparse.Namespace) -> None
 
     config = InitConfig.load()
     cscs_api_key = config.get_non_none_value("cscs_api_key")
-    served_model_name = args.served_model_name
-    request_model = args.loadtest_model or served_model_name or ""
+    loadtest_model = args.loadtest_model
+    request_model = loadtest_model or ""
     loadtest_config = _make_loadtest_config(args)
     launcher = await _create_launcher(config, args, non_interactive=True)
 
-    if args.wait_until_healthy and served_model_name:
+    if args.wait_until_healthy and loadtest_model:
         await _wait_until_model_healthy(
-            served_model_name,
+            loadtest_model,
             cscs_api_key,
             server_url=args.loadtest_server_url,
             timeout_seconds=args.loadtest_ready_timeout,
             poll_interval_seconds=args.loadtest_ready_poll_interval,
         )
     elif args.wait_until_healthy:
-        print("Skipping model health check because --served-model-name was not provided.")
+        print("Skipping model health check because --loadtest-model was not provided.")
 
-    run_id = args.job_id or (served_model_name.replace("/", "_") if served_model_name else "external")
+    run_id = args.job_id or (loadtest_model.replace("/", "_") if loadtest_model else "external")
     results_dir = _loadtest_results_dir(run_id)
     results_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
