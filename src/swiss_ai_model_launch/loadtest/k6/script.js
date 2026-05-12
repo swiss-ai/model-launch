@@ -16,7 +16,6 @@
  *   PROMPTS_FILE        - JSON prompt corpus path mounted in the k6 container
  *
  * Optional env-only overrides (useful for direct k6 runs):
- *   STREAM_RATIO        - fraction of requests that use streaming (default 0.7)
  *   SYSTEM_PROMPT       - prepend a fixed system prompt to every chat request, enabling
  *                         vLLM prefix caching (APC) to share KV blocks across requests.
  *                         Set to "default" to use the built-in ~200-token prompt, or pass
@@ -26,6 +25,7 @@
 
 import http from "k6/http";
 import { check, sleep } from "k6";
+import exec from "k6/execution";
 import { Trend, Counter, Rate, Gauge } from "k6/metrics";
 import { SharedArray } from "k6/data";
 
@@ -33,7 +33,7 @@ import { SharedArray } from "k6/data";
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
 const DEFAULT_REQUEST_TIMEOUT = "120s";
-const DEFAULT_STREAM_RATIO = 0.7;
+const DEFAULT_PROMPT_SEED = 1;
 const DEFAULT_THINK_TIME = 2;
 const DEFAULT_MAX_VUS = 10;
 const DEFAULT_REALISTIC_USERS = 20;
@@ -46,6 +46,8 @@ const LATENCY_LABEL_PATTERN = /^e2e_latency_ms\{label:(.+)\}$/;
 const STATUS_200_CHECK = "status 200";
 const SCENARIO_CONSTANT_VUS = "constant-vus";
 const SCENARIO_RAMPING_VUS = "ramping-vus";
+const SCENARIO_CONSTANT_ARRIVAL_RATE = "constant-arrival-rate";
+const SCENARIO_RAMPING_ARRIVAL_RATE = "ramping-arrival-rate";
 const LABEL_TAG = "label";
 const STAT_AVG = "avg";
 const STAT_MED = "med";
@@ -75,6 +77,11 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function randomUnit() {
   return Math.random(); // NOSONAR: load-test sampling and jitter are not security-sensitive.
 }
@@ -86,22 +93,23 @@ const CFG_PROMPT_LABELS =
     : null;
 
 const BASE_URL = RUN_CFG.server_url ?? DEFAULT_BASE_URL;
-const STREAM_RATIO = parseNumber(__ENV.STREAM_RATIO, DEFAULT_STREAM_RATIO);
 const API_KEY = RUN_CFG.api_key ?? "";
-const CHAT_MODE = (RUN_CFG.chat_mode ?? false) === true;
 const MODEL = RUN_CFG.model ?? "";
 const REQUEST_TIMEOUT =
   RUN_CFG.request_timeout ??
   RUN_CFG.scenario_definition?.request_timeout ??
   DEFAULT_REQUEST_TIMEOUT;
-const STREAM_RECORD_USAGE =
-  (RUN_CFG.stream_record_usage ??
-    RUN_CFG.scenario_definition?.stream_record_usage ??
-    false) === true;
 const INITIAL_STAGGER =
   (RUN_CFG.initial_stagger ??
     RUN_CFG.scenario_definition?.initial_stagger ??
     false) === true;
+const IGNORE_EOS =
+  (RUN_CFG.ignore_eos ?? RUN_CFG.scenario_definition?.ignore_eos ?? false) ===
+  true;
+const PROMPT_SEED = parseInteger(
+  __ENV.PROMPT_SEED ?? RUN_CFG.prompt_seed ?? RUN_CFG.scenario_definition?.prompt_seed,
+  DEFAULT_PROMPT_SEED,
+);
 // THINK_TIME: max seconds of sleep between requests per VU (uniform [0, THINK_TIME]).
 // Lower values → more in-flight requests → higher KV cache fill. 0 = no sleep.
 const THINK_TIME = parseNumber(RUN_CFG.think_time, DEFAULT_THINK_TIME);
@@ -185,7 +193,6 @@ const completionTokens = new Trend("completion_tokens");
 const requestErrors = new Counter("request_errors");
 const successRate = new Rate("success_rate");
 const activeRequests = new Gauge("active_requests");
-const malformedStreamEvents = new Counter("malformed_stream_events");
 
 function parseJsonOrNull(raw, context) {
   try {
@@ -201,13 +208,44 @@ function parseJsonOrNull(raw, context) {
 function scenarioToK6(scenario) {
   // Map scenario JSON to k6 scenario config
   if (!scenario) return null;
-  // Support both ramping-vus and constant-vus
   if (scenario.executor === SCENARIO_RAMPING_VUS) {
     return {
       executor: SCENARIO_RAMPING_VUS,
       startVUs: scenario.startVUs ?? 0,
       stages: scenario.stages,
       gracefulRampDown: scenario.gracefulRampDown ?? DEFAULT_RAMP_DOWN,
+    };
+  }
+  if (scenario.executor === SCENARIO_CONSTANT_ARRIVAL_RATE) {
+    return {
+      executor: SCENARIO_CONSTANT_ARRIVAL_RATE,
+      rate: parsePositiveInteger(scenario.rate, 1),
+      timeUnit: scenario.timeUnit ?? "1s",
+      duration: scenario.duration ?? DEFAULT_DURATION,
+      preAllocatedVUs: parsePositiveInteger(
+        scenario.preAllocatedVUs,
+        DEFAULT_MAX_VUS,
+      ),
+      maxVUs: parsePositiveInteger(
+        scenario.maxVUs,
+        scenario.preAllocatedVUs ?? DEFAULT_MAX_VUS,
+      ),
+    };
+  }
+  if (scenario.executor === SCENARIO_RAMPING_ARRIVAL_RATE) {
+    return {
+      executor: SCENARIO_RAMPING_ARRIVAL_RATE,
+      startRate: parsePositiveInteger(scenario.startRate, 1),
+      timeUnit: scenario.timeUnit ?? "1s",
+      stages: scenario.stages,
+      preAllocatedVUs: parsePositiveInteger(
+        scenario.preAllocatedVUs,
+        DEFAULT_MAX_VUS,
+      ),
+      maxVUs: parsePositiveInteger(
+        scenario.maxVUs,
+        scenario.preAllocatedVUs ?? DEFAULT_MAX_VUS,
+      ),
     };
   }
   return {
@@ -306,11 +344,6 @@ export const options = {
   scenarios: {
     load: selectedScenario,
   },
-  thresholds: {
-    http_req_failed: ["rate<0.05"],
-    success_rate: ["rate>0.95"],
-    e2e_latency_ms: ["p(95)<30000"],
-  },
   summaryTrendStats: ["min", "med", "avg", "p(90)", "p(95)", "p(99)", "max"],
 };
 
@@ -321,7 +354,7 @@ const HEADERS = {
   ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
 };
 
-const ENDPOINT = CHAT_MODE ? "/v1/chat/completions" : "/v1/completions";
+const ENDPOINT = "/v1/chat/completions";
 
 // Build the messages array for a prompt, handling both single-turn and multi-turn formats.
 // Prepends the system prompt (if configured) so all requests share a common prefix,
@@ -332,48 +365,19 @@ function buildMessages(prompt) {
   return [{ role: "system", content: SYSTEM_PROMPT }, ...body];
 }
 
-// Flatten a messages array to a plain text prompt for the completions endpoint.
-// Ends with "\nAssistant:" so the model knows to continue as the assistant.
-function flattenMessages(messages) {
-  const parts = messages.map((m) =>
-    m.role === "user" ? `Human: ${m.content}` : `Assistant: ${m.content}`,
-  );
-  return parts.join("\n") + "\nAssistant:";
-}
-
-function payload(prompt, stream) {
+function payload(prompt) {
   const maxTokens = MAX_TOKENS ?? prompt.max_tokens;
-  if (CHAT_MODE) {
-    const body = {
-      ...(MODEL ? { model: MODEL } : {}),
-      messages: buildMessages(prompt),
-      max_tokens: maxTokens,
-      temperature: 1.0,
-      stream,
-    };
-    if (stream) {
-      body.stream_options = { include_usage: true };
-    }
-    return JSON.stringify(body);
-  }
-  const base = prompt.messages
-    ? flattenMessages(prompt.messages)
-    : prompt.content;
-  const text = SYSTEM_PROMPT ? `${SYSTEM_PROMPT}\n\n${base}` : base;
-  return JSON.stringify({
+  const body = {
     ...(MODEL ? { model: MODEL } : {}),
-    prompt: text,
+    messages: buildMessages(prompt),
     max_tokens: maxTokens,
     temperature: 1.0,
-    stream,
-  });
-}
-
-function extractText(choice) {
-  if (CHAT_MODE) {
-    return choice?.delta?.content ?? choice?.message?.content ?? "";
+    stream: false,
+  };
+  if (IGNORE_EOS) {
+    body.ignore_eos = true;
   }
-  return choice?.text ?? "";
+  return JSON.stringify(body);
 }
 
 function recordUsage(usage, elapsed, label) {
@@ -391,45 +395,13 @@ function recordUsage(usage, elapsed, label) {
   }
 }
 
-function parseStreamingUsage(bodyText) {
-  if (typeof bodyText !== "string" || bodyText.length === 0) return null;
-  let usage = null;
-  let completionText = "";
-
-  for (const rawLine of bodyText.split("\n")) {
-    if (!rawLine.startsWith("data:")) continue;
-    const data = rawLine.slice(5).trim();
-    if (!data || data === "[DONE]") continue;
-
-    try {
-      const evt = JSON.parse(data);
-      if (evt?.usage) usage = evt.usage;
-      completionText += extractText(evt?.choices?.[0]);
-    } catch {
-      malformedStreamEvents.add(1);
-    }
-  }
-
-  if (usage) return usage;
-  if (completionText.length > 0) {
-    return {
-      prompt_tokens: null,
-      completion_tokens: Math.max(
-        1,
-        Math.round(completionText.length / ESTIMATED_CHARS_PER_TOKEN),
-      ),
-    };
-  }
-  return null;
-}
-
 // ─── Non-streaming ────────────────────────────────────────────────────────────
 
 function runNonStreaming(prompt) {
   activeRequests.add(1);
   const start = Date.now();
 
-  const res = http.post(`${BASE_URL}${ENDPOINT}`, payload(prompt, false), {
+  const res = http.post(`${BASE_URL}${ENDPOINT}`, payload(prompt), {
     headers: HEADERS,
     timeout: REQUEST_TIMEOUT,
     tags: { [LABEL_TAG]: prompt.label, stream: "false" },
@@ -450,8 +422,16 @@ function runNonStreaming(prompt) {
 
   if (!ok) {
     requestErrors.add(1, { status: res.status, [LABEL_TAG]: prompt.label });
+    const errorDetail = res.error
+      ? ` error=${res.error}`
+      : res.error_code
+        ? ` error_code=${res.error_code}`
+        : "";
+    const durationDetail = Number.isFinite(res.timings?.duration)
+      ? ` duration_ms=${res.timings.duration.toFixed(0)}`
+      : "";
     console.warn(
-      `[non-stream] ${prompt.label} failed: ${res.status} ${res.body?.slice(0, 200)}`,
+      `[non-stream] ${prompt.label} failed: status=${res.status}${errorDetail}${durationDetail} body=${res.body?.slice(0, 200)}`,
     );
     return;
   }
@@ -459,102 +439,33 @@ function runNonStreaming(prompt) {
   recordUsage(body?.usage, elapsed, prompt.label);
 }
 
-// ─── Streaming ────────────────────────────────────────────────────────────────
+// ─── Prompt selection ────────────────────────────────────────────────────────
 
-function runStreaming(prompt) {
-  activeRequests.add(1);
-  const start = Date.now();
-
-  const streamReqOpts = {
-    headers: HEADERS,
-    timeout: REQUEST_TIMEOUT,
-    tags: { [LABEL_TAG]: prompt.label, stream: "true" },
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return function next() {
+    state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+    return state / 0x100000000;
   };
-  if (!STREAM_RECORD_USAGE) {
-    // Avoid buffering large SSE bodies unless usage accounting is enabled.
-    streamReqOpts.responseType = "none";
-  }
-  const res = http.post(
-    `${BASE_URL}${ENDPOINT}`,
-    payload(prompt, true),
-    streamReqOpts,
-  );
-
-  activeRequests.add(-1);
-  const elapsed = Date.now() - start;
-  e2eLatency.add(elapsed, { label: prompt.label });
-
-  const ok = check(res, { [STATUS_200_CHECK]: (r) => r.status === 200 });
-
-  successRate.add(ok);
-
-  if (!ok) {
-    requestErrors.add(1, { status: res.status, [LABEL_TAG]: prompt.label });
-    console.warn(`[stream] ${prompt.label} failed: ${res.status}`);
-    return;
-  }
-
-  if (STREAM_RECORD_USAGE) {
-    const usage = parseStreamingUsage(res.body);
-    recordUsage(usage, elapsed, prompt.label);
-  }
 }
 
-// ─── Weighted prompt selection ────────────────────────────────────────────────
-// Weights by label mirror a realistic serving workload:
-// more medium/long tasks, fewer trivial and very long inputs.
-// Unknown labels (e.g. from a custom dataset) get weight 10.
-//
-// You can override defaults with RUN_CONFIG_JSON.label_weights or
-// RUN_CONFIG_JSON.scenario_definition.label_weights.
-const DEFAULT_LABEL_WEIGHTS = {
-  medium: 20,
-  long_output: 30,
-  long_input: 20,
-  xl_input: 10,
-  conv_medium: 10,
-  conv_long: 10,
-};
-
-function resolveLabelWeights(raw) {
-  if (!raw || typeof raw !== "object") return DEFAULT_LABEL_WEIGHTS;
-  const merged = { ...DEFAULT_LABEL_WEIGHTS };
-  for (const [label, weight] of Object.entries(raw)) {
-    if (Number.isFinite(weight) && weight >= 0) {
-      merged[label] = weight;
-    }
+function shuffledPromptIndices(length, seed) {
+  const indices = Array.from({ length }, (_, i) => i);
+  const random = seededRandom(seed);
+  for (let i = indices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  return merged;
+  return indices;
 }
 
-const LABEL_WEIGHTS = resolveLabelWeights(
-  RUN_CFG.label_weights ?? RUN_CFG.scenario_definition?.label_weights,
-);
-
-// Cumulative weight array — avoids duplicating prompt objects into a flat pool.
-const CUMULATIVE_WEIGHTS = PROMPTS.reduce((acc, p, i) => {
-  const w = LABEL_WEIGHTS[p.label] ?? 10;
-  acc.push((acc[i - 1] ?? 0) + w);
-  return acc;
-}, []);
-const TOTAL_WEIGHT = CUMULATIVE_WEIGHTS[CUMULATIVE_WEIGHTS.length - 1];
-if (!Number.isFinite(TOTAL_WEIGHT) || TOTAL_WEIGHT <= 0) {
-  throw new Error("Invalid label weights: total prompt weight must be > 0");
-}
+const PROMPT_ORDER = shuffledPromptIndices(PROMPTS.length, PROMPT_SEED);
+console.log(`[init] Prompt order shuffled with seed ${PROMPT_SEED}`);
 
 function pickPrompt() {
-  const r = randomUnit() * TOTAL_WEIGHT;
-  let lo = 0;
-  let hi = CUMULATIVE_WEIGHTS.length - 1;
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (CUMULATIVE_WEIGHTS[mid] < r) {
-      lo = mid + 1;
-    } else {
-      hi = mid;
-    }
-  }
-  return PROMPTS[lo];
+  const promptIndex =
+    PROMPT_ORDER[exec.scenario.iterationInTest % PROMPT_ORDER.length];
+  return PROMPTS[promptIndex];
 }
 
 // ─── VU entrypoint ────────────────────────────────────────────────────────────
@@ -573,11 +484,7 @@ export default function runIteration() {
 
   const prompt = pickPrompt();
 
-  if (randomUnit() < STREAM_RATIO) {
-    runStreaming(prompt);
-  } else {
-    runNonStreaming(prompt);
-  }
+  runNonStreaming(prompt);
 
   if (THINK_TIME > 0) sleep(randomUnit() * THINK_TIME);
 }

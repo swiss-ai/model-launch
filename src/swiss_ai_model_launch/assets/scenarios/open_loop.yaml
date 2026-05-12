@@ -1,0 +1,11 @@
+name: open_loop
+executor: constant-arrival-rate
+rate: 20
+timeUnit: 1s
+duration: 15m
+preAllocatedVUs: 120
+maxVUs: 300
+think_time: "0"
+max_tokens: "2048"
+request_timeout: 180s
+ignore_eos: true

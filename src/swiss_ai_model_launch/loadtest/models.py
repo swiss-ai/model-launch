@@ -57,7 +57,6 @@ def load_scenarios() -> list[ScenarioConfig]:
 class ServerConfig:
     url: str
     api_key: str
-    chat_mode: bool
     model: str
     is_swissai: bool
 
@@ -66,6 +65,8 @@ class ServerConfig:
 class LoadtestConfig:
     scenario: str
     think_time: str
-    max_tokens: str
+    max_tokens: str | None
     request_timeout: str | None = None
     prompt_labels: list[str] | None = None  # None = all labels (weighted mix)
+    ignore_eos: bool | None = None  # None = use scenario default
+    prompt_seed: int = 1
