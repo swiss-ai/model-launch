@@ -53,13 +53,13 @@ test:
 	uv run --frozen pytest tests/unit/ --cov=src --cov-report=term-missing
 
 _test-lightweight:
-	uv run --frozen pytest -m lightweight --cov --cov-report=term-missing -n auto
+	uv run --frozen pytest -m lightweight --cov --cov-report=term-missing -n 64
 
 _test-std:
-	uv run --frozen pytest -m std --cov --cov-report=term-missing -n auto
+	uv run --frozen pytest -m std --cov --cov-report=term-missing -n 64
 
 _test-comprehensive:
-	uv run --frozen pytest -m comprehensive --cov --cov-report=term-missing -n auto
+	uv run --frozen pytest -m comprehensive --cov --cov-report=term-missing -n 64
 
 test-lightweight:
 	. ./.test.sh && $(MAKE) _test-lightweight
