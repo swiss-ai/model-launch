@@ -29,7 +29,7 @@ def _discover_examples() -> list[Path]:
 
 
 _EXAMPLE_SCRIPTS = [
-    pytest.param(p, id=str(p.relative_to(_REPO_ROOT)), marks=pytest.mark.full) for p in _discover_examples()
+    pytest.param(p, id=str(p.relative_to(_REPO_ROOT)), marks=pytest.mark.comprehensive) for p in _discover_examples()
 ]
 
 _REQUIRED_ENV_VARS = [

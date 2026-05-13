@@ -23,7 +23,7 @@ _LAUNCH_REQUESTS = [
             time="03:00:00",
         ),
         id=f"{entry['model']}/{entry['framework']}",
-        marks=[pytest.mark.medium, pytest.mark.full]
+        marks=[pytest.mark.std, pytest.mark.comprehensive]
         + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
     )
     for entry in json.loads(_MODEL_JSON.read_text())
