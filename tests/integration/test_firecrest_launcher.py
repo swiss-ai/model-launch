@@ -15,6 +15,8 @@ _HEALTH_TIMEOUT = 120
 
 _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
+_CATALOG_ENTRIES = json.loads(_MODEL_JSON.read_text())
+
 _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest(
@@ -23,10 +25,35 @@ _LAUNCH_REQUESTS = [
             time="03:00:00",
         ),
         id=f"{entry['model']}/{entry['framework']}",
-        marks=[pytest.mark.std, pytest.mark.comprehensive]
+        marks=[pytest.mark.comprehensive]
         + ([pytest.mark.lightweight] if entry.get("_include_in_lightweight_ci") else []),
     )
-    for entry in json.loads(_MODEL_JSON.read_text())
+    for entry in _CATALOG_ENTRIES
+]
+
+# Std suite: Apertus 8B (sglang + vllm) across three topologies.
+# 2-node variants are 2 replicas x 1 node each, so the with/without-router axis is meaningful.
+_APERTUS_8B_MODEL = "swiss-ai/Apertus-8B-Instruct-2509"
+_STD_CONFIGS: list[tuple[str, int, bool]] = [
+    # (config_id, replicas, use_router)
+    ("1n", 1, False),
+    ("2n", 2, False),
+    ("2n-router", 2, True),
+]
+_STD_LAUNCH_REQUESTS = [
+    pytest.param(
+        LaunchRequest.from_catalog_entry(
+            ModelCatalogEntry.model_validate(entry),
+            replicas=replicas,
+            time="03:00:00",
+            use_router=use_router,
+        ),
+        id=f"{entry['model']}/{entry['framework']}/{config_id}",
+        marks=[pytest.mark.std],
+    )
+    for entry in _CATALOG_ENTRIES
+    if entry["model"] == _APERTUS_8B_MODEL
+    for config_id, replicas, use_router in _STD_CONFIGS
 ]
 
 _REQUIRED_ENV_VARS = [
@@ -75,7 +102,7 @@ def cscs_api_key(env: dict[str, str]) -> str:
     return env["SML_CSCS_API_KEY"]
 
 
-@pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS)  # type: ignore[misc]
+@pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS + _STD_LAUNCH_REQUESTS)  # type: ignore[misc]
 async def test_launch_apertus_and_health(
     launcher: FirecRESTLauncher,
     cscs_api_key: str,
