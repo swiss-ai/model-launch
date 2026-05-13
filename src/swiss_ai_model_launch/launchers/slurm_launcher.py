@@ -3,14 +3,14 @@ import json
 from importlib.resources import files
 from pathlib import Path
 
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.framework import render_master
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
-    render_job_script,
     resolve_model_path,
 )
 
@@ -56,8 +56,10 @@ class SlurmLauncher(Launcher):
             job_name=job_name,
             account=self.account,
             partition=self.partition,
-            workers=launch_request.workers,
-            nodes_per_worker=launch_request.nodes_per_worker,
+            topology=Topology(
+                replicas=launch_request.replicas,
+                nodes_per_replica=launch_request.nodes_per_replica,
+            ),
             time=launch_request.time,
             reservation=self.reservation,
             environment=launch_request.environment,
@@ -66,8 +68,7 @@ class SlurmLauncher(Launcher):
             framework_args=(
                 f"--model {resolve_model_path(model, self.model_registry, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
-                "--host 0.0.0.0 "
-                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
+                "--host 0.0.0.0 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
@@ -88,17 +89,21 @@ class SlurmLauncher(Launcher):
             )
 
     async def _sbatch(self, launch_args: LaunchArgs) -> int:
-        script_str = render_job_script(launch_args)
         working_dir = self._get_working_dir()
         working_dir.mkdir(parents=True, exist_ok=True)
 
+        # Master.sh self-extracts its rank scripts at job start time
+        # (under $HOME/.sml/job-${SLURM_JOB_ID}/). We only write master
+        # locally so sbatch has something to submit.
         script_path = working_dir / f"job_{launch_args.job_name}.sh"
-        script_path.write_text(script_str)
+        script_path.write_text("#!/bin/bash\n" + render_master(launch_args))
+        script_path.chmod(0o755)
 
         proc = await asyncio.create_subprocess_exec(
             "sbatch",
             "--chdir",
             str(working_dir),
+            *launch_args.to_sbatch_args(),
             str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

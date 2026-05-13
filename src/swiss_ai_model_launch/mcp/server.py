@@ -247,9 +247,9 @@ async def launch_preconfigured_model(
         "Use `list_preconfigured_models` to see available models.",
     ],
     framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
-    workers: Annotated[int, "Number of workers."] = 1,
+    replicas: Annotated[int, "Number of independent inference engine instances to launch."] = 1,
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
-    use_router: Annotated[bool, "Enable router for load balancing across workers."] = False,
+    use_router: Annotated[bool, "Enable router for load balancing across replicas."] = False,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -285,7 +285,7 @@ async def launch_preconfigured_model(
         )
     request = LaunchRequest.from_catalog_entry(
         entry,
-        workers=workers,
+        replicas=replicas,
         time=time,
         served_model_name=f"{model}-{create_salt(4)}",
         use_router=use_router,

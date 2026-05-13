@@ -12,14 +12,11 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
   --slurm-time 6:00:00 \
   --serving-framework sglang \
-  --worker-port 8080 \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/MLLM/OCR/rednote-hilab_dots.mocr \
     --host 0.0.0.0 \
-    --port 8080 \
     --served-model-name dots_mocr-$(whoami) \
     --dp-size 4 \
     --tp-size 1 \

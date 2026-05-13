@@ -18,16 +18,19 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-nodes`             |                         | Total nodes (default: `replicas × nodes-per-replica`)             |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
 | `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `00:05:00`)                   |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--replica-port`            |                         | Port used by replicas (default: `5000`)                           |
-| `--use-router`              |                         | Enable router to load-balance across replicas                     |
+| `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
+| `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
+| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
+| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
+
+> Total nodes is automatically `--slurm-replicas × --slurm-nodes-per-replica`; there is no separate `--slurm-nodes` flag. The framework HTTP port is hardcoded to **8080** across every job — no `--worker-port`/`--replica-port` knob.
 
 ## Example: Apertus 8B on Clariden with sglang
 
@@ -35,19 +38,60 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-replicas 1 \
-  --slurm-nodes-per-replica 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 \
-    --port 8080"
+    --enable-metrics"
 ```
 
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
+
+## Inspecting what would be submitted (`--output-script DIR`)
+
+`--output-script DIR` writes the rendered submission scripts into the given directory and exits without submitting:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 --enable-metrics" \
+  --output-script /tmp/debug
+```
+
+Produces something like:
+
+```text
+Wrote 2 file(s) to /tmp/debug:
+  master.sh
+  head.sh
+```
+
+For a multi-node / router config the directory also gets `follower.sh` and/or `router.sh`. The layout is **byte-identical** to what a live submission writes to `~/.sml/job-${SLURM_JOB_ID}/` at job start — so each rank shape is its own bash file:
+
+```bash
+shellcheck /tmp/debug/*.sh        # lint each independently
+cat /tmp/debug/head.sh            # inspect just the head-rank logic
+sbatch /tmp/debug/master.sh       # submit manually if you want
+diff /tmp/debug/head.sh /tmp/older-debug/head.sh   # compare runs
+```
+
+Useful for:
+
+- **Debugging a launch failure:** see exactly what `--framework-args` your invocation translated to (the `--port 8080` auto-injection, etc.), which `srun` calls would run, and what each rank shape does.
+- **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the rank scripts.
+- **Starting point for a hand-tuned job:** edit any of the rank scripts, then `sbatch master.sh` directly.
+
+After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/` for post-mortem inspection.
+
+> **`master.sh` is self-contained.** It carries the rank scripts as embedded `cat`-heredocs and re-extracts them under `~/.sml/job-${SLURM_JOB_ID}/` at job start — that's why `sbatch master.sh` works regardless of where the directory lives. The standalone `head.sh` / `follower.sh` / `router.sh` files in the output dir are byte-equal duplicates for inspection; the heredoc bodies inside `master.sh` are what actually run.
 
 ## When to disable OCF
 

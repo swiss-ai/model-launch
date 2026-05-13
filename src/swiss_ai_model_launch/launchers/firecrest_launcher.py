@@ -6,14 +6,15 @@ from pathlib import Path
 
 import firecrest as f7t
 
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.framework import render_master
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
-    render_job_script,
+    render_sbatch_header,
     resolve_model_path,
 )
 
@@ -85,8 +86,10 @@ class FirecRESTLauncher(Launcher):
             job_name=job_name,
             account=self.account,
             partition=self.partition,
-            workers=launch_request.workers,
-            nodes_per_worker=launch_request.nodes_per_worker,
+            topology=Topology(
+                replicas=launch_request.replicas,
+                nodes_per_replica=launch_request.nodes_per_replica,
+            ),
             time=launch_request.time,
             reservation=self.reservation,
             environment=launch_request.environment,
@@ -95,8 +98,7 @@ class FirecRESTLauncher(Launcher):
             framework_args=(
                 f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
-                "--host 0.0.0.0 "
-                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
+                "--host 0.0.0.0 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
@@ -147,7 +149,7 @@ class FirecRESTLauncher(Launcher):
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
         launch_args = launch_args.model_copy(update={"environment": remote_env_path, "reservation": self.reservation})
-        script_str = render_job_script(launch_args)
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,
             working_dir=self._get_working_dir(),
@@ -169,7 +171,7 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
-        script_str = render_job_script(launch_args)
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args)
         job_submission_report = await self.client.submit(
             system_name=self.system_name,
             working_dir=self._get_working_dir(),

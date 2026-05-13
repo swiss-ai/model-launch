@@ -1,21 +1,17 @@
 import secrets
 import string
-from importlib.resources import files
 from pathlib import Path
 
-from jinja2 import Template
-
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-
-_TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
 
 
 def resolve_model_path(model: str, registry: Path, model_path: str | None = None) -> str:
     """Return the filesystem path for a model.
 
-    If *model_path* is provided it is used as-is (absolute path override).
-    Otherwise the model identifier is appended to *registry*
-    (e.g. ``swiss-ai/Apertus-70B`` → ``<registry>/swiss-ai/Apertus-70B``).
+    If *model_path* is provided it is returned as-is, allowing callers to
+    point at an arbitrary local copy.  Otherwise the path is constructed by
+    joining *registry* with *model* (e.g. ``registry / "vendor/name"``),
+    which is the standard layout used by the CSCS model registry.
     """
     if model_path is not None:
         return model_path
@@ -26,9 +22,23 @@ def create_salt(length: int) -> str:
     return "".join(secrets.choice(string.ascii_letters) for _ in range(length))
 
 
-def render_job_script(launch_args: LaunchArgs) -> str:
-    template = Template(_TEMPLATE_PATH.read_text())
-    return str(template.render(**launch_args.model_dump()))
+def render_sbatch_header(launch_args: LaunchArgs) -> str:
+    lines = [
+        "#!/bin/bash",
+        f"#SBATCH --job-name={launch_args.job_name}",
+        f"#SBATCH --account={launch_args.account}",
+        f"#SBATCH --time={launch_args.time}",
+        "#SBATCH --exclusive",
+        f"#SBATCH --nodes={launch_args.total_nodes}",
+        f"#SBATCH --partition={launch_args.partition}",
+    ]
+    if launch_args.reservation:
+        lines.append(f"#SBATCH --reservation={launch_args.reservation}")
+    lines += [
+        "#SBATCH --output=logs/%j/log.out",
+        "#SBATCH --error=logs/%j/log.out",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def decode_log(data: bytes) -> str:

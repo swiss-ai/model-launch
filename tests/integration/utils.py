@@ -3,12 +3,11 @@ import asyncio
 import pytest
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
-from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
 
 
 async def wait_for_job_running(
-    launcher: FirecRESTLauncher,
+    launcher: Launcher,
     job_id: int,
     timeout_min: int,
     poll_interval_seconds: int = 15,
