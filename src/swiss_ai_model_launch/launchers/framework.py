@@ -86,13 +86,33 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
     return f"--port {FRAMEWORK_PORT} {launch_args.framework_args}".strip()
 
 
-def _ocf_wrap(inner_cmd: str) -> str:
+def _ocf_labels(launch_args: LaunchArgs) -> str:
+    """Build the --label flags surfacing launch metadata into the DNT entry.
+
+    $USER / $SLURM_* are expanded by the runtime shell on the compute node,
+    so they don't need to be known at script-render time. served_model_name
+    is quoted because it commonly contains '/' and other shell-meaningful
+    chars even though the value itself is safe.
+    """
+    return (
+        "    --label launched_by=$USER \\\n"
+        "    --label slurm_job_id=$SLURM_JOB_ID \\\n"
+        "    --label slurm_partition=${SLURM_JOB_PARTITION:-unknown} \\\n"
+        "    --label worker_group_id=$SLURM_JOB_ID \\\n"
+        f"    --label framework={launch_args.framework} \\\n"
+        f'    --label served_model_name="{launch_args.served_model_name}" \\\n'
+        "    --label started_at=$(date -u +%FT%TZ) \\\n"
+    )
+
+
+def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
     """Wrap a command in OCF's ``--subprocess`` invocation."""
     return (
         f"$OCF_BIN start \\\n"
         f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {FRAMEWORK_PORT} \\\n"
+        f"{_ocf_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
 
@@ -149,7 +169,7 @@ def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
     if use_ocf:
         # OCF spawns the launch as a subprocess so it can be advertised on
         # the OpenTela network at $service.port.
-        launch = _ocf_wrap(cmd)
+        launch = _ocf_wrap(cmd, launch_args)
     else:
         launch = cmd
     return f"{pre}\n\n{body_args}\n{launch}\n"
@@ -183,7 +203,7 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
         body_args = '# shellcheck disable=SC2034\nreplica_head_ip="$1"\n'
         cmd = f"{framework.entrypoint} {args}"
         if use_ocf:
-            launch = _ocf_wrap(cmd)
+            launch = _ocf_wrap(cmd, launch_args)
         else:
             launch = cmd
         return f"{pre}\n\n{body_args}\n{launch}\n"
@@ -220,7 +240,7 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
         # No nested double-quotes inside the --subprocess arg — the path
         # has no spaces (it's our own /tmp/sml-... naming) and the dq
         # surrounding ``--subprocess "..."`` already provides the quoting.
-        launch = _ocf_wrap("bash $ray_head_script")
+        launch = _ocf_wrap("bash $ray_head_script", launch_args)
     else:
         launch = 'bash "$ray_head_script"'
     return f"{pre}\n\n{body_args}\n{head_script_body}\n\n{launch}\n"
