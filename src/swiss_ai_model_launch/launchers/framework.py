@@ -123,6 +123,22 @@ def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
     )
 
 
+def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
+    """Wrap a command in OCF without registering a serving endpoint.
+
+    Used on multi-node replica followers: they join the DNT so their
+    hardware and worker_group_id label are visible (letting consumers
+    aggregate the full N-node topology of a replica), but they don't
+    advertise an LLM service — the head node owns that.
+    """
+    return (
+        f"$OCF_BIN start \\\n"
+        f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
+        f"{_ocf_labels(launch_args)}"
+        f'    --subprocess "{inner_cmd}"'
+    )
+
+
 def _shebang_and_setup(framework: Framework, pre_launch_cmds: str) -> str:
     """Common header for every rank script: shebang, set -ex, env exports,
     optional pre-launch hook."""
@@ -185,16 +201,30 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
     args = _compose_framework_args(launch_args)
     npr = launch_args.topology.nodes_per_replica
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
+    use_ocf = not launch_args.disable_ocf
+    # node_rank is $1 (small int) and replica_head_ip is $2 (IPv4 from master).
+    # Both are word-split-safe and intentionally left unquoted here so the same
+    # cmd string works both directly (disable_ocf path) and inside the OCF
+    # --subprocess "..." wrap without nested-quote shellcheck warnings.
+    cmd = (
+        f"{framework.entrypoint} \\\n"
+        f"    --dist-init-addr $replica_head_ip:{SGLANG_DIST_INIT_PORT} \\\n"
+        f"    --nnodes {npr} \\\n"
+        f"    --node-rank $node_rank \\\n"
+        f"    {args}"
+    )
+    if use_ocf:
+        # Followers join DNT in metrics-only mode so the full multi-node
+        # topology of a replica is visible (grouped by worker_group_id).
+        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+    else:
+        launch = cmd
     return (
         f"{pre}\n\n"
         f'node_rank="$1"\n'
         f'replica_head_ip="$2"\n'
         f"\n"
-        f"{framework.entrypoint} \\\n"
-        f'    --dist-init-addr "$replica_head_ip:{SGLANG_DIST_INIT_PORT}" \\\n'
-        f"    --nnodes {npr} \\\n"
-        f'    --node-rank "$node_rank" \\\n'
-        f"    {args}\n"
+        f"{launch}\n"
     )
 
 
@@ -254,14 +284,27 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
 
 def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
+    use_ocf = not launch_args.disable_ocf
+    # replica_head_ip is $2 (IPv4 from master), word-split-safe, left unquoted
+    # so the cmd is reusable inside the OCF --subprocess "..." wrap without
+    # nested-quote shellcheck warnings.
+    cmd = (
+        f"ray start --address=$replica_head_ip:{RAY_PORT} "
+        f"--num-gpus={NUM_GPUS_PER_NODE} --block"
+    )
+    if use_ocf:
+        # Followers join DNT in metrics-only mode so the full multi-node
+        # topology of a replica is visible (grouped by worker_group_id).
+        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+    else:
+        launch = cmd
     return (
         f"{pre}\n\n"
         f"# shellcheck disable=SC2034  # unused — Ray followers are symmetric\n"
         f'node_rank="$1"\n'
         f'replica_head_ip="$2"\n'
         f"\n"
-        f'ray start --address="$replica_head_ip:{RAY_PORT}" '
-        f"--num-gpus={NUM_GPUS_PER_NODE} --block\n"
+        f"{launch}\n"
     )
 
 

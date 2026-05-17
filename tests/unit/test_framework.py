@@ -83,7 +83,10 @@ def test_sglang_head_singular_uses_entrypoint_directly():
 def test_sglang_multi_node_passes_node_rank():
     args = _make_args(framework="sglang", topology=Topology(replicas=1, nodes_per_replica=4))
     follower = render_rank_scripts(args)["follower.sh"]
-    assert '--node-rank "$node_rank"' in follower
+    # Unquoted because the cmd is reused inside OCF's --subprocess "..."; the
+    # surrounding outer quotes there make inner quotes redundant (shellcheck
+    # SC2027). node_rank is a small int passed as $1 from master, safe.
+    assert "--node-rank $node_rank" in follower
     assert "--nnodes 4" in follower
 
 
@@ -111,7 +114,10 @@ def test_ocf_disabled_omits_wrap():
     assert "--bootstrap.addr" not in head
 
 
-def test_ocf_enabled_wraps_head_only():
+def test_ocf_enabled_wraps_head_and_follower():
+    """Both ranks join the DNT. The head advertises the LLM service; followers
+    join in metrics-only mode (no --service.name) so the full multi-node
+    topology of a replica is visible and aggregatable by worker_group_id."""
     args = _make_args(
         framework="sglang",
         disable_ocf=False,
@@ -119,7 +125,21 @@ def test_ocf_enabled_wraps_head_only():
     )
     scripts = render_rank_scripts(args)
     assert "$OCF_BIN start" in scripts["head.sh"]
-    assert "$OCF_BIN start" not in scripts["follower.sh"]
+    assert "--service.name llm" in scripts["head.sh"]
+    assert "$OCF_BIN start" in scripts["follower.sh"]
+    assert "--service.name" not in scripts["follower.sh"]
+
+
+def test_vllm_follower_ocf_metrics_only():
+    args = _make_args(
+        framework="vllm",
+        disable_ocf=False,
+        topology=Topology(replicas=1, nodes_per_replica=2),
+    )
+    follower = render_rank_scripts(args)["follower.sh"]
+    assert "$OCF_BIN start" in follower
+    assert "--service.name" not in follower
+    assert "ray start --address=" in follower
 
 
 def test_master_telemetry_omitted_when_no_endpoint():
