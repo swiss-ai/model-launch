@@ -186,7 +186,19 @@ $FRAMEWORK_LAUNCH --distributed-executor-backend ray $FRAMEWORK_ARGS"
 
         # Wrap with OCF if enabled (only on master node - rank 0)
         if [ "$USE_OCF" = "true" ] && [ $local_rank -eq 0 ]; then
-            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT --subprocess \"$FRAMEWORK_CMD\""
+            # Launch-time metadata surfaced via OCF --label flags so the DNT
+            # entry carries owner / scheduling / framework info instead of
+            # forcing consumers to cross-reference SLURM separately.
+            OCF_LABELS="\
+--label launched_by=$USER \
+--label slurm_job_id=$SLURM_JOB_ID \
+--label slurm_partition=${SLURM_JOB_PARTITION:-unknown} \
+--label worker_group_id=$SLURM_JOB_ID \
+--label worker_id=$worker_id \
+--label framework=$FRAMEWORK \
+--label served_model_name=\"$SERVED_MODEL_NAME\" \
+--label started_at=$(date -u +%FT%TZ)"
+            FRAMEWORK_CMD="\$OCF_BIN start --bootstrap.addr \"$OCF_BOOTSTRAP_ADDR\" --service.name $OCF_SERVICE_NAME --service.port $OCF_SERVICE_PORT $OCF_LABELS --subprocess \"$FRAMEWORK_CMD\""
         fi
 
         srun --nodes=1 --ntasks=1 --nodelist=$node \
