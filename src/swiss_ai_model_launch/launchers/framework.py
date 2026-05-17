@@ -22,6 +22,7 @@ juggling — entirely out of the picture.
 
 from __future__ import annotations
 
+import shlex
 from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -89,18 +90,23 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
 def _ocf_labels(launch_args: LaunchArgs) -> str:
     """Build the --label flags surfacing launch metadata into the DNT entry.
 
-    $USER / $SLURM_* are expanded by the runtime shell on the compute node,
-    so they don't need to be known at script-render time. served_model_name
-    is quoted because it commonly contains '/' and other shell-meaningful
-    chars even though the value itself is safe.
+    $USER / $SLURM_* / $(date ...) are left unquoted intentionally — they're
+    runtime-expanded by the SBATCH shell. Values that come from user input
+    at render time (framework, served_model_name) go through shlex.quote so
+    spaces, quotes, $-constructs, command substitutions, or stray ; in them
+    can't break the rank script or inject code at job-launch time.
     """
+    user_input = [
+        f"framework={launch_args.framework}",
+        f"served_model_name={launch_args.served_model_name}",
+    ]
+    quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     return (
         "    --label launched_by=$USER \\\n"
         "    --label slurm_job_id=$SLURM_JOB_ID \\\n"
         "    --label slurm_partition=${SLURM_JOB_PARTITION:-unknown} \\\n"
         "    --label worker_group_id=$SLURM_JOB_ID \\\n"
-        f"    --label framework={launch_args.framework} \\\n"
-        f'    --label served_model_name="{launch_args.served_model_name}" \\\n'
+        f"{quoted} \\\n"
         "    --label started_at=$(date -u +%FT%TZ) \\\n"
     )
 
