@@ -404,7 +404,7 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
     arm_lines = [
         '    echo "Running on ARM64 (aarch64)"',
         "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/",
-        "    export OCF_BIN=/ocfbin/otela-arm64-dev-latest-dce6864",
+        "    export OCF_BIN=/ocfbin/otela-arm64-dev-latest-9ff5ec9",
     ]
     x86_lines = [
         '    echo "Running on x86_64"',
