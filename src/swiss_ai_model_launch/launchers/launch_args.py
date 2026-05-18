@@ -13,6 +13,12 @@ FRAMEWORK_PORT = 8080
 _PORT_FLAG_RE = re.compile(r"(?:^|\s)--port(?:[\s=])")
 
 
+def time_str_to_seconds(t: str) -> int:
+    """Convert a SLURM-style HH:MM:SS duration to total seconds."""
+    h, m, s = (int(x) for x in t.split(":"))
+    return h * 3600 + m * 60 + s
+
+
 class Topology(BaseModel):
     """Hardware layout for a launch.
 

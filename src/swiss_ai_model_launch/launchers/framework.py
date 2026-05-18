@@ -28,6 +28,7 @@ from typing import ClassVar
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
     LaunchArgs,
+    time_str_to_seconds,
 )
 
 SGLANG_ROUTER_PORT = 30000
@@ -105,6 +106,7 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
         f"served_model_name={launch_args.served_model_name}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
+    seconds = time_str_to_seconds(launch_args.time)
     return (
         "    --label launched_by=$USER \\\n"
         "    --label slurm_job_id=$SLURM_JOB_ID \\\n"
@@ -112,6 +114,7 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
         "    --label worker_group_id=$SLURM_JOB_ID \\\n"
         f"{quoted} \\\n"
         "    --label started_at=$(date -u +%FT%TZ) \\\n"
+        f'    --label ends_at=$(date -u -d "+{seconds} seconds" +%FT%TZ) \\\n'
     )
 
 
