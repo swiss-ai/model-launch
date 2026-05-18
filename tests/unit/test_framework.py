@@ -168,6 +168,18 @@ def test_ocf_labels_include_framework_args():
     assert "--label 'framework_args=--port 8080 --model /path/to/model --tp 4'" in head
 
 
+def test_ocf_labels_framework_args_whitespace_normalised():
+    """Bash line-continuations inside the quoted --framework-args value leave
+    runs of whitespace in the string. The label should be the canonical
+    single-space form so the dashboard renders cleanly."""
+    args = _make_args(
+        framework_args="--model /m     --tp 4\n    --max-len 8192",
+        topology=Topology(replicas=1, nodes_per_replica=1),
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "--label 'framework_args=--port 8080 --model /m --tp 4 --max-len 8192'" in head
+
+
 def test_ocf_bootstrap_addr_defaults_to_prod():
     args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2))
     scripts = render_rank_scripts(args)

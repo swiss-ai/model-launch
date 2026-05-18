@@ -101,10 +101,15 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
     spaces, quotes, $-constructs, command substitutions, or stray ; in them
     can't break the rank script or inject code at job-launch time.
     """
+    # Users often write framework_args with bash line-continuations + indented
+    # follow-on lines, which collapse to runs of whitespace inside the quoted
+    # string. Normalise here so the on-mesh label is the canonical single-space
+    # form ("--a 1 --b 2") rather than the as-typed "--a 1     --b 2".
+    framework_args_normalised = " ".join(_compose_framework_args(launch_args).split())
     user_input = [
         f"framework={launch_args.framework}",
         f"served_model_name={launch_args.served_model_name}",
-        f"framework_args={_compose_framework_args(launch_args)}",
+        f"framework_args={framework_args_normalised}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     seconds = time_str_to_seconds(launch_args.time)
