@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from swiss_ai_model_launch.launchers.framework import (
+    OCF_BOOTSTRAP_ADDR,
+    OCF_BOOTSTRAP_ADDR_DEV,
     Sglang,
     Vllm,
     _make_framework,
@@ -128,6 +130,44 @@ def test_ocf_enabled_wraps_head_and_follower():
     assert "--service.name llm" in scripts["head.sh"]
     assert "$OCF_BIN start" in scripts["follower.sh"]
     assert "--service.name" not in scripts["follower.sh"]
+
+
+def test_ocf_bootstrap_addr_defaults_to_prod():
+    args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2))
+    scripts = render_rank_scripts(args)
+    for s in (scripts["head.sh"], scripts["follower.sh"]):
+        assert f'--bootstrap.addr "{OCF_BOOTSTRAP_ADDR}"' in s
+        assert OCF_BOOTSTRAP_ADDR_DEV not in s
+
+
+def test_ocf_bootstrap_addr_dev_override():
+    args = _make_args(
+        topology=Topology(replicas=1, nodes_per_replica=2),
+        ocf_bootstrap_addr=OCF_BOOTSTRAP_ADDR_DEV,
+    )
+    scripts = render_rank_scripts(args)
+    for s in (scripts["head.sh"], scripts["follower.sh"]):
+        assert f'--bootstrap.addr "{OCF_BOOTSTRAP_ADDR_DEV}"' in s
+        assert OCF_BOOTSTRAP_ADDR not in s
+
+
+def test_ocf_bootstrap_addr_custom_override():
+    custom = "/ip4/10.0.0.99/tcp/43905/p2p/QmCustomPeerIdForTestingOnlyXXXXXXXXXXXXXX"
+    args = _make_args(
+        topology=Topology(replicas=1, nodes_per_replica=1),
+        ocf_bootstrap_addr=custom,
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert f'--bootstrap.addr "{custom}"' in head
+
+
+def test_telemetry_payload_uses_resolved_bootstrap_addr():
+    args = _make_args(
+        telemetry_endpoint="https://telemetry.example.com/jobs",
+        ocf_bootstrap_addr=OCF_BOOTSTRAP_ADDR_DEV,
+    )
+    master = render_master(args)
+    assert f'"ocf_bootstrap_addr": "{OCF_BOOTSTRAP_ADDR_DEV}"' in master
 
 
 def test_vllm_follower_ocf_metrics_only():

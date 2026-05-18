@@ -31,7 +31,11 @@ from swiss_ai_model_launch.launchers.launch_args import (
 )
 
 SGLANG_ROUTER_PORT = 30000
+# Default (prod) OCF bootstrap address. The dev datacenter peer differs only
+# in the IP. Override per-launch via LaunchArgs.ocf_bootstrap_addr (CLI:
+# `--otela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
 OCF_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+OCF_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 RAY_PORT = 6379
 NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
@@ -111,11 +115,16 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
     )
 
 
+def _resolve_ocf_bootstrap_addr(launch_args: LaunchArgs) -> str:
+    return launch_args.ocf_bootstrap_addr or OCF_BOOTSTRAP_ADDR
+
+
 def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
     """Wrap a command in OCF's ``--subprocess`` invocation."""
+    bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
     return (
         f"$OCF_BIN start \\\n"
-        f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
+        f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {FRAMEWORK_PORT} \\\n"
         f"{_ocf_labels(launch_args)}"
@@ -131,9 +140,10 @@ def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     aggregate the full N-node topology of a replica), but they don't
     advertise an LLM service — the head node owns that.
     """
+    bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
     return (
         f"$OCF_BIN start \\\n"
-        f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
+        f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
         f"{_ocf_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
@@ -219,13 +229,7 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
         launch = _ocf_wrap_metrics_only(cmd, launch_args)
     else:
         launch = cmd
-    return (
-        f"{pre}\n\n"
-        f'node_rank="$1"\n'
-        f'replica_head_ip="$2"\n'
-        f"\n"
-        f"{launch}\n"
-    )
+    return f'{pre}\n\nnode_rank="$1"\nreplica_head_ip="$2"\n\n{launch}\n'
 
 
 def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
@@ -288,10 +292,7 @@ def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
     # replica_head_ip is $2 (IPv4 from master), word-split-safe, left unquoted
     # so the cmd is reusable inside the OCF --subprocess "..." wrap without
     # nested-quote shellcheck warnings.
-    cmd = (
-        f"ray start --address=$replica_head_ip:{RAY_PORT} "
-        f"--num-gpus={NUM_GPUS_PER_NODE} --block"
-    )
+    cmd = f"ray start --address=$replica_head_ip:{RAY_PORT} --num-gpus={NUM_GPUS_PER_NODE} --block"
     if use_ocf:
         # Followers join DNT in metrics-only mode so the full multi-node
         # topology of a replica is visible (grouped by worker_group_id).
@@ -379,7 +380,7 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
         f'"router_port": {SGLANG_ROUTER_PORT}, '
         f'"router_args": "{launch_args.router_args}", '
         f'"ocf_enabled": {use_ocf}, '
-        f'"ocf_bootstrap_addr": "{OCF_BOOTSTRAP_ADDR}", '
+        f'"ocf_bootstrap_addr": "{_resolve_ocf_bootstrap_addr(launch_args)}", '
         '"ocf_service_name": "llm", '
         f'"ocf_service_port": {FRAMEWORK_PORT}'
         "}"

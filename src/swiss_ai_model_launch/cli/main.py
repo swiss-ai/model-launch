@@ -24,6 +24,7 @@ from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
@@ -280,6 +281,23 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="disable_ocf",
         action="store_true",
         help="Disable OCF.",
+    )
+    advanced_parser.add_argument(
+        "--otela-bootstrap-addr",
+        dest="otela_bootstrap_addr",
+        default=None,
+        metavar="MULTIADDR",
+        help=(
+            "Override the OCF bootstrap multiaddr "
+            "(e.g. /ip4/<host>/tcp/<port>/p2p/<peer-id>). "
+            "Takes precedence over --dev. Defaults to the prod peer."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--dev",
+        dest="dev",
+        action="store_true",
+        help=("Shorthand for the dev OCF bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -626,6 +644,19 @@ def build_launch_args_from_advanced(
             file=sys.stderr,
         )
 
+    ocf_bootstrap_addr: str | None
+    if getattr(args, "otela_bootstrap_addr", None):
+        ocf_bootstrap_addr = args.otela_bootstrap_addr
+        if getattr(args, "dev", False):
+            print(
+                "warning: --dev ignored because --otela-bootstrap-addr was given.",
+                file=sys.stderr,
+            )
+    elif getattr(args, "dev", False):
+        ocf_bootstrap_addr = OCF_BOOTSTRAP_ADDR_DEV
+    else:
+        ocf_bootstrap_addr = None
+
     return LaunchArgs(
         job_name=job_name,
         served_model_name=served_model_name,
@@ -644,6 +675,7 @@ def build_launch_args_from_advanced(
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
+        ocf_bootstrap_addr=ocf_bootstrap_addr,
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,

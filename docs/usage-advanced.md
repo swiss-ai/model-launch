@@ -25,6 +25,8 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
+| `--otela-bootstrap-addr`    |                         | Override the OCF/OpenTela bootstrap peer (full multiaddr)         |
+| `--dev`                     |                         | Shorthand for the dev OCF/OpenTela bootstrap peer                 |
 | `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
 | `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
@@ -106,6 +108,35 @@ Pass `--disable-ocf` when:
 - **You're running at scale and the mesh is in the way.** If you've stood up your own routing in front of N replicas (or you're driving load directly from another cluster job), OpenTela registration is just overhead.
 
 If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
+
+## Pointing at a different OCF bootstrap peer
+
+The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
+
+- `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
+- `--otela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OCF instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
+
+Example:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "..." \
+  --dev
+```
+
+Or for a custom peer:
+
+```bash
+sml advanced \
+  ... \
+  --otela-bootstrap-addr /ip4/10.0.0.42/tcp/43905/p2p/QmYourPeerId...
+```
+
+The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry payload, so launches against different environments are distinguishable downstream.
 
 ## Notes on flag style
 

@@ -50,6 +50,10 @@ class LaunchArgs(BaseModel):
     use_router: bool = False
     router_args: str = ""
     disable_ocf: bool = False
+    # OCF bootstrap multiaddr. None means "use the prod default baked into
+    # framework.py"; CLI plumbing (`--dev`, `--otela-bootstrap-addr`) sets
+    # this to override.
+    ocf_bootstrap_addr: str | None = None
     telemetry_endpoint: str | None = None
     metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
     metrics_agent_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent"
