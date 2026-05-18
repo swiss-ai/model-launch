@@ -104,6 +104,7 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
     user_input = [
         f"framework={launch_args.framework}",
         f"served_model_name={launch_args.served_model_name}",
+        f"framework_args={_compose_framework_args(launch_args)}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     seconds = time_str_to_seconds(launch_args.time)

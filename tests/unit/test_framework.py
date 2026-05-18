@@ -153,6 +153,21 @@ def test_ocf_labels_expires_at_scales_with_time():
     assert '--label expires_at=$(date -u -d "+300 seconds" +%FT%TZ)' in head
 
 
+def test_ocf_labels_include_framework_args():
+    """The composed framework_args (with auto-injected --port) is shipped as a
+    label so the dashboard can show how the job was started without having to
+    pull the on-disk rank script. shlex.quote on user input keeps any quotes,
+    paths, or $-constructs from breaking the OCF invocation."""
+    args = _make_args(
+        framework="sglang",
+        disable_ocf=False,
+        framework_args="--model /path/to/model --tp 4",
+        topology=Topology(replicas=1, nodes_per_replica=1),
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "--label 'framework_args=--port 8080 --model /path/to/model --tp 4'" in head
+
+
 def test_ocf_bootstrap_addr_defaults_to_prod():
     args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2))
     scripts = render_rank_scripts(args)
