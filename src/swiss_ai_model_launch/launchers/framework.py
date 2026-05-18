@@ -22,6 +22,7 @@ juggling — entirely out of the picture.
 
 from __future__ import annotations
 
+import shlex
 from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -86,13 +87,54 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
     return f"--port {FRAMEWORK_PORT} {launch_args.framework_args}".strip()
 
 
-def _ocf_wrap(inner_cmd: str) -> str:
+def _ocf_labels(launch_args: LaunchArgs) -> str:
+    """Build the --label flags surfacing launch metadata into the DNT entry.
+
+    $USER / $SLURM_* / $(date ...) are left unquoted intentionally — they're
+    runtime-expanded by the SBATCH shell. Values that come from user input
+    at render time (framework, served_model_name) go through shlex.quote so
+    spaces, quotes, $-constructs, command substitutions, or stray ; in them
+    can't break the rank script or inject code at job-launch time.
+    """
+    user_input = [
+        f"framework={launch_args.framework}",
+        f"served_model_name={launch_args.served_model_name}",
+    ]
+    quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
+    return (
+        "    --label launched_by=$USER \\\n"
+        "    --label slurm_job_id=$SLURM_JOB_ID \\\n"
+        "    --label slurm_partition=${SLURM_JOB_PARTITION:-unknown} \\\n"
+        "    --label worker_group_id=$SLURM_JOB_ID \\\n"
+        f"{quoted} \\\n"
+        "    --label started_at=$(date -u +%FT%TZ) \\\n"
+    )
+
+
+def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
     """Wrap a command in OCF's ``--subprocess`` invocation."""
     return (
         f"$OCF_BIN start \\\n"
         f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {FRAMEWORK_PORT} \\\n"
+        f"{_ocf_labels(launch_args)}"
+        f'    --subprocess "{inner_cmd}"'
+    )
+
+
+def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
+    """Wrap a command in OCF without registering a serving endpoint.
+
+    Used on multi-node replica followers: they join the DNT so their
+    hardware and worker_group_id label are visible (letting consumers
+    aggregate the full N-node topology of a replica), but they don't
+    advertise an LLM service — the head node owns that.
+    """
+    return (
+        f"$OCF_BIN start \\\n"
+        f'    --bootstrap.addr "{OCF_BOOTSTRAP_ADDR}" \\\n'
+        f"{_ocf_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
 
@@ -149,7 +191,7 @@ def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
     if use_ocf:
         # OCF spawns the launch as a subprocess so it can be advertised on
         # the OpenTela network at $service.port.
-        launch = _ocf_wrap(cmd)
+        launch = _ocf_wrap(cmd, launch_args)
     else:
         launch = cmd
     return f"{pre}\n\n{body_args}\n{launch}\n"
@@ -159,16 +201,30 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
     args = _compose_framework_args(launch_args)
     npr = launch_args.topology.nodes_per_replica
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
+    use_ocf = not launch_args.disable_ocf
+    # node_rank is $1 (small int) and replica_head_ip is $2 (IPv4 from master).
+    # Both are word-split-safe and intentionally left unquoted here so the same
+    # cmd string works both directly (disable_ocf path) and inside the OCF
+    # --subprocess "..." wrap without nested-quote shellcheck warnings.
+    cmd = (
+        f"{framework.entrypoint} \\\n"
+        f"    --dist-init-addr $replica_head_ip:{SGLANG_DIST_INIT_PORT} \\\n"
+        f"    --nnodes {npr} \\\n"
+        f"    --node-rank $node_rank \\\n"
+        f"    {args}"
+    )
+    if use_ocf:
+        # Followers join DNT in metrics-only mode so the full multi-node
+        # topology of a replica is visible (grouped by worker_group_id).
+        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+    else:
+        launch = cmd
     return (
         f"{pre}\n\n"
         f'node_rank="$1"\n'
         f'replica_head_ip="$2"\n'
         f"\n"
-        f"{framework.entrypoint} \\\n"
-        f'    --dist-init-addr "$replica_head_ip:{SGLANG_DIST_INIT_PORT}" \\\n'
-        f"    --nnodes {npr} \\\n"
-        f'    --node-rank "$node_rank" \\\n'
-        f"    {args}\n"
+        f"{launch}\n"
     )
 
 
@@ -183,7 +239,7 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
         body_args = '# shellcheck disable=SC2034\nreplica_head_ip="$1"\n'
         cmd = f"{framework.entrypoint} {args}"
         if use_ocf:
-            launch = _ocf_wrap(cmd)
+            launch = _ocf_wrap(cmd, launch_args)
         else:
             launch = cmd
         return f"{pre}\n\n{body_args}\n{launch}\n"
@@ -220,7 +276,7 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
         # No nested double-quotes inside the --subprocess arg — the path
         # has no spaces (it's our own /tmp/sml-... naming) and the dq
         # surrounding ``--subprocess "..."`` already provides the quoting.
-        launch = _ocf_wrap("bash $ray_head_script")
+        launch = _ocf_wrap("bash $ray_head_script", launch_args)
     else:
         launch = 'bash "$ray_head_script"'
     return f"{pre}\n\n{body_args}\n{head_script_body}\n\n{launch}\n"
@@ -228,14 +284,27 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
 
 def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
+    use_ocf = not launch_args.disable_ocf
+    # replica_head_ip is $2 (IPv4 from master), word-split-safe, left unquoted
+    # so the cmd is reusable inside the OCF --subprocess "..." wrap without
+    # nested-quote shellcheck warnings.
+    cmd = (
+        f"ray start --address=$replica_head_ip:{RAY_PORT} "
+        f"--num-gpus={NUM_GPUS_PER_NODE} --block"
+    )
+    if use_ocf:
+        # Followers join DNT in metrics-only mode so the full multi-node
+        # topology of a replica is visible (grouped by worker_group_id).
+        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+    else:
+        launch = cmd
     return (
         f"{pre}\n\n"
         f"# shellcheck disable=SC2034  # unused — Ray followers are symmetric\n"
         f'node_rank="$1"\n'
         f'replica_head_ip="$2"\n'
         f"\n"
-        f'ray start --address="$replica_head_ip:{RAY_PORT}" '
-        f"--num-gpus={NUM_GPUS_PER_NODE} --block\n"
+        f"{launch}\n"
     )
 
 
