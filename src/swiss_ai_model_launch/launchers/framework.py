@@ -114,7 +114,7 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
         "    --label worker_group_id=$SLURM_JOB_ID \\\n"
         f"{quoted} \\\n"
         "    --label started_at=$(date -u +%FT%TZ) \\\n"
-        f'    --label ends_at=$(date -u -d "+{seconds} seconds" +%FT%TZ) \\\n'
+        f'    --label expires_at=$(date -u -d "+{seconds} seconds" +%FT%TZ) \\\n'
     )
 
 

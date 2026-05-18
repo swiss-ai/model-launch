@@ -132,9 +132,10 @@ def test_ocf_enabled_wraps_head_and_follower():
     assert "--service.name" not in scripts["follower.sh"]
 
 
-def test_ocf_labels_include_started_at_and_ends_at():
+def test_ocf_labels_include_started_at_and_expires_at():
     """Both labels are runtime-evaluated `$(date -u ...)` substitutions; the
-    ends_at offset is rendered from launch_args.time in seconds."""
+    expires_at offset is rendered from launch_args.time in seconds. The key
+    name (`expires_at`, not `ends_at`) matches what serving-api looks up."""
     args = _make_args(
         framework="sglang",
         disable_ocf=False,
@@ -143,13 +144,13 @@ def test_ocf_labels_include_started_at_and_ends_at():
     )
     head = render_rank_scripts(args)["head.sh"]
     assert "--label started_at=$(date -u +%FT%TZ)" in head
-    assert '--label ends_at=$(date -u -d "+21600 seconds" +%FT%TZ)' in head
+    assert '--label expires_at=$(date -u -d "+21600 seconds" +%FT%TZ)' in head
 
 
-def test_ocf_labels_ends_at_scales_with_time():
+def test_ocf_labels_expires_at_scales_with_time():
     args = _make_args(time="00:05:00", topology=Topology(replicas=1, nodes_per_replica=1))
     head = render_rank_scripts(args)["head.sh"]
-    assert '--label ends_at=$(date -u -d "+300 seconds" +%FT%TZ)' in head
+    assert '--label expires_at=$(date -u -d "+300 seconds" +%FT%TZ)' in head
 
 
 def test_ocf_bootstrap_addr_defaults_to_prod():
