@@ -32,7 +32,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
 | `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
 
-> Total nodes is automatically `--slurm-replicas × --slurm-nodes-per-replica`; there is no separate `--slurm-nodes` flag. The framework HTTP port is hardcoded to **8080** across every job — no `--worker-port`/`--replica-port` knob.
+> Total nodes is `--slurm-replicas × --slurm-nodes-per-replica`. The framework HTTP port is **8080**.
 
 ## Example: Apertus 8B on Clariden with sglang
 
@@ -93,7 +93,7 @@ Useful for:
 
 After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/` for post-mortem inspection.
 
-> **`master.sh` is self-contained.** It carries the rank scripts as embedded `cat`-heredocs and re-extracts them under `~/.sml/job-${SLURM_JOB_ID}/` at job start — that's why `sbatch master.sh` works regardless of where the directory lives. The standalone `head.sh` / `follower.sh` / `router.sh` files in the output dir are byte-equal duplicates for inspection; the heredoc bodies inside `master.sh` are what actually run.
+> **`master.sh` is self-contained.** Rank scripts are embedded as `cat`-heredocs and extracted at job start to `$HOME/.sml/job-${SLURM_JOB_ID}/` — shared FS, so every compute node `srun` reaches can read them. The sibling `head.sh` / `follower.sh` / `router.sh` from `--output-script` are inspection-only and never read at runtime; to hand-tune, edit the heredoc bodies inside `master.sh`.
 
 ## When to disable OCF
 
