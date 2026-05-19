@@ -132,7 +132,7 @@ async def main(image_name: str) -> int:
     ghcr_token = os.environ["GHCR_TOKEN"]
     ghcr_actor = os.environ["GHCR_ACTOR"]
 
-    auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri)
+    auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri, min_token_validity=90)
     client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
 
     user_info = await client.userinfo(system_name)

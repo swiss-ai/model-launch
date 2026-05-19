@@ -74,6 +74,7 @@ def _build_firecrest_client(config: InitConfig) -> f7t.v2.AsyncFirecrest:
             client_id=config.get_non_none_value("firecrest_client_id"),
             client_secret=config.get_non_none_value("firecrest_client_secret"),
             token_uri=config.get_non_none_value("firecrest_token_uri"),
+            min_token_validity=90,
         ),
     )
 
