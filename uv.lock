@@ -2310,7 +2310,7 @@ wheels = [
 
 [[package]]
 name = "swiss-ai-model-launch"
-version = "26.4.0a1"
+version = "26.5.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
