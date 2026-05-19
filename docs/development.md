@@ -90,7 +90,7 @@ The SLURM script is **rendered from Python at submit time** — there is no stat
 
 A single `master.sh` (visible via `--output-script` — see [usage](usage-advanced.md#inspecting-what-would-be-submitted---output-script)) containing in order:
 
-1. **Telemetry** POST (omitted if no endpoint configured)
+1. **Telemetry** POST
 2. **Arch detection** — sets `OCF_BIN`, `SP_NCCL_SO_PATH`, `metrics_agent_bin` per `aarch64` / `x86_64`
 3. **Node mapping** — `mapfile -t nodes < <(scontrol show hostnames ...)`
 4. **Self-extracting rank scripts** — single-quoted `cat`-heredocs that lay down `head.sh`, optionally `follower.sh`, optionally `router.sh` under `$HOME/.sml/job-${SLURM_JOB_ID}/`
