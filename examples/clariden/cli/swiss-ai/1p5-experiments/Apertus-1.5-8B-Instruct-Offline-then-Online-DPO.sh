@@ -2,7 +2,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/Alignment/current_newest_models/Offline-then-Online-DPO/ \
