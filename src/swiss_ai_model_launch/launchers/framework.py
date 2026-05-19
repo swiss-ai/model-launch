@@ -486,7 +486,10 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             # per-srun basis instead of mutating the user's env toml.
             f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
             f'    --environment="{env}" \\\n'
-            f'    bash "$RANKS_DIR/{script}" {args} &'
+            f'    bash "$RANKS_DIR/{script}" {args} &\n'
+            # Track this srun's PID so the footer's `wait -n` exits as soon
+            # as the first critical bg job dies (and the trap kills the rest).
+            f"critical_pids+=($!)"
         )
 
     blocks = []
@@ -523,6 +526,9 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
     return (
         "# vmagent runs on the batch node; pyxis containers share the host network\n"
         "# namespace so the framework API server is reachable at localhost:8080.\n"
+        "# vmagent is non-critical: disowned so it's not in `wait -n`'s scope, and\n"
+        "# the EXIT trap in the footer kills it when master.sh terminates so the\n"
+        "# allocation can be released as soon as the framework process is gone.\n"
         'if [[ -x "$metrics_agent_bin" ]]; then\n'
         '    "$metrics_agent_bin" \\\n'
         f"        -promscrape.config={_VMAGENT_SCRAPE_CONFIG} \\\n"
@@ -533,6 +539,8 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         '        -remoteWrite.label="user=${SLURM_JOB_USER}" \\\n'
         '        "-remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}" \\\n'
         '        > "/tmp/vmagent-${SLURM_JOB_ID}.log" 2>&1 &\n'
+        "    vmagent_pid=$!\n"
+        '    disown "$vmagent_pid"\n'
         "else\n"
         '    echo "metrics: $metrics_agent_bin not found, skipping push" >&2\n'
         "fi"
@@ -555,6 +563,7 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         f'    --environment="{launch_args.environment}" \\\n'
         "    --overlap \\\n"
         f'    bash "$RANKS_DIR/router.sh" {ip_args} &\n'
+        "critical_pids+=($!)\n"
         "\n"
         "echo\n"
         f'echo "Router URL: http://$router_host_ip:{SGLANG_ROUTER_PORT}"  # NOSONAR'
@@ -571,8 +580,29 @@ def _render_footer() -> str:
         'echo "Make sure to cancel the job at the end:"\n'
         'echo "scancel $SLURM_JOB_ID"\n'
         "\n"
-        "wait\n"
-        'echo "Script finished at $(date)"'
+        # Tear down as soon as the first critical bg job (head / follower /
+        # router srun) exits. A healthy launch keeps those running until the
+        # SLURM time limit; any exit means the inference server is gone, so
+        # vmagent has nothing to scrape and SLURM should release the nodes.
+        # The previous `wait` with no args waited for *all* bg jobs including
+        # vmagent — which never exits — so a failed head srun left the job
+        # RUNNING until time-limit.
+        "cleanup() {\n"
+        '    if [[ -n "$vmagent_pid" ]]; then\n'
+        '        kill "$vmagent_pid" 2>/dev/null || true\n'
+        "    fi\n"
+        "    if (( ${#critical_pids[@]} > 0 )); then\n"
+        '        kill "${critical_pids[@]}" 2>/dev/null || true\n'
+        "    fi\n"
+        "}\n"
+        "trap cleanup EXIT\n"
+        "trap 'exit 143' TERM\n"
+        "trap 'exit 130' INT\n"
+        "\n"
+        "rc=0\n"
+        "wait -n || rc=$?\n"
+        'echo "Master finished at $(date) with code $rc"\n'
+        'exit "$rc"'
     )
 
 
@@ -623,6 +653,13 @@ def render_master(launch_args: LaunchArgs) -> str:
     sections: list[str] = [
         "# shellcheck shell=bash",
         "set -euo pipefail",
+        # Lifecycle tracking. critical_pids collects the head / follower /
+        # router srun PIDs; the footer's `wait -n` exits as soon as the first
+        # one dies. vmagent_pid (if metrics are enabled) is held separately
+        # so it stays out of `wait -n`'s scope but is still killed by the
+        # EXIT trap. Initialised here so `set -u` is happy even when no
+        # vmagent is rendered, or if cleanup runs before launches start.
+        'critical_pids=()\nvmagent_pid=""',
         _render_self_extracting_ranks(render_rank_scripts(launch_args)),
     ]
 
