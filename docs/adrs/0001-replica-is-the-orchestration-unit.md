@@ -23,7 +23,7 @@ A **replica** is one independent inference engine instance — one framework pro
 
 - A SLURM job is `replicas × nodes_per_replica` nodes.
 - A replica spans a contiguous set of nodes (`nodes_per_replica`) and is wrapped in OCF on its head node.
-- The router (sglang_router today) load-balances **across replicas**, not within them.
+- The in-job framework router (sglang-router today, enabled via `--use-router`) load-balances **across replicas within a single job**, not within them. This is distinct from OpenTela, which is the cross-job p2p mesh that routes between independent jobs/peers; the framework router shapes traffic *inside* one job, OpenTela picks *which* job a request lands on.
 - Internal sharding (TP/PP/DP/EP) is the user's concern, configured via free-form `framework_args`. SML does not infer or inject parallelism flags.
 
 ## Consequences
