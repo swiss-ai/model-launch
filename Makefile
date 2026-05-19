@@ -1,8 +1,7 @@
 .PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-std _test-comprehensive test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
 
 install-dev:
-	uv venv --python 3.12
-	uv pip install -e ".[dev]"
+	uv sync --python 3.12
 	uv run pre-commit install
 	@command -v taplo >/dev/null 2>&1 || { \
 		echo ""; \
@@ -71,11 +70,11 @@ test-comprehensive:
 	. ./.test.sh && $(MAKE) _test-comprehensive
 
 docs:
-	uv pip install -e ".[docs]" --quiet
+	uv sync --no-default-groups --group docs --quiet
 	uv run mkdocs serve
 
 docs-build:
-	uv pip install -e ".[docs]" --quiet
+	uv sync --no-default-groups --group docs --quiet
 	uv run mkdocs build --strict
 
 # Timestamp (in seconds) where the TUI / log viewer starts in the raw VHS render.

@@ -14,5 +14,5 @@ runs:
     - uses: astral-sh/setup-uv@v6
       with:
         activate-environment: true
-    - run: uv sync --frozen --extra dev
+    - run: uv sync --frozen --group dev
       shell: bash

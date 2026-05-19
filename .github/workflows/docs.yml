@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - name: Install docs deps
-        run: uv sync --frozen --extra docs
+        run: uv sync --frozen --no-default-groups --group docs
       - name: Build site
         run: uv run mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
