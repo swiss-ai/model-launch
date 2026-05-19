@@ -34,16 +34,6 @@ from swiss_ai_model_launch.mcp import mcp as _mcp
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 
 
-def _resolve_legacy(
-    new_value: int | None, legacy_value: int | None, legacy_flag: str, new_flag: str, *, default: int
-) -> int:
-    if legacy_value is not None:
-        print(f"warning: {legacy_flag} is deprecated; use {new_flag} instead.", file=sys.stderr)
-        if new_value is None:
-            return legacy_value
-    return new_value if new_value is not None else default
-
-
 def _make_firecrest_launcher_config(
     systems_factory: _OptionsFactory = None,
 ) -> ChainConfiguration:
@@ -195,39 +185,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--slurm-replicas",
         dest="replicas",
         type=int,
-        default=None,
+        default=1,
         help="Number of independent inference engine instances (default: 1).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-workers",
-        dest="legacy_workers",
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--slurm-nodes-per-replica",
         dest="nodes_per_replica",
         type=int,
-        default=None,
+        default=1,
         help=(
             "Number of nodes spanned by one replica (default: 1). "
             "Set this to match your TP/PP/DP/EP layout in --framework-args."
         ),
-    )
-    advanced_parser.add_argument(
-        "--slurm-nodes-per-worker",
-        dest="legacy_nodes_per_worker",
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    advanced_parser.add_argument(
-        "--slurm-nodes",
-        dest="legacy_nodes",
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--slurm-time",
@@ -248,20 +217,6 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="served_model_name",
         default=None,
         help="Name under which the model will be served. Auto-generated if omitted.",
-    )
-    advanced_parser.add_argument(
-        "--replica-port",
-        dest="legacy_replica_port",
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    advanced_parser.add_argument(
-        "--worker-port",
-        dest="legacy_worker_port",
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     advanced_parser.add_argument(
         "--use-router",
@@ -603,9 +558,8 @@ def build_launch_args_from_advanced(
 ) -> LaunchArgs:
     """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
-    Pure: no side effects beyond stderr warnings for legacy flags. Tests can
-    drive this directly to validate that example shell scripts produce a
-    valid LaunchArgs without going through the launcher / InitConfig.
+    Tests can drive this directly to validate that example shell scripts produce
+    a valid LaunchArgs without going through the launcher / InitConfig.
     """
     if args.served_model_name:
         served_model_name = args.served_model_name
@@ -618,31 +572,6 @@ def build_launch_args_from_advanced(
             )
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
-
-    replicas = _resolve_legacy(args.replicas, args.legacy_workers, "--slurm-workers", "--slurm-replicas", default=1)
-    nodes_per_replica = _resolve_legacy(
-        args.nodes_per_replica,
-        args.legacy_nodes_per_worker,
-        "--slurm-nodes-per-worker",
-        "--slurm-nodes-per-replica",
-        default=1,
-    )
-    for legacy_value, legacy_flag in (
-        (args.legacy_replica_port, "--replica-port"),
-        (args.legacy_worker_port, "--worker-port"),
-    ):
-        if legacy_value is not None:
-            print(
-                f"warning: {legacy_flag} is no longer configurable; the framework port is hardcoded "
-                "to 8080. Drop the flag.",
-                file=sys.stderr,
-            )
-    if args.legacy_nodes is not None:
-        print(
-            "warning: --slurm-nodes is no longer configurable; total nodes is derived from "
-            "--slurm-replicas * --slurm-nodes-per-replica. Drop the flag.",
-            file=sys.stderr,
-        )
 
     ocf_bootstrap_addr: str | None
     if getattr(args, "otela_bootstrap_addr", None):
@@ -663,8 +592,8 @@ def build_launch_args_from_advanced(
         account=account,
         partition=partition,
         topology=Topology(
-            replicas=replicas,
-            nodes_per_replica=nodes_per_replica,
+            replicas=args.replicas,
+            nodes_per_replica=args.nodes_per_replica,
         ),
         time=args.time,
         reservation=args.reservation or None,

@@ -1,7 +1,6 @@
-import warnings
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class ModelCatalogEntry(BaseModel):
@@ -14,15 +13,3 @@ class ModelCatalogEntry(BaseModel):
     framework_args: str | None = None
     pre_launch_cmds: str | None = None
     model_path: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "nodes_per_worker" in data and "nodes_per_replica" not in data:
-            warnings.warn(
-                "`nodes_per_worker` is deprecated; use `nodes_per_replica` instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            data["nodes_per_replica"] = data.pop("nodes_per_worker")
-        return data

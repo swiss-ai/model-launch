@@ -157,26 +157,7 @@ def test_resolve_model_path_explicit_path_takes_precedence():
     assert resolve_model_path("vendor/name", registry, "/custom/path") == "/custom/path"
 
 
-# ── legacy field migration ────────────────────────────────────────────────────
-
-
-def test_legacy_workers_migrates_with_warning():
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        args = _make_args(workers=4, nodes_per_worker=2)
-    msgs = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert any("workers" in m for m in msgs)
-    assert any("nodes_per_worker" in m for m in msgs)
-    assert args.topology.replicas == 4
-    assert args.topology.nodes_per_replica == 2
-
-
-def test_legacy_worker_port_ignored_with_warning():
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        _make_args(worker_port=9999)
-    msgs = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert any("worker_port" in m and "hardcoded" in m for m in msgs)
+# ── framework_args port guardrail ─────────────────────────────────────────────
 
 
 def test_redundant_port_in_framework_args_warns():
@@ -185,24 +166,6 @@ def test_redundant_port_in_framework_args_warns():
         _make_args(framework_args="--port 9000 --tp 4")
     msgs = [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
     assert any("--port" in m and "redundant" in m for m in msgs)
-
-
-def test_legacy_and_new_keys_prefer_new():
-    # If both are passed, the explicit topology wins; legacy is ignored after warning.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        args = _make_args(workers=4, topology=Topology(replicas=2))
-    assert args.topology.replicas == 2
-
-
-# ── deprecated kwarg interaction ──────────────────────────────────────────────
-
-
-def test_passing_only_topology_emits_no_warning():
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        _make_args(topology=Topology(replicas=2, nodes_per_replica=2))
-    assert not [w for w in caught if issubclass(w.category, DeprecationWarning)]
 
 
 # ── pydantic field validation ─────────────────────────────────────────────────
@@ -223,11 +186,3 @@ def test_launch_args_default_topology():
 def test_nodes_derived_from_topology():
     args = _make_args(topology=Topology(replicas=2, nodes_per_replica=3))
     assert args.total_nodes == 6
-
-
-def test_legacy_nodes_kwarg_warns():
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        _make_args(nodes=99, topology=Topology(replicas=2, nodes_per_replica=3))
-    msgs = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert any("nodes" in m and "derived" in m for m in msgs)

@@ -21,7 +21,7 @@ _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest(
             **ModelCatalogEntry.model_validate(entry).model_dump(),
-            workers=1,
+            replicas=1,
             time="03:00:00",
         ),
         id=f"{entry['model']}/{entry['framework']}",

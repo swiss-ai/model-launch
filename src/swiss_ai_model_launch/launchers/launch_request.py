@@ -1,7 +1,6 @@
-import warnings
-from typing import Any, Literal, Self
+from typing import Literal, Self
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
@@ -20,21 +19,6 @@ class LaunchRequest(BaseModel):
     pre_launch_cmds: str | None = None
     use_router: bool = False
     model_path: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_keys(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        for legacy, new in (("workers", "replicas"), ("nodes_per_worker", "nodes_per_replica")):
-            if legacy in data and new not in data:
-                warnings.warn(
-                    f"`{legacy}` is deprecated; use `{new}` instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                data[new] = data.pop(legacy)
-        return data
 
     @classmethod
     def from_catalog_entry(

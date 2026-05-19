@@ -1,6 +1,5 @@
 import re
 import warnings
-from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -30,12 +29,6 @@ class Topology(BaseModel):
 
     replicas: int = 1
     nodes_per_replica: int = 1
-
-
-_LEGACY_TOPOLOGY_KEYS = {
-    "workers": "replicas",
-    "nodes_per_worker": "nodes_per_replica",
-}
 
 
 class LaunchArgs(BaseModel):
@@ -70,40 +63,6 @@ class LaunchArgs(BaseModel):
     dcgm_exporter_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/dcgm-exporter"
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_topology_keys(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        topo = dict(data.get("topology") or {})
-        for legacy, new in _LEGACY_TOPOLOGY_KEYS.items():
-            if legacy in data:
-                warnings.warn(
-                    f"`{legacy}` is deprecated; use `topology.{new}` instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                topo.setdefault(new, data.pop(legacy))
-        if "worker_port" in data:
-            warnings.warn(
-                "`worker_port` is no longer configurable; the framework port is hardcoded "
-                f"to {FRAMEWORK_PORT}. Drop the argument.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            data.pop("worker_port")
-        if "nodes" in data:
-            warnings.warn(
-                "`nodes` is no longer configurable; total nodes is derived from "
-                "`topology.replicas * topology.nodes_per_replica`. Drop the argument.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            data.pop("nodes")
-        if topo:
-            data["topology"] = topo
-        return data
 
     @model_validator(mode="after")
     def _validate(self) -> "LaunchArgs":
