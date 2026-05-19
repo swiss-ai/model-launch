@@ -4,10 +4,12 @@ from importlib.resources import files
 from pathlib import Path
 
 from swiss_ai_model_launch.launchers.framework import render_master
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
+from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,

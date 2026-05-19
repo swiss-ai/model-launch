@@ -26,9 +26,10 @@ from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
 

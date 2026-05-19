@@ -14,7 +14,8 @@ from swiss_ai_model_launch.launchers.framework import (
     render_master,
     render_rank_scripts,
 )
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.topology import Topology
 
 _HAS_SHELLCHECK = shutil.which("shellcheck") is not None
 

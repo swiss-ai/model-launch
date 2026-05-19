@@ -4,8 +4,6 @@ from pydantic import BaseModel
 
 
 class ModelCatalogEntry(BaseModel):
-    """A model entry from the catalogue — describes what the model needs, not how to run it."""
-
     model: str
     framework: Literal["sglang", "vllm"]
     environment: str | None = None

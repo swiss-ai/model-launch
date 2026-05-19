@@ -3,7 +3,8 @@ import asyncio
 import pytest
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
-from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launcher import Launcher
 
 
 async def wait_for_job_running(

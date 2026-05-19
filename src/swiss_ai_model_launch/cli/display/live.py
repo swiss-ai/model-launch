@@ -13,7 +13,7 @@ from textual.worker import Worker, WorkerState
 
 from swiss_ai_model_launch.cli.display.state import DisplayState
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from swiss_ai_model_launch.launchers.job_status import JobStatus
 
 _JOB_STATUS_STYLE: dict[JobStatus, str] = {
     JobStatus.PENDING: "[yellow]PENDING[/yellow]",

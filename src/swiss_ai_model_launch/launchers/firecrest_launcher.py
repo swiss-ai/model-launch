@@ -7,10 +7,12 @@ from pathlib import Path
 import firecrest as f7t
 
 from swiss_ai_model_launch.launchers.framework import render_master
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
+from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     create_salt,
     decode_log,
@@ -185,7 +187,6 @@ class FirecRESTLauncher(Launcher):
         job_info = await self.client.job_info(
             system_name=self.system_name,
             jobid=str(job_id),
-            # account=self.account,  # TODO
         )
         return JobStatus.from_str(str(job_info[0]["status"]["state"]))
 

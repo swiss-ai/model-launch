@@ -1,7 +1,8 @@
 import warnings
 from pathlib import Path
 
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
+from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import render_sbatch_header, resolve_model_path
 
 

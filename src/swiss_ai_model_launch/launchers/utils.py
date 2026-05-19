@@ -6,13 +6,6 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 
 
 def resolve_model_path(model: str, registry: Path, model_path: str | None = None) -> str:
-    """Return the filesystem path for a model.
-
-    If *model_path* is provided it is returned as-is, allowing callers to
-    point at an arbitrary local copy.  Otherwise the path is constructed by
-    joining *registry* with *model* (e.g. ``registry / "vendor/name"``),
-    which is the standard layout used by the CSCS model registry.
-    """
     if model_path is not None:
         return model_path
     return str(registry / model)

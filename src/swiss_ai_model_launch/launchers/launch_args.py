@@ -3,6 +3,8 @@ import warnings
 
 from pydantic import BaseModel, Field, model_validator
 
+from swiss_ai_model_launch.launchers.topology import Topology
+
 # The framework's HTTP server port is hardcoded across the system: it's
 # auto-injected as ``--port`` into framework_args, used as OCF's
 # ``--service.port``, and embedded in the router's worker URLs. Exposing
@@ -13,22 +15,8 @@ _PORT_FLAG_RE = re.compile(r"(?:^|\s)--port(?:[\s=])")
 
 
 def time_str_to_seconds(t: str) -> int:
-    """Convert a SLURM-style HH:MM:SS duration to total seconds."""
     h, m, s = (int(x) for x in t.split(":"))
     return h * 3600 + m * 60 + s
-
-
-class Topology(BaseModel):
-    """Hardware layout for a launch.
-
-    A *replica* is one independent inference engine instance — what the
-    router load-balances over. Sharding within a replica (TP/PP/DP/EP) is
-    configured by the user via ``framework_args``; this layer doesn't
-    touch it.
-    """
-
-    replicas: int = 1
-    nodes_per_replica: int = 1
 
 
 class LaunchArgs(BaseModel):
@@ -49,13 +37,7 @@ class LaunchArgs(BaseModel):
     use_router: bool = False
     router_args: str = ""
     disable_ocf: bool = False
-    # OCF bootstrap multiaddr. None means "use the prod default baked into
-    # framework.py"; CLI plumbing (`--dev`, `--otela-bootstrap-addr`) sets
-    # this to override.
     ocf_bootstrap_addr: str | None = None
-    # When true, OCF_BIN is resolved against /ocfbin/dev/otela-<arch> (the
-    # rolling main-branch build symlink) instead of /ocfbin/prod/otela-<arch>
-    # (the latest tagged release symlink). Set by the CLI's `--dev` flag.
     dev: bool = False
     telemetry_endpoint: str | None = None
     metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"

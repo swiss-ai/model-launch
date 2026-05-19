@@ -1,25 +1,3 @@
-"""Render the SLURM job submission scripts from Python.
-
-The output is **multi-file**:
-
-- ``master.sh`` — the SBATCH-submitted entrypoint. Telemetry, arch detection,
-  node mapping, per-replica IP discovery, then srun calls dispatching to the
-  rank scripts.
-- ``head.sh`` — what runs on rank 0 of every replica (always present).
-- ``follower.sh`` — what runs on ranks 1..N-1 of multi-node replicas (only
-  present when ``nodes_per_replica > 1``).
-- ``router.sh`` — only present when ``use_router=True`` and ``replicas > 1``.
-
-Each rank script is a normal idiomatic bash file: shellcheckable on its own,
-no nested quoting concerns. The master invokes them via ``bash <path> args...``
-with positional args for the runtime-determined values (``$replica_N_head_ip``,
-``$node_rank``).
-
-This shape keeps the worst pre-existing pain — bash text embedded inside a
-``bash -c "..."`` arg whose outer-shell processing forces manual escape
-juggling — entirely out of the picture.
-"""
-
 from __future__ import annotations
 
 import shlex
@@ -42,9 +20,6 @@ NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
 
 _VMAGENT_SCRAPE_CONFIG = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml"
-
-
-# ── frameworks ──────────────────────────────────────────────────────────────
 
 
 class Framework:
@@ -93,14 +68,6 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
 
 
 def _ocf_labels(launch_args: LaunchArgs) -> str:
-    """Build the --label flags surfacing launch metadata into the DNT entry.
-
-    $USER / $SLURM_* / $(date ...) are left unquoted intentionally — they're
-    runtime-expanded by the SBATCH shell. Values that come from user input
-    at render time (framework, served_model_name) go through shlex.quote so
-    spaces, quotes, $-constructs, command substitutions, or stray ; in them
-    can't break the rank script or inject code at job-launch time.
-    """
     # Users often write framework_args with bash line-continuations + indented
     # follow-on lines, which collapse to runs of whitespace inside the quoted
     # string. Normalise here so the on-mesh label is the canonical single-space
@@ -129,7 +96,6 @@ def _resolve_ocf_bootstrap_addr(launch_args: LaunchArgs) -> str:
 
 
 def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
-    """Wrap a command in OCF's ``--subprocess`` invocation."""
     bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
     return (
         f"$OCF_BIN start \\\n"
@@ -142,13 +108,6 @@ def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs) -> str:
 
 
 def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
-    """Wrap a command in OCF without registering a serving endpoint.
-
-    Used on multi-node replica followers: they join the DNT so their
-    hardware and worker_group_id label are visible (letting consumers
-    aggregate the full N-node topology of a replica), but they don't
-    advertise an LLM service — the head node owns that.
-    """
     bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
     return (
         f"$OCF_BIN start \\\n"
@@ -159,8 +118,6 @@ def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
 
 
 def _shebang_and_setup(framework: Framework, pre_launch_cmds: str) -> str:
-    """Common header for every rank script: shebang, set -ex, env exports,
-    optional pre-launch hook."""
     lines = [
         "#!/bin/bash",
         # SC2046/SC2086: user-supplied framework_args is inlined bare on the
@@ -180,9 +137,6 @@ def _shebang_and_setup(framework: Framework, pre_launch_cmds: str) -> str:
             pre_launch_cmds,
         ]
     return "\n".join(lines)
-
-
-# ── rank script renderers ──────────────────────────────────────────────────
 
 
 def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
@@ -260,8 +214,7 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
     # Multi-node head: stage the Ray bootstrap + API server invocation as a
     # script on /tmp (single-quoted heredoc keeps $-constructs literal in
     # the file), then either run it directly or via OCF's --subprocess.
-    # PR #124 introduced the on-disk pattern to dodge OCF's subprocess
-    # re-evaluation; we keep it because it's still correct.
+    # On-disk staging dodges OCF's subprocess re-evaluation.
     expected_gpus = npr * NUM_GPUS_PER_NODE
     body_args = (
         "# shellcheck disable=SC2034  # unused on the head but kept for signature symmetry\n"
@@ -319,8 +272,6 @@ def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
 
 
 def _render_router(launch_args: LaunchArgs) -> str:
-    """Router rank script. Receives all replica head IPs as positional args,
-    health-checks each one, then launches the sglang_router."""
     router_args = launch_args.router_args
     return (
         "#!/bin/bash\n"
@@ -354,9 +305,6 @@ def _render_router(launch_args: LaunchArgs) -> str:
         f"    --port {SGLANG_ROUTER_PORT} \\\n"
         f"    --worker-urls $worker_urls" + (f" \\\n    {router_args}" if router_args else "") + "\n"
     )
-
-
-# ── master script renderer ─────────────────────────────────────────────────
 
 
 def _render_telemetry(launch_args: LaunchArgs) -> str:
@@ -481,9 +429,8 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             f"    --container-writable \\\n"
             # Bind RANKS_DIR into the container so the rank script (on the
             # host's shared FS) is visible to the bash invocation inside the
-            # pyxis container. The toml's static mount list (per PR #124) is
-            # being narrowed and read-only-ed, so we attach this dir on a
-            # per-srun basis instead of mutating the user's env toml.
+            # pyxis container. Attached per-srun rather than via the env toml's
+            # static mount list, which is being narrowed and read-only-ed.
             f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
             f'    --environment="{env}" \\\n'
             f'    bash "$RANKS_DIR/{script}" {args} &\n'
@@ -517,9 +464,6 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
 def _render_vmagent(launch_args: LaunchArgs) -> str:
     if launch_args.disable_metrics or not launch_args.metrics_remote_write_url:
         return ""
-    # NOTE: this is the pre-DCGM single-vmagent shape preserved from the old
-    # script.sh. Main's DCGM exporter PR (#98) added per-node vmagent + DCGM
-    # only to template.jinja — porting that to Python is a follow-up.
     url = launch_args.metrics_remote_write_url
     served = launch_args.served_model_name
     fw = launch_args.framework
@@ -584,9 +528,6 @@ def _render_footer() -> str:
         # router srun) exits. A healthy launch keeps those running until the
         # SLURM time limit; any exit means the inference server is gone, so
         # vmagent has nothing to scrape and SLURM should release the nodes.
-        # The previous `wait` with no args waited for *all* bg jobs including
-        # vmagent — which never exits — so a failed head srun left the job
-        # RUNNING until time-limit.
         "cleanup() {\n"
         '    if [[ -n "$vmagent_pid" ]]; then\n'
         '        kill "$vmagent_pid" 2>/dev/null || true\n'
@@ -606,25 +547,10 @@ def _render_footer() -> str:
     )
 
 
-# ── public API ─────────────────────────────────────────────────────────────
-
-
 MASTER_FILENAME = "master.sh"
 
 
 def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
-    """Bash that materialises rank scripts to a per-job dir on shared FS.
-
-    Used by launchers (firecrest) that submit a single script_str rather
-    than a directory of files. Each script is laid down via a single-quoted
-    heredoc so its body lands on disk verbatim.
-
-    The location must be on a filesystem visible to every compute node — the
-    master runs `cat` on the batch node but later srun-dispatches to compute
-    nodes which need to see the same files. ``$HOME/.sml/...`` is shared
-    across batch and compute nodes on CSCS systems; ``/tmp`` is per-node and
-    would break.
-    """
     blocks = [
         "# Self-extract rank scripts: this master.sh was submitted standalone\n"
         "# (no sibling files), so we materialise the rank scripts under HOME\n"
@@ -641,15 +567,6 @@ def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
 
 
 def render_master(launch_args: LaunchArgs) -> str:
-    """Render ``master.sh`` content (without ``#SBATCH`` header — launchers
-    attach those via CLI args or :func:`render_sbatch_header`).
-
-    Rank scripts are always inlined as self-extracting cat-heredocs at the
-    top of master.sh and materialised at job start to a per-job dir under
-    ``$HOME/.sml/``. We can't use ``$(dirname $0)`` to find sibling files
-    because SLURM copies the batch script to ``/var/spool/slurmd/job<id>/``
-    before running, so ``$0`` doesn't point at the original location.
-    """
     sections: list[str] = [
         "# shellcheck shell=bash",
         "set -euo pipefail",
@@ -688,11 +605,6 @@ def render_master(launch_args: LaunchArgs) -> str:
 
 
 def render_rank_scripts(launch_args: LaunchArgs) -> dict[str, str]:
-    """Render all rank scripts needed for ``launch_args``.
-
-    Returns a dict mapping filename (e.g. ``"head.sh"``) to bash content.
-    Each script is independently shellcheckable.
-    """
     framework = _make_framework(launch_args.framework)
     npr = launch_args.topology.nodes_per_replica
 
@@ -714,7 +626,6 @@ def render_rank_scripts(launch_args: LaunchArgs) -> dict[str, str]:
 
 
 def render_all(launch_args: LaunchArgs) -> dict[str, str]:
-    """Convenience: returns ``{master.sh: ..., head.sh: ..., ...}``."""
     out = {MASTER_FILENAME: render_master(launch_args)}
     out.update(render_rank_scripts(launch_args))
     return out

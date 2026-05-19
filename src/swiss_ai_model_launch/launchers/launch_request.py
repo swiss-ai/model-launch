@@ -6,8 +6,6 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 
 
 class LaunchRequest(BaseModel):
-    """A fully-specified launch request — catalogue fields plus user-supplied runtime parameters."""
-
     model: str
     framework: Literal["sglang", "vllm"]
     environment: str | None = None
