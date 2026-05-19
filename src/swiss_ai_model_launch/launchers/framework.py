@@ -49,7 +49,7 @@ class Sglang(Framework):
 
 class Vllm(Framework):
     name = "vllm"
-    entrypoint = "python3 -m vllm.entrypoints.openai.api_server"
+    entrypoint = "vllm serve"
     env_exports = [
         "export RAY_CGRAPH_get_timeout=1800",
         'export no_proxy="0.0.0.0,$no_proxy"',
