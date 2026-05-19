@@ -3,7 +3,6 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes-per-replica 4 \
-  --slurm-time 6:00:00 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang_kimi.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/moonshotai/Kimi-K2.5 \

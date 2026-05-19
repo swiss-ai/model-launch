@@ -3,7 +3,6 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes-per-replica 4 \
-  --slurm-time 04:00:00 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.5-397B-A17B \

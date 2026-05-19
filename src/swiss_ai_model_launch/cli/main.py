@@ -232,9 +232,9 @@ def _build_parser() -> argparse.ArgumentParser:
     advanced_parser.add_argument(
         "--slurm-time",
         dest="time",
-        default="00:05:00",
+        default="02:00:00",
         metavar="HH:MM:SS",
-        help="Job time limit (default: 00:05:00).",
+        help="Job time limit (default: 02:00:00).",
     )
     advanced_parser.add_argument(
         "--slurm-reservation",

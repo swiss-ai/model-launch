@@ -46,7 +46,7 @@ class LaunchArgs(BaseModel):
 
     topology: Topology = Field(default_factory=Topology)
 
-    time: str = "00:05:00"
+    time: str = "02:00:00"
     reservation: str | None = None
     environment: str
 

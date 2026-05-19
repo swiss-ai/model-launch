@@ -20,7 +20,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `00:05:00`)                   |
+| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `02:00:00`)                   |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
 | `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |

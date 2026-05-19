@@ -2,8 +2,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-reservation SD-69241-apertus-1-5 \
-  --slurm-time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-5/2026-04-23_19-08-56/global_step_9688/huggingface \

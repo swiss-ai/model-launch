@@ -2,8 +2,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-reservation SD-69241-apertus-1-5 \
-  --slurm-time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/ablations/apertus-8b-img-SFT-32nodes-gbs512-mbs1-steps8030-img-text-seqlen8192-s2onlytxtloss/HF \

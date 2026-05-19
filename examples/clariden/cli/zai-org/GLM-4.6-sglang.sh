@@ -4,7 +4,6 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes-per-replica 4 \
-  --slurm-time 6:00:00 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --pre-launch-cmds "pip install blobfile" \

@@ -12,7 +12,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-time 6:00:00 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/MLLM/OCR/rednote-hilab_dots.mocr \

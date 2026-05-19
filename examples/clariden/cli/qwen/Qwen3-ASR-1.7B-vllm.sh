@@ -18,7 +18,6 @@
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-time 6:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --pre-launch-cmds "pip install librosa audioread" \
