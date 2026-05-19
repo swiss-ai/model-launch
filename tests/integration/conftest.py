@@ -21,6 +21,8 @@ if all(os.environ.get(v) for v in _REQUIRED_ENV_VARS_FOR_SML_CONFIG):
     _BOOTSTRAP_DIR = Path(tempfile.mkdtemp(prefix="sml-cfg-"))
     os.environ["SML_CONFIG_DIR"] = str(_BOOTSTRAP_DIR)
 
+from swiss_ai_model_launch.cli.configuration import InitConfig  # noqa: E402
+
 
 @pytest.fixture(scope="session", autouse=True)  # type: ignore[misc]
 def sml_config_dir() -> Iterator[Path]:
@@ -28,8 +30,6 @@ def sml_config_dir() -> Iterator[Path]:
     if _BOOTSTRAP_DIR is None:
         yield Path("/dev/null")
         return
-
-    from swiss_ai_model_launch.cli.configuration import InitConfig
 
     config = InitConfig()
     config.set_value("launcher", "firecrest")

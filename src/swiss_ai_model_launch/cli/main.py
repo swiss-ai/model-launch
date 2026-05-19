@@ -8,6 +8,7 @@ import os
 import re
 import sys
 from collections.abc import Awaitable, Callable, Coroutine
+from pathlib import Path
 from typing import Any, cast
 
 import firecrest as f7t
@@ -24,11 +25,11 @@ from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV
+from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, Topology
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
@@ -629,11 +630,6 @@ async def _run_advanced(args: argparse.Namespace) -> None:
     )
 
     if args.output_script:
-        from pathlib import Path
-
-        from swiss_ai_model_launch.launchers.framework import render_master, render_rank_scripts
-        from swiss_ai_model_launch.launchers.utils import render_sbatch_header
-
         # Write master.sh + per-shape rank scripts to a user-supplied dir.
         # The on-disk shape matches what a live submission would write to
         # ~/.sml/job-<id>/ at job start (via master's self-extract), so
