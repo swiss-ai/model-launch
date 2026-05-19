@@ -60,6 +60,10 @@ class LaunchArgs(BaseModel):
     # framework.py"; CLI plumbing (`--dev`, `--otela-bootstrap-addr`) sets
     # this to override.
     ocf_bootstrap_addr: str | None = None
+    # When true, OCF_BIN is resolved against /ocfbin/dev/otela-<arch> (the
+    # rolling main-branch build symlink) instead of /ocfbin/prod/otela-<arch>
+    # (the latest tagged release symlink). Set by the CLI's `--dev` flag.
+    dev: bool = False
     telemetry_endpoint: str | None = None
     metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
     metrics_agent_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent"

@@ -406,15 +406,19 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
     # Only emit metrics_agent_bin assignments when something downstream
     # consumes it — otherwise shellcheck flags SC2034 (unused var).
     needs_metrics_bin = not launch_args.disable_metrics and bool(launch_args.metrics_remote_write_url)
+    # /ocfbin/{prod,dev}/otela-<arch> are stable symlinks maintained by
+    # OpenTela's release / deploy-dev workflows; they point at versioned
+    # files in the same directory. --dev (LaunchArgs.dev) flips the channel.
+    ocf_bin_channel = "dev" if launch_args.dev else "prod"
     arm_lines = [
         '    echo "Running on ARM64 (aarch64)"',
         "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/",
-        "    export OCF_BIN=/ocfbin/otela-arm64-dev-latest-9ff5ec9",
+        f"    export OCF_BIN=/ocfbin/{ocf_bin_channel}/otela-arm64",
     ]
     x86_lines = [
         '    echo "Running on x86_64"',
         "    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/",
-        "    export OCF_BIN=/ocfbin/ocf-amd64",
+        f"    export OCF_BIN=/ocfbin/{ocf_bin_channel}/otela-amd64",
     ]
     if needs_metrics_bin:
         arm_lines.append(f'    metrics_agent_bin="{base}-arm64"')

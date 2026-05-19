@@ -676,6 +676,7 @@ def build_launch_args_from_advanced(
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
         ocf_bootstrap_addr=ocf_bootstrap_addr,
+        dev=getattr(args, "dev", False),
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
