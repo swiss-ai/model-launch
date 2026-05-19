@@ -1,5 +1,4 @@
 #!/bin/bash
-# Runs with 4 nodes, TP16. Requires blobfile. Requires some time to start.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

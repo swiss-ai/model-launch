@@ -1,5 +1,4 @@
 #!/bin/bash
-# Runs with 4 nodes, TP16. Requires some time to start. Must include --reasoning-parser.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

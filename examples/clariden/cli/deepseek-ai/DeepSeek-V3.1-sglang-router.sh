@@ -1,5 +1,4 @@
 #!/bin/bash
-# 2 replicas x 4 nodes each for increased throughput. Experimental.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

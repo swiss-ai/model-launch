@@ -1,7 +1,4 @@
 #!/bin/bash
-
-# https://swissai-initiative.slack.com/archives/C0A9JJ7C5K6/p1779184636000049 
-# to comp between constant and linear
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

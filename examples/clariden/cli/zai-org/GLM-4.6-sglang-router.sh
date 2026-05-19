@@ -1,6 +1,4 @@
 #!/bin/bash
-# 2 replicas x 4 nodes each. Requires latest sglang env. Experimental.
-# No bundled env available — provide your own
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

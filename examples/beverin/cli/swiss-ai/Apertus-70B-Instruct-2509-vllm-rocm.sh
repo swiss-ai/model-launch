@@ -1,5 +1,4 @@
 #!/bin/bash
-
 sml advanced \
   --firecrest-system beverin \
   --serving-framework vllm \

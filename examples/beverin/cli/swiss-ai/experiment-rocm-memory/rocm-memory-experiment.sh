@@ -1,5 +1,4 @@
 #!/bin/bash
-# Launch all Apertus 70B ROCm memory optimization experiments.
 set -euo pipefail
 
 MODEL="/capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-70B-Instruct-2509"

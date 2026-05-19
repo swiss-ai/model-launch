@@ -1,5 +1,4 @@
 #!/bin/bash
-# Runs with 4 nodes, TP16. Uses custom glm45 reasoning and tool-call parsers.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

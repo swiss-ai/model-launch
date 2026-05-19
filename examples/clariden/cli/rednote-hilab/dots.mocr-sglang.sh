@@ -1,14 +1,4 @@
 #!/bin/bash
-# Launch rednote-hilab/dots.mocr (1.5B multilingual document-OCR VLM) on
-# one Clariden GH200 node with SGLang, DP=4 TP=1 (4 independent replicas,
-# one per GPU). Suitable for high-throughput batch OCR over many images.
-#
-# dots.mocr requires --trust-remote-code (custom DotsOCRForCausalLM
-# architecture). SGLang ≥ 0.5.x has the model class registered.
-#
-# Model weights (downloaded separately):
-#   /capstor/store/cscs/swissai/infra01/MLLM/OCR/rednote-hilab_dots.mocr/
-#
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
