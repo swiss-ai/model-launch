@@ -28,6 +28,12 @@ class ClusterLoadtestConfig:
     metrics_remote_write_url: str | None = None
 
 
+@dataclass(frozen=True)
+class ClusterLoadtestSubmission:
+    job_id: int
+    run_label: str
+
+
 def build_cluster_loadtest_script(
     *,
     bench: LoadtestConfig,
@@ -205,7 +211,7 @@ async def submit_cluster_loadtest(
     prompts_file: Path,
     summary_path: Path,
     cluster: ClusterLoadtestConfig,
-) -> int:
+) -> ClusterLoadtestSubmission:
     run_label = f"loadtest_{bench.scenario}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{create_salt(6)}"
     prompts_path, container_mounts = _container_mounts_for_external_prompts(run_label, prompts_file)
     script = build_cluster_loadtest_script(
@@ -242,7 +248,7 @@ async def submit_cluster_loadtest(
             if remote_summary.exists():
                 summary_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(remote_summary, summary_path)
-        return job_id
+        return ClusterLoadtestSubmission(job_id=job_id, run_label=run_label)
 
     if isinstance(launcher, FirecRESTLauncher):
         firecrest_working_dir = str(launcher._get_working_dir())
@@ -294,6 +300,6 @@ async def submit_cluster_loadtest(
                 )
             except f7t.FirecrestException as e:
                 raise RuntimeError(f"Could not download cluster loadtest summary for job {job_id}: {e}") from e
-        return job_id
+        return ClusterLoadtestSubmission(job_id=job_id, run_label=run_label)
 
     raise TypeError(f"Cluster loadtests are not supported for launcher type {type(launcher).__name__}")

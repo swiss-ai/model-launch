@@ -36,11 +36,11 @@ def test_loadtest_run_help_excludes_removed_scenario_owned_flags(capsys: pytest.
     assert "--loadtest-ignore-eos" in help_text
     assert "--wait-until-healthy" in help_text
     assert "--loadtest-metrics-remote-write" in help_text
+    assert "--loadtest-job-time" in help_text
     assert "--job-id" not in help_text
     assert "--loadtest-chat-mode" not in help_text
     assert "--loadtest-cpus-per-task" not in help_text
     assert "--loadtest-k6-script" not in help_text
-    assert "--loadtest-job-time" not in help_text
     assert "--loadtest-ready-poll-interval" not in help_text
     assert "--loadtest-think-time" not in help_text
     assert "--loadtest-request-timeout" not in help_text
@@ -143,7 +143,6 @@ def test_loadtest_parser_does_not_expose_api_key_override() -> None:
         ("--no-loadtest-chat-mode", None),
         ("--job-id", "123"),
         ("--loadtest-cpus-per-task", "8"),
-        ("--loadtest-job-time", "01:00:00"),
         ("--loadtest-k6-script", "script.js"),
         ("--loadtest-ready-poll-interval", "30"),
         ("--loadtest-think-time", "0"),
@@ -172,6 +171,28 @@ def test_loadtest_metrics_remote_write_enabled_by_default() -> None:
     assert _make_cluster_loadtest_config(args).metrics_remote_write_url == (
         "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
     )
+
+
+def test_loadtest_job_time_defaults_to_cluster_default() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run"])
+
+    assert _make_cluster_loadtest_config(args).time == "00:30:00"
+
+
+def test_loadtest_job_time_can_be_overridden() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run", "--loadtest-job-time", "01:00:00"])
+
+    assert _make_cluster_loadtest_config(args).time == "01:00:00"
+
+
+def test_loadtest_job_time_rejects_invalid_format() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run", "--loadtest-job-time", "1h"])
+
+    with pytest.raises(ValueError, match="--loadtest-job-time"):
+        _make_cluster_loadtest_config(args)
 
 
 def test_loadtest_metrics_remote_write_can_be_disabled() -> None:

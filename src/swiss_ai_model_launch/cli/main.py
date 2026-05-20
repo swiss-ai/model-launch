@@ -47,6 +47,7 @@ _DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1000000
 _DEFAULT_LOADTEST_READY_POLL_SECONDS = 10
 _LOADTEST_READY_PROGRESS_SECONDS = 300
 _DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
+_DEFAULT_LOADTEST_JOB_TIME = "00:30:00"
 
 
 def _make_firecrest_launcher_config(
@@ -190,6 +191,13 @@ def _add_loadtest_arguments(
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Wait for the cluster loadtest job and download/copy the summary (default: true).",
+    )
+    parser.add_argument(
+        "--loadtest-job-time",
+        dest="loadtest_job_time",
+        default=_DEFAULT_LOADTEST_JOB_TIME,
+        metavar="HH:MM:SS",
+        help=f"SLURM time limit for the cluster k6 loadtest job (default: {_DEFAULT_LOADTEST_JOB_TIME}).",
     )
     parser.add_argument(
         "--loadtest-server-url",
@@ -901,8 +909,11 @@ def _make_cluster_loadtest_config(
         raise ValueError("--cancel-after-loadtest requires --wait-for-loadtest.")
     if args.loadtest_ready_timeout <= 0:
         raise ValueError("--loadtest-ready-timeout must be greater than 0.")
+    if not re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", args.loadtest_job_time):
+        raise ValueError("--loadtest-job-time must be in HH:MM:SS format.")
     return ClusterLoadtestConfig(
         container_image=str(DEFAULT_CLUSTER_CONTAINER_IMAGE),
+        time=args.loadtest_job_time,
         wait=args.wait_for_loadtest,
         reservation=reservation or getattr(args, "reservation", None),
         metrics_remote_write_url=(
@@ -930,7 +941,7 @@ async def _run_k6_on_cluster(
     print(f"Loadtest prompts file: {prompts_file}")
     if cluster_config.metrics_remote_write_url:
         print(f"Loadtest metrics remote write: {cluster_config.metrics_remote_write_url}")
-    job_id = await submit_cluster_loadtest(
+    submission = await submit_cluster_loadtest(
         launcher=launcher,
         server=server,
         bench=loadtest_config,
@@ -939,7 +950,8 @@ async def _run_k6_on_cluster(
         summary_path=summary_path,
         cluster=cluster_config,
     )
-    print(f"Cluster loadtest job submitted: {job_id}")
+    print(f"Cluster loadtest job submitted: {submission.job_id}")
+    print(f"Loadtest run label: {submission.run_label}")
     if cluster_config.wait:
         print(f"Loadtest summary: {summary_path}")
 
