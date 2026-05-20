@@ -1,23 +1,9 @@
 from abc import ABC, abstractmethod
-from enum import Enum
 
+from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-
-
-class JobStatus(Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    TIMEOUT = "TIMEOUT"
-    UNKNOWN = "UNKNOWN"
-
-    @classmethod
-    def from_str(cls, state: str) -> "JobStatus":
-        try:
-            return cls(state)
-        except ValueError:
-            return cls.UNKNOWN
 
 
 class Launcher(ABC):

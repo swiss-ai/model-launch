@@ -6,13 +6,11 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 
 
 class LaunchRequest(BaseModel):
-    """A fully-specified launch request — catalogue fields plus user-supplied runtime parameters."""
-
     model: str
     framework: Literal["sglang", "vllm"]
     environment: str | None = None
-    nodes_per_worker: int
-    workers: int
+    nodes_per_replica: int
+    replicas: int
     time: str
     served_model_name: str | None = None
     framework_args: str | None = None
@@ -25,7 +23,7 @@ class LaunchRequest(BaseModel):
         cls,
         entry: ModelCatalogEntry,
         *,
-        workers: int,
+        replicas: int,
         time: str,
         served_model_name: str | None = None,
         use_router: bool = False,
@@ -34,10 +32,10 @@ class LaunchRequest(BaseModel):
             model=entry.model,
             framework=entry.framework,
             environment=entry.environment,
-            nodes_per_worker=entry.nodes_per_worker,
+            nodes_per_replica=entry.nodes_per_replica,
             framework_args=entry.framework_args,
             pre_launch_cmds=entry.pre_launch_cmds,
-            workers=workers,
+            replicas=replicas,
             time=time,
             served_model_name=served_model_name,
             use_router=use_router,

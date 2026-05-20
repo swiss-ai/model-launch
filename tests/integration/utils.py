@@ -3,12 +3,12 @@ import asyncio
 import pytest
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
-from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launcher import Launcher
 
 
 async def wait_for_job_running(
-    launcher: FirecRESTLauncher,
+    launcher: Launcher,
     job_id: int,
     timeout_min: int,
     poll_interval_seconds: int = 15,
@@ -26,6 +26,8 @@ async def wait_for_job_running(
 
 
 async def wait_for_model_healthy(
+    launcher: Launcher,
+    job_id: int,
     model_name: str,
     api_key: str,
     timeout_min: int,
@@ -34,6 +36,9 @@ async def wait_for_model_healthy(
     deadline = asyncio.get_event_loop().time() + timeout_min * 60
     while asyncio.get_event_loop().time() < deadline:
         await asyncio.sleep(poll_interval_seconds)
+        status = await launcher.get_job_status(job_id)
+        if status != JobStatus.RUNNING:
+            pytest.fail(f"Job {job_id} left RUNNING (now {status.value}) before '{model_name}' became HEALTHY.")
         health = await check_model_health(model_name, api_key)
         print(f"[{model_name}] health: {health.value}")
         if health == ModelHealth.HEALTHY:

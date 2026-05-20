@@ -6,14 +6,18 @@ from pathlib import Path
 
 import firecrest as f7t
 
+from swiss_ai_model_launch.launchers.framework import render_master
+from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus, Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
+    call_with_firecrest_retry,
     create_salt,
     decode_log,
-    render_job_script,
+    render_sbatch_header,
     resolve_model_path,
 )
 
@@ -57,7 +61,7 @@ class FirecRESTLauncher(Launcher):
         reservation: str | None = None,
         telemetry_endpoint: str | None = None,
     ) -> "FirecRESTLauncher":
-        user_info = await client.userinfo(system_name)
+        user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
             client=client,
             system_name=system_name,
@@ -85,8 +89,10 @@ class FirecRESTLauncher(Launcher):
             job_name=job_name,
             account=self.account,
             partition=self.partition,
-            workers=launch_request.workers,
-            nodes_per_worker=launch_request.nodes_per_worker,
+            topology=Topology(
+                replicas=launch_request.replicas,
+                nodes_per_replica=launch_request.nodes_per_replica,
+            ),
             time=launch_request.time,
             reservation=self.reservation,
             environment=launch_request.environment,
@@ -95,8 +101,7 @@ class FirecRESTLauncher(Launcher):
             framework_args=(
                 f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
-                "--host 0.0.0.0 "
-                "--port 8080 " + (launch_request.framework_args if launch_request.framework_args else "")
+                "--host 0.0.0.0 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
@@ -118,23 +123,27 @@ class FirecRESTLauncher(Launcher):
 
     async def _upload_env_file(self, local_env_path: str, framework: str) -> str:
         working_dir = self._get_working_dir()
-        await self.client.mkdir(
-            system_name=self.system_name,
-            path=working_dir,
-            create_parents=True,
+        await call_with_firecrest_retry(
+            lambda: self.client.mkdir(
+                system_name=self.system_name,
+                path=working_dir,
+                create_parents=True,
+            )
         )
         remote_env_filename = "env_{}_{}_{}.toml".format(
             framework,
             datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
             create_salt(8),
         )
-        await self.client.upload(
-            system_name=self.system_name,
-            local_file=local_env_path,
-            directory=working_dir,
-            filename=remote_env_filename,
-            account=self.account,
-            blocking=True,
+        await call_with_firecrest_retry(
+            lambda: self.client.upload(
+                system_name=self.system_name,
+                local_file=local_env_path,
+                directory=working_dir,
+                filename=remote_env_filename,
+                account=self.account,
+                blocking=True,
+            )
         )
         return str(Path(working_dir) / remote_env_filename)
 
@@ -147,12 +156,14 @@ class FirecRESTLauncher(Launcher):
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
         launch_args = launch_args.model_copy(update={"environment": remote_env_path, "reservation": self.reservation})
-        script_str = render_job_script(launch_args)
-        job_submission_report = await self.client.submit(
-            system_name=self.system_name,
-            working_dir=self._get_working_dir(),
-            script_str=script_str,
-            account=self.account,
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args)
+        job_submission_report = await call_with_firecrest_retry(
+            lambda: self.client.submit(
+                system_name=self.system_name,
+                working_dir=self._get_working_dir(),
+                script_str=script_str,
+                account=self.account,
+            )
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
@@ -169,21 +180,24 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
-        script_str = render_job_script(launch_args)
-        job_submission_report = await self.client.submit(
-            system_name=self.system_name,
-            working_dir=self._get_working_dir(),
-            script_str=script_str,
-            account=self.account,
+        script_str = render_sbatch_header(launch_args) + render_master(launch_args)
+        job_submission_report = await call_with_firecrest_retry(
+            lambda: self.client.submit(
+                system_name=self.system_name,
+                working_dir=self._get_working_dir(),
+                script_str=script_str,
+                account=self.account,
+            )
         )
 
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
     async def get_job_status(self, job_id: int) -> JobStatus:
-        job_info = await self.client.job_info(
-            system_name=self.system_name,
-            jobid=str(job_id),
-            # account=self.account,  # TODO
+        job_info = await call_with_firecrest_retry(
+            lambda: self.client.job_info(
+                system_name=self.system_name,
+                jobid=str(job_id),
+            )
         )
         return JobStatus.from_str(str(job_info[0]["status"]["state"]))
 
@@ -194,12 +208,14 @@ class FirecRESTLauncher(Launcher):
             target_dir_path = Path(target_dir)
 
             try:
-                await self.client.download(
-                    system_name=self.system_name,
-                    source_path=str(log_dir / "log.out"),
-                    target_path=target_dir_path / "log.out",
-                    account=self.account,
-                    blocking=True,
+                await call_with_firecrest_retry(
+                    lambda: self.client.download(
+                        system_name=self.system_name,
+                        source_path=str(log_dir / "log.out"),
+                        target_path=target_dir_path / "log.out",
+                        account=self.account,
+                        blocking=True,
+                    )
                 )
                 with open(target_dir_path / "log.out", "rb") as out_f:
                     out_log = decode_log(out_f.read())
@@ -207,12 +223,14 @@ class FirecRESTLauncher(Launcher):
                 out_log = ""
 
             try:
-                await self.client.download(
-                    system_name=self.system_name,
-                    source_path=str(log_dir / "log.err"),
-                    target_path=target_dir_path / "log.err",
-                    account=self.account,
-                    blocking=True,
+                await call_with_firecrest_retry(
+                    lambda: self.client.download(
+                        system_name=self.system_name,
+                        source_path=str(log_dir / "log.err"),
+                        target_path=target_dir_path / "log.err",
+                        account=self.account,
+                        blocking=True,
+                    )
                 )
                 with open(target_dir_path / "log.err", "rb") as err_f:
                     err_log = decode_log(err_f.read())
@@ -225,7 +243,22 @@ class FirecRESTLauncher(Launcher):
         return str(Path(self._get_working_dir()) / "logs" / str(job_id))
 
     async def cancel_job(self, job_id: int) -> None:
-        await self.client.cancel_job(
-            system_name=self.system_name,
-            jobid=str(job_id),
-        )
+        try:
+            await call_with_firecrest_retry(
+                lambda: self.client.cancel_job(
+                    system_name=self.system_name,
+                    jobid=str(job_id),
+                )
+            )
+        except f7t.UnexpectedStatusException as exc:
+            # FirecREST returns 500 when scancel succeeds (exit_status:0) but
+            # the job already ended on its own — Slurm prints
+            # "Job/step already completing or completed" to stderr and the
+            # gateway treats any stderr as failure. The job is gone, which is
+            # what cancel asked for, so treat this as success.
+            try:
+                message = exc.responses[-1].json().get("message", "")
+            except (AttributeError, IndexError, ValueError):
+                raise exc from None
+            if "already completing or completed" not in message:
+                raise

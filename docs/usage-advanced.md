@@ -18,16 +18,21 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-nodes`             |                         | Total nodes (default: `replicas × nodes-per-replica`)             |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `00:05:00`)                   |
+| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `02:00:00`)                   |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--replica-port`            |                         | Port used by replicas (default: `5000`)                           |
-| `--use-router`              |                         | Enable router to load-balance across replicas                     |
+| `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
+| `--otela-bootstrap-addr`    |                         | Override the OCF/OpenTela bootstrap peer (full multiaddr)         |
+| `--dev`                     |                         | Shorthand for the dev OCF/OpenTela bootstrap peer                 |
+| `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
+| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
 | `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
+| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
+
+> Total nodes is `--slurm-replicas × --slurm-nodes-per-replica`. The framework HTTP port is **8080**.
 
 ## Example: Apertus 8B on Clariden with sglang
 
@@ -35,19 +40,60 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-replicas 1 \
-  --slurm-nodes-per-replica 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 \
-    --port 8080"
+    --enable-metrics"
 ```
 
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
+
+## Inspecting what would be submitted (`--output-script DIR`)
+
+`--output-script DIR` writes the rendered submission scripts into the given directory and exits without submitting:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 --enable-metrics" \
+  --output-script /tmp/debug
+```
+
+Produces something like:
+
+```text
+Wrote 2 file(s) to /tmp/debug:
+  master.sh
+  head.sh
+```
+
+For a multi-node / router config the directory also gets `follower.sh` and/or `router.sh`. The layout is **byte-identical** to what a live submission writes to `~/.sml/job-${SLURM_JOB_ID}/` at job start — so each rank shape is its own bash file:
+
+```bash
+shellcheck /tmp/debug/*.sh        # lint each independently
+cat /tmp/debug/head.sh            # inspect just the head-rank logic
+sbatch /tmp/debug/master.sh       # submit manually if you want
+diff /tmp/debug/head.sh /tmp/older-debug/head.sh   # compare runs
+```
+
+Useful for:
+
+- **Debugging a launch failure:** see exactly what `--framework-args` your invocation translated to (the `--port 8080` auto-injection, etc.), which `srun` calls would run, and what each rank shape does.
+- **Reviewing changes during SML development:** render against a known invocation before and after a code change, diff the rank scripts.
+- **Starting point for a hand-tuned job:** edit any of the rank scripts, then `sbatch master.sh` directly.
+
+After a real (non-`--output-script`) submission, the same rank scripts also land on disk at `~/.sml/job-${SLURM_JOB_ID}/` for post-mortem inspection.
+
+> **`master.sh` is self-contained.** Rank scripts are embedded as `cat`-heredocs and extracted at job start to `$HOME/.sml/job-${SLURM_JOB_ID}/` — shared FS, so every compute node `srun` reaches can read them. The sibling `head.sh` / `follower.sh` / `router.sh` from `--output-script` are inspection-only and never read at runtime; to hand-tune, edit the heredoc bodies inside `master.sh`.
 
 ## When to disable OCF
 
@@ -62,6 +108,35 @@ Pass `--disable-ocf` when:
 - **You're running at scale and the mesh is in the way.** If you've stood up your own routing in front of N replicas (or you're driving load directly from another cluster job), OpenTela registration is just overhead.
 
 If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
+
+## Pointing at a different OCF bootstrap peer
+
+The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
+
+- `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
+- `--otela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OCF instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
+
+Example:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework-args "..." \
+  --dev
+```
+
+Or for a custom peer:
+
+```bash
+sml advanced \
+  ... \
+  --otela-bootstrap-addr /ip4/10.0.0.42/tcp/43905/p2p/QmYourPeerId...
+```
+
+The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry payload, so launches against different environments are distinguishable downstream.
 
 ## Notes on flag style
 

@@ -39,7 +39,7 @@ If yes, paste the `sml advanced` command you used:
 
 Fill these in based on your testing (or best estimate if untested).
 
-**Number of nodes per worker** (e.g. 1, 2, 4):
+**Number of nodes per replica** (e.g. 1, 2, 4):
 
 **Extra framework args** (e.g. `--tp-size 8`, leave blank if none):
 

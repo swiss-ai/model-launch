@@ -13,8 +13,8 @@ from fastmcp import Context
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import JobStatus
 from swiss_ai_model_launch.launchers.utils import create_salt
 
 _POLL_INTERVAL_SECONDS = 10
@@ -74,6 +74,7 @@ def _build_firecrest_client(config: InitConfig) -> f7t.v2.AsyncFirecrest:
             client_id=config.get_non_none_value("firecrest_client_id"),
             client_secret=config.get_non_none_value("firecrest_client_secret"),
             token_uri=config.get_non_none_value("firecrest_token_uri"),
+            min_token_validity=90,
         ),
     )
 
@@ -247,9 +248,9 @@ async def launch_preconfigured_model(
         "Use `list_preconfigured_models` to see available models.",
     ],
     framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
-    workers: Annotated[int, "Number of workers."] = 1,
+    replicas: Annotated[int, "Number of independent inference engine instances to launch."] = 1,
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
-    use_router: Annotated[bool, "Enable router for load balancing across workers."] = False,
+    use_router: Annotated[bool, "Enable router for load balancing across replicas."] = False,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -285,7 +286,7 @@ async def launch_preconfigured_model(
         )
     request = LaunchRequest.from_catalog_entry(
         entry,
-        workers=workers,
+        replicas=replicas,
         time=time,
         served_model_name=f"{model}-{create_salt(4)}",
         use_router=use_router,

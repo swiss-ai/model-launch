@@ -1,22 +1,48 @@
+import asyncio
 import secrets
 import string
-from importlib.resources import files
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import TypeVar
 
-from jinja2 import Template
+import firecrest as f7t
+import httpx
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 
-_TEMPLATE_PATH = files("swiss_ai_model_launch.assets").joinpath("template.jinja")
+_T = TypeVar("_T")
+
+_FIRECREST_RETRY_DELAYS_SEC: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0)
+
+
+def _is_firecrest_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, f7t.UnexpectedStatusException):
+        try:
+            status = exc.responses[-1].status_code
+        except (AttributeError, IndexError):
+            return False
+        return bool(500 <= status < 600)
+    return isinstance(exc, httpx.HTTPError)
+
+
+async def call_with_firecrest_retry(make_call: Callable[[], Awaitable[_T]]) -> _T:
+    """Invoke ``make_call()`` with retries on transient FirecREST errors.
+
+    Retries up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s) on
+    FirecREST 5xx responses and httpx transport errors. Other exceptions
+    propagate immediately.
+    """
+    for attempt in range(len(_FIRECREST_RETRY_DELAYS_SEC) + 1):
+        try:
+            return await make_call()
+        except Exception as exc:
+            if not _is_firecrest_retryable(exc) or attempt == len(_FIRECREST_RETRY_DELAYS_SEC):
+                raise
+            await asyncio.sleep(_FIRECREST_RETRY_DELAYS_SEC[attempt])
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def resolve_model_path(model: str, registry: Path, model_path: str | None = None) -> str:
-    """Return the filesystem path for a model.
-
-    If *model_path* is provided it is used as-is (absolute path override).
-    Otherwise the model identifier is appended to *registry*
-    (e.g. ``swiss-ai/Apertus-70B`` → ``<registry>/swiss-ai/Apertus-70B``).
-    """
     if model_path is not None:
         return model_path
     return str(registry / model)
@@ -26,9 +52,23 @@ def create_salt(length: int) -> str:
     return "".join(secrets.choice(string.ascii_letters) for _ in range(length))
 
 
-def render_job_script(launch_args: LaunchArgs) -> str:
-    template = Template(_TEMPLATE_PATH.read_text())
-    return str(template.render(**launch_args.model_dump()))
+def render_sbatch_header(launch_args: LaunchArgs) -> str:
+    lines = [
+        "#!/bin/bash",
+        f"#SBATCH --job-name={launch_args.job_name}",
+        f"#SBATCH --account={launch_args.account}",
+        f"#SBATCH --time={launch_args.time}",
+        "#SBATCH --exclusive",
+        f"#SBATCH --nodes={launch_args.total_nodes}",
+        f"#SBATCH --partition={launch_args.partition}",
+    ]
+    if launch_args.reservation:
+        lines.append(f"#SBATCH --reservation={launch_args.reservation}")
+    lines += [
+        "#SBATCH --output=logs/%j/log.out",
+        "#SBATCH --error=logs/%j/log.out",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def decode_log(data: bytes) -> str:

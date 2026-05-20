@@ -29,7 +29,7 @@ def _discover_examples() -> list[Path]:
 
 
 _EXAMPLE_SCRIPTS = [
-    pytest.param(p, id=str(p.relative_to(_REPO_ROOT)), marks=pytest.mark.full) for p in _discover_examples()
+    pytest.param(p, id=str(p.relative_to(_REPO_ROOT)), marks=pytest.mark.comprehensive) for p in _discover_examples()
 ]
 
 _REQUIRED_ENV_VARS = [
@@ -63,6 +63,7 @@ async def cancel_launcher(env: dict[str, str]) -> FirecRESTLauncher:
             client_id=env["SML_FIRECREST_CLIENT_ID"],
             client_secret=env["SML_FIRECREST_CLIENT_SECRET"],
             token_uri=env["SML_FIRECREST_TOKEN_URI"],
+            min_token_validity=90,
         ),
     )
     return await FirecRESTLauncher.from_client(
@@ -105,6 +106,8 @@ async def test_cli_example_launches_and_health(
 
     try:
         await wait_for_job_running(cancel_launcher, job_id, _LAUNCH_TIMEOUT_MIN)
-        await wait_for_model_healthy(served_model_name, env["SML_CSCS_API_KEY"], _HEALTH_TIMEOUT_MIN)
+        await wait_for_model_healthy(
+            cancel_launcher, job_id, served_model_name, env["SML_CSCS_API_KEY"], _HEALTH_TIMEOUT_MIN
+        )
     finally:
         await cancel_launcher.cancel_job(job_id)

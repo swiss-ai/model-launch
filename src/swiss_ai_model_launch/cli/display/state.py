@@ -2,7 +2,7 @@ from collections import deque
 from collections.abc import Callable
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth
-from swiss_ai_model_launch.launchers.launcher import JobStatus
+from swiss_ai_model_launch.launchers.job_status import JobStatus
 
 
 class DisplayState:

@@ -6,7 +6,9 @@ import importlib.metadata
 import logging
 import os
 import re
+import sys
 from collections.abc import Awaitable, Callable, Coroutine
+from pathlib import Path
 from typing import Any, cast
 
 import firecrest as f7t
@@ -23,10 +25,12 @@ from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.topology import Topology
+from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
@@ -93,7 +97,7 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        "yes": ("Yes", "Use router to load balance across workers"),
+        "yes": ("Yes", "Use router to load balance across replicas"),
         "no": ("No", "Do not use router"),
     }
     return ChainConfiguration(
@@ -112,14 +116,14 @@ def _make_launch_request_config(
                 options=None if frameworks_factory else _empty,
             ),
             TextConfiguration(
-                name="workers",
-                prompt="Number of workers to use for running the model.",
+                name="replicas",
+                prompt="Number of replicas (independent inference engine instances) to launch.",
                 validator=lambda v: v.isdigit() and int(v) > 0,
                 default="1",
             ),
             OptionsConfiguration(
                 name="use_router",
-                prompt="Use router to load balance across workers.",
+                prompt="Use router to load balance across replicas.",
                 options_factory=use_router_factory,
                 options=None if use_router_factory else _router_options,
             ),
@@ -180,32 +184,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded to the inference framework.",
     )
     advanced_parser.add_argument(
-        "--slurm-workers",
-        dest="workers",
+        "--slurm-replicas",
+        dest="replicas",
         type=int,
         default=1,
-        help="Number of workers (default: 1).",
+        help="Number of independent inference engine instances (default: 1).",
     )
     advanced_parser.add_argument(
-        "--slurm-nodes-per-worker",
-        dest="nodes_per_worker",
+        "--slurm-nodes-per-replica",
+        dest="nodes_per_replica",
         type=int,
         default=1,
-        help="Number of nodes per worker (default: 1).",
-    )
-    advanced_parser.add_argument(
-        "--slurm-nodes",
-        dest="nodes",
-        type=int,
-        default=None,
-        help="Total number of nodes. Defaults to workers * nodes-per-worker.",
+        help=(
+            "Number of nodes spanned by one replica (default: 1). "
+            "Set this to match your TP/PP/DP/EP layout in --framework-args."
+        ),
     )
     advanced_parser.add_argument(
         "--slurm-time",
         dest="time",
-        default="00:05:00",
+        default="02:00:00",
         metavar="HH:MM:SS",
-        help="Job time limit (default: 00:05:00).",
+        help="Job time limit (default: 02:00:00).",
     )
     advanced_parser.add_argument(
         "--slurm-reservation",
@@ -221,17 +221,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
-        "--worker-port",
-        dest="worker_port",
-        type=int,
-        default=5000,
-        help="Port used by workers (default: 5000).",
-    )
-    advanced_parser.add_argument(
         "--use-router",
         dest="use_router",
         action="store_true",
-        help="Enable router to load balance across workers.",
+        help="Enable router to load balance across replicas.",
     )
     advanced_parser.add_argument(
         "--router-args",
@@ -245,6 +238,23 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="disable_ocf",
         action="store_true",
         help="Disable OCF.",
+    )
+    advanced_parser.add_argument(
+        "--otela-bootstrap-addr",
+        dest="otela_bootstrap_addr",
+        default=None,
+        metavar="MULTIADDR",
+        help=(
+            "Override the OCF bootstrap multiaddr "
+            "(e.g. /ip4/<host>/tcp/<port>/p2p/<peer-id>). "
+            "Takes precedence over --dev. Defaults to the prod peer."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--dev",
+        dest="dev",
+        action="store_true",
+        help=("Shorthand for the dev OCF bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -270,6 +280,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Launch the interactive TUI after submitting the job.",
+    )
+    advanced_parser.add_argument(
+        "--output-script",
+        dest="output_script",
+        metavar="DIR",
+        default=None,
+        help=(
+            "Render master.sh + per-shape rank scripts (head, follower, router) into "
+            "the given directory and exit without submitting. Each file is "
+            "independently shellcheckable; master.sh self-extracts the rank scripts "
+            "at job start so you can also `sbatch DIR/master.sh` directly. The "
+            "on-disk layout matches what a real submission writes to ~/.sml/job-<id>/."
+        ),
     )
 
     preconfigured_parser.add_argument(
@@ -323,7 +346,9 @@ async def _get_firecrest_launcher_with_client(
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
-        reservation = getattr(args, "reservation", None) if args else None
+        reservation = (
+            (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
+        )
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -360,7 +385,9 @@ async def _get_slurm_launcher(
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
 
     if non_interactive:
-        reservation = getattr(args, "reservation", None) if args else None
+        reservation = (
+            (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
+        )
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -377,10 +404,10 @@ async def _get_slurm_launcher(
 
 
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
-    workers = get_value("workers")
-    if workers is not None and int(workers) > 1:
+    replicas = get_value("replicas")
+    if replicas is not None and int(replicas) > 1:
         return {
-            "yes": ("Yes", "Use router to load balance across workers"),
+            "yes": ("Yes", "Use router to load balance across replicas"),
             "no": ("No", "Do not use router"),
         }
     return {
@@ -423,7 +450,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         catalogue_entry = ModelCatalogEntry(model=model, framework=framework)
     return LaunchRequest.from_catalog_entry(
         catalogue_entry,
-        workers=int(launch_req_config.get_non_none_value("workers")),
+        replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{model}-{create_salt(4)}",
         use_router=launch_req_config.get_non_none_value("use_router") == "yes",
@@ -524,15 +551,18 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
         print(f"Logs: {launcher.get_log_dir(job_id)}")
 
 
-async def _run_advanced(args: argparse.Namespace) -> None:
-    if not InitConfig.exists():
-        print("SML is not configured. Run `sml init` first.")
-        return
+def build_launch_args_from_advanced(
+    args: argparse.Namespace,
+    *,
+    account: str,
+    partition: str,
+    telemetry_endpoint: str | None = None,
+) -> LaunchArgs:
+    """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
-    config = InitConfig.load()
-    launcher = await _create_launcher(config, args, non_interactive=True)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
-
+    Tests can drive this directly to validate that example shell scripts produce
+    a valid LaunchArgs without going through the launcher / InitConfig.
+    """
     if args.served_model_name:
         served_model_name = args.served_model_name
     else:
@@ -545,28 +575,84 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
-    launch_args = LaunchArgs(
+    ocf_bootstrap_addr: str | None
+    if getattr(args, "otela_bootstrap_addr", None):
+        ocf_bootstrap_addr = args.otela_bootstrap_addr
+        if getattr(args, "dev", False):
+            print(
+                "warning: --dev ignored because --otela-bootstrap-addr was given.",
+                file=sys.stderr,
+            )
+    elif getattr(args, "dev", False):
+        ocf_bootstrap_addr = OCF_BOOTSTRAP_ADDR_DEV
+    else:
+        ocf_bootstrap_addr = None
+
+    return LaunchArgs(
         job_name=job_name,
         served_model_name=served_model_name,
-        account=launcher.account,
-        partition=launcher.partition,
-        workers=args.workers,
-        nodes_per_worker=args.nodes_per_worker,
-        nodes=args.nodes,
+        account=account,
+        partition=partition,
+        topology=Topology(
+            replicas=args.replicas,
+            nodes_per_replica=args.nodes_per_replica,
+        ),
         time=args.time,
         reservation=args.reservation or None,
         environment=args.slurm_environment,
         framework=args.framework,
         framework_args=args.framework_args,
         pre_launch_cmds=args.pre_launch_cmds,
-        worker_port=args.worker_port,
         use_router=args.use_router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
+        ocf_bootstrap_addr=ocf_bootstrap_addr,
+        dev=getattr(args, "dev", False),
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
+        telemetry_endpoint=telemetry_endpoint,
+    )
+
+
+async def _run_advanced(args: argparse.Namespace) -> None:
+    if not InitConfig.exists():
+        print("SML is not configured. Run `sml init` first.")
+        return
+
+    config = InitConfig.load()
+    launcher = await _create_launcher(config, args, non_interactive=True)
+    cscs_api_key = config.get_non_none_value("cscs_api_key")
+
+    launch_args = build_launch_args_from_advanced(
+        args,
+        account=launcher.account,
+        partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
     )
+
+    if args.output_script:
+        # Write master.sh + per-shape rank scripts to a user-supplied dir.
+        # The on-disk shape matches what a live submission would write to
+        # ~/.sml/job-<id>/ at job start (via master's self-extract), so
+        # `sbatch <dir>/master.sh` is also a valid way to submit manually.
+        out_dir = Path(args.output_script).expanduser().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        master_path = out_dir / "master.sh"
+        master_path.write_text(render_sbatch_header(launch_args) + render_master(launch_args))
+        master_path.chmod(0o755)
+
+        written = ["master.sh"]
+        for filename, content in render_rank_scripts(launch_args).items():
+            path = out_dir / filename
+            path.write_text(content)
+            path.chmod(0o755)
+            written.append(filename)
+
+        print(f"Wrote {len(written)} file(s) to {out_dir}:", file=sys.stderr)
+        for name in written:
+            print(f"  {name}", file=sys.stderr)
+        return
 
     launch_coro = launcher.launch_with_args(launch_args)
     if args.tui:
