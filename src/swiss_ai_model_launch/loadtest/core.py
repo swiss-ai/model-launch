@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from swiss_ai_model_launch.loadtest.scenario_files import SCENARIO_SUFFIXES, YAML_SCENARIO_SUFFIXES
+
 from .models import LoadtestConfig, ServerConfig
 
 _BUILTIN_SCENARIOS_DIR = files("swiss_ai_model_launch.assets").joinpath("scenarios")
@@ -16,7 +18,7 @@ _CUSTOM_SCENARIOS_DIR = Path.cwd() / "scenarios"
 
 def _load_scenario_definition_file(path: Traversable | Path, ext: str) -> dict[str, Any]:
     text = path.read_text()
-    data = yaml.safe_load(text) if ext in (".yaml", ".yml") else json.loads(text)
+    data = yaml.safe_load(text) if ext in YAML_SCENARIO_SUFFIXES else json.loads(text)
     if not isinstance(data, dict):
         raise ValueError(f"Scenario file must contain a top-level object: {path}")
     return data
@@ -27,12 +29,12 @@ def _load_scenario_definition(name: str) -> dict[str, Any] | None:
 
     Supports .yaml, .yml, and .json; returns a plain dict ready for JSON serialization.
     """
-    for ext in (".yaml", ".yml", ".json"):
+    for ext in SCENARIO_SUFFIXES:
         custom_path = _CUSTOM_SCENARIOS_DIR / f"{name}{ext}"
         if custom_path.exists():
             return _load_scenario_definition_file(custom_path, ext)
 
-    for ext in (".yaml", ".yml", ".json"):
+    for ext in SCENARIO_SUFFIXES:
         builtin_path = _BUILTIN_SCENARIOS_DIR.joinpath(f"{name}{ext}")
         if builtin_path.is_file():
             return _load_scenario_definition_file(builtin_path, ext)
