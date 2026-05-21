@@ -252,10 +252,7 @@ async def _prompt_loadtest_scenario(args: argparse.Namespace) -> None:
     scenarios = load_scenarios()
     answer = await questionary.select(
         "Choose the loadtest scenario.",
-        choices=[
-            questionary.Choice(title=scenario.name, value=scenario.name)
-            for scenario in scenarios
-        ],
+        choices=[questionary.Choice(title=scenario.name, value=scenario.name) for scenario in scenarios],
     ).ask_async()
     args.loadtest_scenario = answer or _DEFAULT_LOADTEST_SCENARIO
 
