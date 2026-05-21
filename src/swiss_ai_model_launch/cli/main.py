@@ -152,38 +152,38 @@ def _make_launch_request_config(
 
 
 def _add_advanced_launch_arguments(
-    parser: argparse.ArgumentParser,
+    advanced_parser: argparse.ArgumentParser,
     *,
     tui_default: bool | None,
 ) -> None:
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--serving-framework",
         dest="framework",
         required=True,
         help="Inference framework to use (e.g. sglang, vllm).",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--slurm-environment",
         dest="slurm_environment",
         required=True,
         metavar="PATH",
         help="Local path to the environment .toml file.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--framework-args",
         dest="framework_args",
         default="",
         metavar="ARGS",
         help="Arguments forwarded to the inference framework.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--slurm-replicas",
         dest="replicas",
         type=int,
         default=1,
         help="Number of independent inference engine instances (default: 1).",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--slurm-nodes-per-replica",
         dest="nodes_per_replica",
         type=int,
@@ -193,46 +193,46 @@ def _add_advanced_launch_arguments(
             "Set this to match your TP/PP/DP/EP layout in --framework-args."
         ),
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--slurm-time",
         dest="time",
         default="02:00:00",
         metavar="HH:MM:SS",
         help="Job time limit (default: 02:00:00).",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--slurm-reservation",
         dest="reservation",
         default=os.environ.get("SML_RESERVATION"),
         metavar="RESERVATION",
         help="SLURM reservation name (optional, env: SML_RESERVATION).",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--served-model-name",
         dest="served_model_name",
         default=None,
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--use-router",
         dest="use_router",
         action="store_true",
         help="Enable router to load balance across replicas.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--router-args",
         dest="router_args",
         default="",
         metavar="ARGS",
         help="Arguments forwarded to the router.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--disable-ocf",
         dest="disable_ocf",
         action="store_true",
         help="Disable OCF.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--otela-bootstrap-addr",
         dest="otela_bootstrap_addr",
         default=None,
@@ -243,25 +243,25 @@ def _add_advanced_launch_arguments(
             "Takes precedence over --dev. Defaults to the prod peer."
         ),
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--dev",
         dest="dev",
         action="store_true",
         help=("Shorthand for the dev OCF bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--disable-dcgm-exporter",
         dest="disable_dcgm_exporter",
         action="store_true",
         help="Disable the DCGM exporter.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--disable-metrics",
         dest="disable_metrics",
         action="store_true",
         help="Disable metrics collection.",
     )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--pre-launch-cmds",
         dest="pre_launch_cmds",
         default="",
@@ -269,13 +269,13 @@ def _add_advanced_launch_arguments(
         help="Commands to run before launching the model.",
     )
     if tui_default is not None:
-        parser.add_argument(
+        advanced_parser.add_argument(
             "--tui",
             action=argparse.BooleanOptionalAction,
             default=tui_default,
             help="Launch the interactive TUI after submitting the job.",
         )
-    parser.add_argument(
+    advanced_parser.add_argument(
         "--output-script",
         dest="output_script",
         metavar="DIR",
