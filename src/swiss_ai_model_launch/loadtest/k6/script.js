@@ -7,7 +7,6 @@
  *
  *   This script is strict: RUN_CONFIG_JSON must contain one of:
  *   - custom
- *   - realistic
  *   - scenario_definition
  *   If none are present, initialization fails.
  *
@@ -36,10 +35,8 @@ const DEFAULT_REQUEST_TIMEOUT = "120s";
 const DEFAULT_PROMPT_SEED = 1;
 const DEFAULT_THINK_TIME = 2;
 const DEFAULT_MAX_VUS = 10;
-const DEFAULT_REALISTIC_USERS = 20;
 const DEFAULT_RAMP_DOWN = "30s";
 const DEFAULT_DURATION = "5m";
-const DEFAULT_REALISTIC_DURATION = "15m";
 const ESTIMATED_CHARS_PER_TOKEN = 4;
 const MS_PER_SECOND = 1000;
 const LATENCY_LABEL_PATTERN = /^e2e_latency_ms\{label:(.+)\}$/;
@@ -107,7 +104,9 @@ const IGNORE_EOS =
   (RUN_CFG.ignore_eos ?? RUN_CFG.scenario_definition?.ignore_eos ?? false) ===
   true;
 const PROMPT_SEED = parseInteger(
-  __ENV.PROMPT_SEED ?? RUN_CFG.prompt_seed ?? RUN_CFG.scenario_definition?.prompt_seed,
+  __ENV.PROMPT_SEED ??
+    RUN_CFG.prompt_seed ??
+    RUN_CFG.scenario_definition?.prompt_seed,
   DEFAULT_PROMPT_SEED,
 );
 // THINK_TIME: max seconds of sleep between requests per VU (uniform [0, THINK_TIME]).
@@ -115,7 +114,8 @@ const PROMPT_SEED = parseInteger(
 const THINK_TIME = parseNumber(RUN_CFG.think_time, DEFAULT_THINK_TIME);
 // MAX_TOKENS: when set, overrides the per-prompt max_tokens.
 // KV cache fill is driven by the decode phase — longer outputs hold KV blocks longer.
-// Use 1024–4096 with kv_stress to keep requests alive and fill the cache.
+// Use 1024–4096 in KV-heavy custom scenarios to keep requests alive and
+// fill the cache.
 const MAX_TOKENS = RUN_CFG.max_tokens
   ? Number.parseInt(RUN_CFG.max_tokens, 10)
   : null;
@@ -302,37 +302,21 @@ function buildCustomScenario(custom) {
   };
 }
 
-function buildRealisticScenario(realistic) {
-  if (!realistic) return null;
-  return {
-    executor: SCENARIO_CONSTANT_VUS,
-    vus: parsePositiveInteger(realistic.users, DEFAULT_REALISTIC_USERS),
-    duration: realistic.duration ?? DEFAULT_REALISTIC_DURATION,
-  };
-}
-
 const customScenario = RUN_CFG.custom
   ? buildCustomScenario(RUN_CFG.custom)
   : null;
-const realisticScenario = RUN_CFG.realistic
-  ? buildRealisticScenario(RUN_CFG.realistic)
-  : null;
 const definedScenario = scenarioToK6(RUN_CFG.scenario_definition);
-const scenarioCandidates = [
-  customScenario,
-  realisticScenario,
-  definedScenario,
-].filter(Boolean);
+const scenarioCandidates = [customScenario, definedScenario].filter(Boolean);
 
 if (scenarioCandidates.length === 0) {
   throw new Error(
-    "No scenario found in RUN_CONFIG_JSON. Expected one of: custom, realistic, scenario_definition",
+    "No scenario found in RUN_CONFIG_JSON. Expected one of: custom, scenario_definition",
   );
 }
 
 if (scenarioCandidates.length > 1) {
   throw new Error(
-    "Ambiguous RUN_CONFIG_JSON: provide only one of custom, realistic, scenario_definition",
+    "Ambiguous RUN_CONFIG_JSON: provide only one of custom, scenario_definition",
   );
 }
 

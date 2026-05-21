@@ -102,23 +102,17 @@ The model-ready health check waits up to 1000000 seconds by default. Override it
 
 Built-in scenarios are packaged under `src/swiss_ai_model_launch/assets/scenarios`.
 
-| Scenario           | Pattern                         | Duration | Think time | Max tokens | Prompt labels                         | Use case                                                  |
-| ------------------ | ------------------------------- | -------- | ---------- | ---------- | ------------------------------------- | --------------------------------------------------------- |
-| `throughput`       | 20 constant VUs                 | 15m      | 2s         | 2048       | all                                   | Baseline sustained throughput.                            |
-| `ramp`             | 0 -> 10 -> 25 -> 50 VUs         | 16m      | 2s         | 2048       | all                                   | Gradual capacity ramp with plateaus.                      |
-| `stress`           | 0 -> 20 -> 50 -> 100 -> 150 VUs | 16m      | 2s         | 2048       | all                                   | Push the service past normal operating load.              |
-| `spike`            | 10 -> 100 -> 10 VUs             | 8m30s    | 0s         | 4096       | all                                   | Sudden traffic surge and recovery behavior.               |
-| `soak`             | 20 constant VUs                 | 30m      | 2s         | 2048       | all                                   | Longer stability run for drift, leaks, and tail latency.  |
-| `decode`           | 50 constant VUs                 | 15m      | 0s         | 4096       | `short`, `medium`                     | Decode-heavy run with shorter prompts and longer outputs. |
-| `kv_stress`        | 0 -> 30 -> 0 VUs                | 15m      | 0s         | 4096       | `long_input`, `xl_input`, `conv_long` | KV-cache pressure with long inputs and long outputs.      |
-| `open_loop`        | 20 arrivals/s                   | 15m      | 0s         | 2048       | all                                   | Fixed request-rate latency test with EOS ignored.         |
-| `open_loop_ramp`   | 2 -> 30 arrivals/s              | 15m      | 0s         | 2048       | all                                   | Open-loop capacity sweep with EOS ignored.                |
-| `open_loop_decode` | 2 -> 5 arrivals/s               | 12m      | 0s         | 512        | `short`, `medium`                     | Open-loop decode-focused A/B benchmark.                   |
-| `realistic`        | 20 constant VUs                 | 15m      | 30s        | 2048       | all                                   | Lower-pressure interactive traffic shape.                 |
+| Scenario           | Pattern                   | Duration | Think time | Max tokens | Prompt labels     | Use case                                |
+| ------------------ | ------------------------- | -------- | ---------- | ---------- | ----------------- | --------------------------------------- |
+| `throughput`       | 20 constant VUs           | 15m      | 2s         | 2048       | all               | Baseline sustained throughput.          |
+| `ramp`             | 0 -> 10 -> 25 -> 50 VUs   | 16m      | 2s         | 2048       | all               | Gradual capacity ramp with plateaus.    |
+| `open_loop`        | 20 arrivals/s             | 15m      | 0s         | 2048       | all               | Fixed request-rate latency test.        |
+| `open_loop_ramp`   | 2 -> 30 arrivals/s        | 15m      | 0s         | 2048       | all               | Open-loop capacity sweep.               |
+| `open_loop_decode` | 2 -> 5 arrivals/s         | 12m      | 0s         | 512        | `short`, `medium` | Open-loop decode-focused A/B benchmark. |
 
 Custom scenarios can be placed in `./scenarios/` where you run `sml`. Use YAML, YML, or JSON. A custom scenario with the same name overrides the built-in one.
 
-Prompt labels are tags inside the prompt corpus. Scenarios use them to select a subset of prompts, for example `decode` selects shorter prompts while `kv_stress` selects long-input prompts. Put label choices in scenario YAML rather than on the command line.
+Prompt labels are tags inside the prompt corpus. Scenarios use them to select a subset of prompts, for example `open_loop_decode` selects shorter prompts. Put label choices in scenario YAML rather than on the command line.
 
 The k6 script shuffles the selected prompt corpus with a deterministic seed, then cycles through that shuffled order by global iteration number. This keeps repeated runs comparable while avoiding artifacts from sorted prompt files. The default seed is `1`; override it with `--loadtest-prompt-seed`. For paired A/B runs, use the same seed for both configurations.
 

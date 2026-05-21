@@ -55,6 +55,5 @@ def build_run_config(server: ServerConfig, bench: LoadtestConfig) -> dict[str, A
         "prompt_labels": bench.prompt_labels,
         "ignore_eos": bench.ignore_eos,
         "prompt_seed": bench.prompt_seed,
-        "realistic": None,
         "custom": None,
     }
