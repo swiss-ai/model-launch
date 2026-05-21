@@ -647,7 +647,6 @@ def build_launch_args_from_advanced(
             nodes_per_replica=args.nodes_per_replica,
         ),
         time=args.time,
-        reservation=args.reservation or None,
         environment=args.slurm_environment,
         framework=args.framework,
         framework_args=args.framework_args,
@@ -688,7 +687,9 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         master_path = out_dir / "master.sh"
-        master_path.write_text(render_sbatch_header(launch_args) + render_master(launch_args))
+        master_path.write_text(
+            render_sbatch_header(launch_args, reservation=launcher.reservation) + render_master(launch_args)
+        )
         master_path.chmod(0o755)
 
         written = ["master.sh"]
