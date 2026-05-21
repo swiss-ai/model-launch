@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    types: [opened, reopened, synchronize, labeled]
+    types: [opened, reopened, synchronize, labeled, ready_for_review]
 
 jobs:
   static-checks:
@@ -14,6 +14,8 @@ jobs:
   detect-changes:
     needs: [static-checks]
     name: Docker Changed Images Detection
+    # Draft PRs run static checks only; skip the heavier build/test pipeline.
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.detect.outputs.images }}
@@ -58,7 +60,7 @@ jobs:
   build:
     name: Docker Build ${{ matrix.image }}
     needs: [detect-changes, static-checks]
-    if: needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    if: github.event.pull_request.draft != true && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -106,6 +108,7 @@ jobs:
     needs: [detect-changes, build]
     if: |
       always() &&
+      github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
       github.event_name != 'workflow_dispatch' &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
@@ -132,6 +135,7 @@ jobs:
     needs: [detect-changes, build]
     if: |
       always() &&
+      github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
       contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
@@ -157,6 +161,7 @@ jobs:
     needs: [detect-changes, build]
     if: |
       always() &&
+      github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
       (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests'))
     runs-on: ubuntu-latest
