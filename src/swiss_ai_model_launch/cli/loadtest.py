@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+import questionary
+
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
@@ -27,6 +29,7 @@ _DEFAULT_LOADTEST_READY_POLL_SECONDS = 10
 _LOADTEST_READY_PROGRESS_SECONDS = 300
 _DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
 _DEFAULT_LOADTEST_JOB_TIME = "00:30:00"
+_DEFAULT_LOADTEST_SCENARIO = "throughput"
 
 _AddConfig = Callable[[], Any]
 _AddAdvancedLaunchArguments = Callable[[argparse.ArgumentParser], None]
@@ -104,8 +107,8 @@ def _add_loadtest_arguments(
     parser.add_argument(
         "--loadtest-scenario",
         dest="loadtest_scenario",
-        default="throughput",
-        help="Built-in or custom loadtest scenario name (default: throughput).",
+        default=None,
+        help=f"Built-in or custom loadtest scenario name (default: {_DEFAULT_LOADTEST_SCENARIO}).",
     )
     parser.add_argument(
         "--loadtest-max-tokens",
@@ -236,11 +239,25 @@ def make_loadtest_config_from_values(
 
 def make_loadtest_config(args: argparse.Namespace) -> LoadtestConfig:
     return make_loadtest_config_from_values(
-        scenario=args.loadtest_scenario,
+        scenario=args.loadtest_scenario or _DEFAULT_LOADTEST_SCENARIO,
         max_tokens=args.loadtest_max_tokens,
         ignore_eos=args.loadtest_ignore_eos,
         prompt_seed=args.loadtest_prompt_seed,
     )
+
+
+async def _prompt_loadtest_scenario(args: argparse.Namespace) -> None:
+    if args.loadtest_scenario:
+        return
+    scenarios = load_scenarios()
+    answer = await questionary.select(
+        "Choose the loadtest scenario.",
+        choices=[
+            questionary.Choice(title=scenario.name, value=scenario.name)
+            for scenario in scenarios
+        ],
+    ).ask_async()
+    args.loadtest_scenario = answer or _DEFAULT_LOADTEST_SCENARIO
 
 
 def _make_loadtest_server(args: argparse.Namespace, api_key: str, model_name: str) -> ServerConfig:
@@ -462,6 +479,7 @@ async def _run_loadtest_preconfigured(
     launcher = await create_launcher(config, args)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_request = await get_launch_request(launcher, args)
+    await _prompt_loadtest_scenario(args)
     loadtest_config = make_loadtest_config(args)
 
     await _submit_and_run_loadtest(

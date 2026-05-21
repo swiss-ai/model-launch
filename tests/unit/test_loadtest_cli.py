@@ -1,6 +1,10 @@
 import pytest
 
-from swiss_ai_model_launch.cli.loadtest import make_cluster_loadtest_config, make_loadtest_config
+from swiss_ai_model_launch.cli.loadtest import (
+    _prompt_loadtest_scenario,
+    make_cluster_loadtest_config,
+    make_loadtest_config,
+)
 from swiss_ai_model_launch.cli.main import _build_parser
 from swiss_ai_model_launch.loadtest.setup import DEFAULT_CLUSTER_CONTAINER_IMAGE
 
@@ -17,6 +21,20 @@ def test_loadtest_run_has_health_wait_flags() -> None:
     args = parser.parse_args(["loadtest", "run", "--no-wait-until-healthy"])
 
     assert args.wait_until_healthy is False
+
+
+def test_loadtest_scenario_parser_default_is_unset() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run"])
+
+    assert args.loadtest_scenario is None
+
+
+def test_loadtest_scenario_config_default_is_throughput() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run"])
+
+    assert make_loadtest_config(args).scenario == "throughput"
 
 
 def test_loadtest_run_help_excludes_removed_scenario_owned_flags(capsys: pytest.CaptureFixture[str]) -> None:
@@ -197,3 +215,35 @@ def test_loadtest_metrics_remote_write_can_be_disabled() -> None:
     args = parser.parse_args(["loadtest", "run", "--no-loadtest-metrics-remote-write"])
 
     assert make_cluster_loadtest_config(args).metrics_remote_write_url is None
+
+
+async def test_prompt_loadtest_scenario_uses_existing_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "preconfigured", "--loadtest-scenario", "open_loop"])
+
+    def fail_select(*args: object, **kwargs: object) -> None:
+        raise AssertionError("scenario prompt should not run")
+
+    monkeypatch.setattr("swiss_ai_model_launch.cli.loadtest.questionary.select", fail_select)
+
+    await _prompt_loadtest_scenario(args)
+
+    assert args.loadtest_scenario == "open_loop"
+
+
+async def test_prompt_loadtest_scenario_sets_selected_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "preconfigured"])
+
+    class FakeQuestion:
+        async def ask_async(self) -> str:
+            return "open_loop"
+
+    def fake_select(*args: object, **kwargs: object) -> FakeQuestion:
+        return FakeQuestion()
+
+    monkeypatch.setattr("swiss_ai_model_launch.cli.loadtest.questionary.select", fake_select)
+
+    await _prompt_loadtest_scenario(args)
+
+    assert args.loadtest_scenario == "open_loop"

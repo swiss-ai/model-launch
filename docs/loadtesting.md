@@ -69,6 +69,27 @@ By default, SML waits for `--served-model-name` to become healthy before startin
 
 ## Launch Then Loadtest
 
+Use `sml loadtest preconfigured` for a guided model launch followed by a cluster k6 loadtest.
+
+```bash
+sml loadtest preconfigured \
+  --firecrest-system clariden \
+  --partition normal \
+  --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json \
+  --cancel-after-loadtest
+```
+
+The guided command prompts for the model launch configuration. If `--loadtest-scenario` is omitted, it also prompts for the loadtest scenario. Pass `--loadtest-scenario` to skip the scenario prompt:
+
+```bash
+sml loadtest preconfigured \
+  --firecrest-system clariden \
+  --partition normal \
+  --loadtest-scenario open_loop \
+  --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json \
+  --cancel-after-loadtest
+```
+
 Use `sml loadtest advanced` to launch a model and then run k6 against it.
 
 ```bash
@@ -99,6 +120,8 @@ Use `--loadtest-max-tokens prompt` to take the output token cap from each prompt
 The model-ready health check waits up to 1000000 seconds by default. Override it with `--loadtest-ready-timeout` when you want a shorter wait.
 
 ## Scenarios
+
+`sml loadtest run` and `sml loadtest advanced` use `throughput` when `--loadtest-scenario` is omitted. `sml loadtest preconfigured` prompts for the scenario unless the flag is supplied.
 
 Built-in scenarios are packaged under `src/swiss_ai_model_launch/assets/scenarios`.
 
