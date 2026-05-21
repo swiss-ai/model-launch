@@ -1,10 +1,7 @@
 import pytest
 
-from swiss_ai_model_launch.cli.main import (
-    _build_parser,
-    _make_cluster_loadtest_config,
-    _make_loadtest_config,
-)
+from swiss_ai_model_launch.cli.loadtest import make_cluster_loadtest_config, make_loadtest_config
+from swiss_ai_model_launch.cli.main import _build_parser
 from swiss_ai_model_launch.loadtest.setup import DEFAULT_CLUSTER_CONTAINER_IMAGE
 
 
@@ -52,49 +49,49 @@ def test_loadtest_ignore_eos_defaults_to_scenario() -> None:
     args = parser.parse_args(["loadtest", "run", "--loadtest-scenario", "open_loop"])
 
     assert args.loadtest_ignore_eos is None
-    assert _make_loadtest_config(args).ignore_eos is None
+    assert make_loadtest_config(args).ignore_eos is None
 
 
 def test_loadtest_ignore_eos_can_be_forced_on() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--loadtest-ignore-eos"])
 
-    assert _make_loadtest_config(args).ignore_eos is True
+    assert make_loadtest_config(args).ignore_eos is True
 
 
 def test_loadtest_ignore_eos_can_be_forced_off() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--no-loadtest-ignore-eos"])
 
-    assert _make_loadtest_config(args).ignore_eos is False
+    assert make_loadtest_config(args).ignore_eos is False
 
 
 def test_loadtest_max_tokens_can_use_prompt_values() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--loadtest-max-tokens", "prompt"])
 
-    assert _make_loadtest_config(args).max_tokens is None
+    assert make_loadtest_config(args).max_tokens is None
 
 
 def test_loadtest_max_tokens_numeric_override_wins() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--loadtest-max-tokens", "123"])
 
-    assert _make_loadtest_config(args).max_tokens == "123"
+    assert make_loadtest_config(args).max_tokens == "123"
 
 
 def test_loadtest_prompt_seed_defaults_to_one() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run"])
 
-    assert _make_loadtest_config(args).prompt_seed == 1
+    assert make_loadtest_config(args).prompt_seed == 1
 
 
 def test_loadtest_prompt_seed_can_be_overridden() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--loadtest-prompt-seed", "17"])
 
-    assert _make_loadtest_config(args).prompt_seed == 17
+    assert make_loadtest_config(args).prompt_seed == 17
 
 
 def test_loadtest_run_help_uses_single_model_name(capsys: pytest.CaptureFixture[str]) -> None:
@@ -168,7 +165,7 @@ def test_loadtest_metrics_remote_write_enabled_by_default() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run"])
 
-    assert _make_cluster_loadtest_config(args).metrics_remote_write_url == (
+    assert make_cluster_loadtest_config(args).metrics_remote_write_url == (
         "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
     )
 
@@ -177,14 +174,14 @@ def test_loadtest_job_time_defaults_to_cluster_default() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run"])
 
-    assert _make_cluster_loadtest_config(args).time == "00:30:00"
+    assert make_cluster_loadtest_config(args).time == "00:30:00"
 
 
 def test_loadtest_job_time_can_be_overridden() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--loadtest-job-time", "01:00:00"])
 
-    assert _make_cluster_loadtest_config(args).time == "01:00:00"
+    assert make_cluster_loadtest_config(args).time == "01:00:00"
 
 
 def test_loadtest_job_time_rejects_invalid_format() -> None:
@@ -192,11 +189,11 @@ def test_loadtest_job_time_rejects_invalid_format() -> None:
     args = parser.parse_args(["loadtest", "run", "--loadtest-job-time", "1h"])
 
     with pytest.raises(ValueError, match="--loadtest-job-time"):
-        _make_cluster_loadtest_config(args)
+        make_cluster_loadtest_config(args)
 
 
 def test_loadtest_metrics_remote_write_can_be_disabled() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run", "--no-loadtest-metrics-remote-write"])
 
-    assert _make_cluster_loadtest_config(args).metrics_remote_write_url is None
+    assert make_cluster_loadtest_config(args).metrics_remote_write_url is None
