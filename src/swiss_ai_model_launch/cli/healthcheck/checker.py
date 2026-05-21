@@ -2,24 +2,17 @@ import httpx
 
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 
-
 _MESSAGE = {"role": "user", "content": 'Say the word "Hello". Nothing more.'}
-_DEFAULT_HEALTH_CHECK_BASE_URL = "https://api.swissai.svc.cscs.ch"
+_HEALTH_CHECK_URL = "https://api.swissai.svc.cscs.ch/v1/chat/completions"
 _TIMEOUT_SECONDS = 10
 _MAX_TOKENS = 16
 
 
-async def check_model_health(
-    model_name: str,
-    api_key: str,
-    *,
-    base_url: str = _DEFAULT_HEALTH_CHECK_BASE_URL,
-) -> ModelHealth:
-    health_check_url = f"{base_url.rstrip('/')}/v1/chat/completions"
+async def check_model_health(model_name: str, api_key: str) -> ModelHealth:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                health_check_url,
+                _HEALTH_CHECK_URL,
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {api_key}",

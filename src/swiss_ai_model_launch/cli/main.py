@@ -971,7 +971,7 @@ async def _wait_until_model_healthy(
     print(f"Waiting for model health: {served_model_name} via {server_url.rstrip('/')}")
 
     while True:
-        health = await check_model_health(served_model_name, api_key, base_url=server_url)
+        health = await check_model_health(served_model_name, api_key)
         if health == ModelHealth.HEALTHY:
             print(f"Model is healthy: {served_model_name}")
             return
