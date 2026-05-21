@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import os
@@ -161,7 +159,7 @@ def _add_loadtest_arguments(
 
 
 def add_loadtest_parser(
-    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    subparsers: Any,
     *,
     make_firecrest_launcher_config: _AddConfig,
     make_partition_config: _AddConfig,
