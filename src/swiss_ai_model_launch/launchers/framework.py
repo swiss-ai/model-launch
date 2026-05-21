@@ -19,7 +19,12 @@ RAY_PORT = 6379
 NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
 
-_VMAGENT_SCRAPE_CONFIG = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent-scrape.yaml"
+_METRICS_CONFIG_DIR = "/capstor/store/cscs/swissai/infra01/ocf-share"
+_VMAGENT_SCRAPE_CONFIG = f"{_METRICS_CONFIG_DIR}/vmagent-scrape.yaml"
+_VMAGENT_SCRAPE_CONFIG_NO_DCGM = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-no-dcgm.yaml"
+_VMAGENT_SCRAPE_CONFIG_DCGM_ONLY = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-dcgm-only.yaml"
+_DCGM_EXPORTER_PORT = 9400
+_DCGM_COUNTERS = f"{_METRICS_CONFIG_DIR}/default-counters.csv"
 
 
 class Framework:
@@ -349,11 +354,21 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     )
 
 
+def _metrics_enabled(launch_args: LaunchArgs) -> bool:
+    return not launch_args.disable_metrics and bool(launch_args.metrics_remote_write_url)
+
+
+def _dcgm_enabled(launch_args: LaunchArgs) -> bool:
+    return _metrics_enabled(launch_args) and not launch_args.disable_dcgm_exporter
+
+
 def _render_arch_detection(launch_args: LaunchArgs) -> str:
     base = launch_args.metrics_agent_binary
-    # Only emit metrics_agent_bin assignments when something downstream
-    # consumes it — otherwise shellcheck flags SC2034 (unused var).
-    needs_metrics_bin = not launch_args.disable_metrics and bool(launch_args.metrics_remote_write_url)
+    dcgm_base = launch_args.dcgm_exporter_binary
+    # Only emit metrics_agent_bin / dcgm_exporter_bin assignments when something
+    # downstream consumes them — otherwise shellcheck flags SC2034 (unused var).
+    needs_metrics_bin = _metrics_enabled(launch_args)
+    needs_dcgm_bin = _dcgm_enabled(launch_args)
     # /ocfbin/{prod,dev}/otela-<arch> are stable symlinks maintained by
     # OpenTela's release / deploy-dev workflows; they point at versioned
     # files in the same directory. --dev (LaunchArgs.dev) flips the channel.
@@ -371,6 +386,9 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
     if needs_metrics_bin:
         arm_lines.append(f'    metrics_agent_bin="{base}-arm64"')
         x86_lines.append(f'    metrics_agent_bin="{base}-amd64"')
+    if needs_dcgm_bin:
+        arm_lines.append(f'    dcgm_exporter_bin="{dcgm_base}-arm64"')
+        x86_lines.append(f'    dcgm_exporter_bin="{dcgm_base}-amd64"')
     arm_block = "\n".join(arm_lines)
     x86_block = "\n".join(x86_lines)
     return (
@@ -462,25 +480,49 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
 
 
 def _render_vmagent(launch_args: LaunchArgs) -> str:
-    if launch_args.disable_metrics or not launch_args.metrics_remote_write_url:
+    if not _metrics_enabled(launch_args):
         return ""
     url = launch_args.metrics_remote_write_url
     served = launch_args.served_model_name
     fw = launch_args.framework
-    return (
+    dcgm_on = _dcgm_enabled(launch_args)
+    batch_scrape_config = _VMAGENT_SCRAPE_CONFIG if dcgm_on else _VMAGENT_SCRAPE_CONFIG_NO_DCGM
+
+    # Common vmagent remoteWrite labels — shared between the batch node (rank 0)
+    # and per-worker invocations via `srun --overlap`.
+    common_labels = (
+        '        -remoteWrite.label="slurm_job_id=${SLURM_JOB_ID}" \\\n'
+        f'        -remoteWrite.label="model={served}" \\\n'
+        f'        -remoteWrite.label="framework={fw}" \\\n'
+        '        -remoteWrite.label="user=${SLURM_JOB_USER}" \\\n'
+    )
+
+    batch_block = (
         "# vmagent runs on the batch node; pyxis containers share the host network\n"
         "# namespace so the framework API server is reachable at localhost:8080.\n"
         "# vmagent is non-critical: disowned so it's not in `wait -n`'s scope, and\n"
         "# the EXIT trap in the footer kills it when master.sh terminates so the\n"
         "# allocation can be released as soon as the framework process is gone.\n"
         'if [[ -x "$metrics_agent_bin" ]]; then\n'
+    )
+    if dcgm_on:
+        batch_block += (
+            '    if [[ -e /dev/nvidia0 && -x "$dcgm_exporter_bin" ]]; then\n'
+            '        "$dcgm_exporter_bin" \\\n'
+            f"            --address 0.0.0.0:{_DCGM_EXPORTER_PORT} \\\n"
+            f"            -f {_DCGM_COUNTERS} \\\n"
+            '            > "/tmp/dcgm-exporter-${SLURM_JOB_ID}.log" 2>&1 &\n'
+            "        disown $!\n"
+            "    else\n"
+            '        echo "dcgm-exporter: no NVIDIA GPU or binary not found, skipping" >&2\n'
+            "    fi\n"
+        )
+    batch_block += (
         '    "$metrics_agent_bin" \\\n'
-        f"        -promscrape.config={_VMAGENT_SCRAPE_CONFIG} \\\n"
+        f"        -promscrape.config={batch_scrape_config} \\\n"
         f'        -remoteWrite.url="{url}" \\\n'
-        '        -remoteWrite.label="slurm_job_id=${SLURM_JOB_ID}" \\\n'
-        f'        -remoteWrite.label="model={served}" \\\n'
-        f'        -remoteWrite.label="framework={fw}" \\\n'
-        '        -remoteWrite.label="user=${SLURM_JOB_USER}" \\\n'
+        f"{common_labels}"
+        '        -remoteWrite.label="node=$(hostname)" \\\n'
         '        "-remoteWrite.tmpDataPath=/tmp/vmagent-data-${SLURM_JOB_ID}" \\\n'
         '        > "/tmp/vmagent-${SLURM_JOB_ID}.log" 2>&1 &\n'
         "    vmagent_pid=$!\n"
@@ -489,6 +531,46 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         '    echo "metrics: $metrics_agent_bin not found, skipping push" >&2\n'
         "fi"
     )
+
+    if not dcgm_on or launch_args.total_nodes <= 1:
+        return batch_block
+
+    # Per-worker dcgm + vmagent. The batch node (index 0) already runs both
+    # directly; remaining nodes need an `srun --overlap` so the exporter
+    # publishes GPU telemetry from each compute node and vmagent ships it.
+    # ${dcgm_exporter_bin} / ${metrics_agent_bin} are master-shell vars (set by
+    # arch detection) so they're expanded here at submission time; SLURM_*
+    # and $(hostname) are deferred to the worker via \$ / \"..\$..\".
+    worker_block = (
+        'for i in "${!nodes[@]}"; do\n'
+        '    if [[ "$i" -eq 0 ]]; then continue; fi\n'
+        '    node="${nodes[$i]}"\n'
+        '    srun --nodes=1 --ntasks=1 --nodelist="$node" --overlap \\\n'
+        f'        bash -c "\n'
+        f'            if [[ -e /dev/nvidia0 && -x \\"${{dcgm_exporter_bin}}\\" ]]; then\n'
+        f'                \\"${{dcgm_exporter_bin}}\\" \\\n'
+        f"                    --address 0.0.0.0:{_DCGM_EXPORTER_PORT} \\\n"
+        f"                    -f {_DCGM_COUNTERS} \\\n"
+        f"                    > /tmp/dcgm-exporter-\\${{SLURM_JOB_ID}}.log 2>&1 &\n"
+        f'                \\"${{metrics_agent_bin}}\\" \\\n'
+        f"                    -promscrape.config={_VMAGENT_SCRAPE_CONFIG_DCGM_ONLY} \\\n"
+        f'                    -remoteWrite.url=\\"{url}\\" \\\n'
+        f'                    -remoteWrite.label=\\"slurm_job_id=\\${{SLURM_JOB_ID}}\\" \\\n'
+        f'                    -remoteWrite.label=\\"model={served}\\" \\\n'
+        f'                    -remoteWrite.label=\\"framework={fw}\\" \\\n'
+        f'                    -remoteWrite.label=\\"user=\\${{SLURM_JOB_USER}}\\" \\\n'
+        f'                    -remoteWrite.label=\\"node=\\$(hostname)\\" \\\n'
+        f"                    -remoteWrite.tmpDataPath=/tmp/vmagent-data-\\${{SLURM_JOB_ID}} \\\n"
+        f"                    > /tmp/vmagent-\\${{SLURM_JOB_ID}}.log 2>&1 &\n"
+        f"                wait\n"
+        f"            else\n"
+        f'                echo \\"dcgm-exporter: no NVIDIA GPU or binary not found on \\$(hostname), skipping\\" >&2\n'
+        f"            fi\n"
+        f'        " &\n'
+        f"    disown $!\n"
+        f"done"
+    )
+    return f"{batch_block}\n\n{worker_block}"
 
 
 def _render_router_launch(launch_args: LaunchArgs) -> str:
