@@ -117,6 +117,40 @@ class SlurmLauncher(Launcher):
         # sbatch prints: "Submitted batch job 12345"
         return int(stdout.decode().strip().split()[-1])
 
+    async def _submit_helper_script(self, script_body: str, *, job_name: str, time: str) -> int:
+        working_dir = self._get_working_dir()
+        working_dir.mkdir(parents=True, exist_ok=True)
+
+        script_path = working_dir / f"job_{job_name}.sh"
+        script_path.write_text("#!/bin/bash\n" + script_body)
+        script_path.chmod(0o755)
+
+        args = [
+            f"--job-name={job_name}",
+            f"--account={self.account}",
+            f"--time={time}",
+            "--nodes=1",
+            f"--partition={self.partition}",
+            "--output=logs/%j/log.out",
+            "--error=logs/%j/log.out",
+        ]
+        if self.reservation:
+            args.append(f"--reservation={self.reservation}")
+
+        proc = await asyncio.create_subprocess_exec(
+            "sbatch",
+            "--chdir",
+            str(working_dir),
+            *args,
+            str(script_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"sbatch failed (exit {proc.returncode}): {stderr.decode().strip()}")
+        return int(stdout.decode().strip().split()[-1])
+
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 

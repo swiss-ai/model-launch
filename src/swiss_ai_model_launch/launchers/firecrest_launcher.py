@@ -17,6 +17,7 @@ from swiss_ai_model_launch.launchers.utils import (
     call_with_firecrest_retry,
     create_salt,
     decode_log,
+    render_helper_sbatch_header,
     render_sbatch_header,
     resolve_model_path,
 )
@@ -166,6 +167,33 @@ class FirecRESTLauncher(Launcher):
             )
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
+
+    async def _submit_helper_script(self, script_body: str, *, job_name: str, time: str) -> int:
+        working_dir = self._get_working_dir()
+        await call_with_firecrest_retry(
+            lambda: self.client.mkdir(
+                system_name=self.system_name,
+                path=working_dir,
+                create_parents=True,
+            )
+        )
+        header = render_helper_sbatch_header(
+            job_name=job_name,
+            account=self.account,
+            partition=self.partition,
+            time=time,
+            reservation=self.reservation,
+        )
+        script_str = header + "\n" + script_body
+        job_submission_report = await call_with_firecrest_retry(
+            lambda: self.client.submit(
+                system_name=self.system_name,
+                working_dir=working_dir,
+                script_str=script_str,
+                account=self.account,
+            )
+        )
+        return int(job_submission_report["jobId"])
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]

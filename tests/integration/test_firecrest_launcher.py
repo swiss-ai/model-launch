@@ -9,10 +9,11 @@ import pytest
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
+from tests.integration.utils import check_all_replicas_healthy, wait_for_job_running, wait_for_model_healthy
 
 _LAUNCH_TIMEOUT = 240
 _HEALTH_TIMEOUT = 240
+_REPLICA_TIMEOUT = 60
 
 _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
@@ -130,5 +131,12 @@ async def test_launch_apertus_and_health(
     try:
         await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
         await wait_for_model_healthy(launcher, job_id, served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
+        await check_all_replicas_healthy(
+            launcher,
+            served_model_name,
+            cscs_api_key,
+            launch_request.replicas,
+            _REPLICA_TIMEOUT,
+        )
     finally:
         await launcher.cancel_job(job_id)

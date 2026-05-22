@@ -1,7 +1,7 @@
 from collections import deque
 from collections.abc import Callable
 
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth
+from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 
 
@@ -13,6 +13,8 @@ class DisplayState:
         self.job_status: JobStatus | None = None
         self.model_health: ModelHealth = ModelHealth.NOT_DEPLOYED
         self.served_model_name: str | None = None
+        self.replica_check_in_progress: bool = False
+        self.replica_report: ReplicaHealthReport | None = None
         self.out_logs: deque[str] = deque()
         self.err_logs: deque[str] = deque()
         self._on_change: Callable[[], None] = lambda: None
@@ -41,6 +43,15 @@ class DisplayState:
             self.model_health = model_health
         if served_model_name is not None:
             self.served_model_name = served_model_name
+        self._notify()
+
+    def set_replica_check_in_progress(self) -> None:
+        self.replica_check_in_progress = True
+        self._notify()
+
+    def set_replica_report(self, report: ReplicaHealthReport) -> None:
+        self.replica_check_in_progress = False
+        self.replica_report = report
         self._notify()
 
     def set_out_log(self, text: str) -> None:

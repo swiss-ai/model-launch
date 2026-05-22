@@ -71,6 +71,38 @@ def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = N
     return "\n".join(lines) + "\n"
 
 
+def render_helper_sbatch_header(
+    *,
+    job_name: str,
+    account: str,
+    partition: str,
+    time: str,
+    reservation: str | None = None,
+) -> str:
+    """Render the shebang + ``#SBATCH`` header for a single-node helper job.
+
+    Used for short auxiliary jobs (e.g. the replica health probe) that need to
+    run inside the cluster network but don't warrant a full model allocation —
+    one node, no ``--exclusive``. Output goes to the same ``logs/%j/log.out``
+    layout the launchers' ``get_job_logs`` reads from.
+    """
+    lines = [
+        "#!/bin/bash",
+        f"#SBATCH --job-name={job_name}",
+        f"#SBATCH --account={account}",
+        f"#SBATCH --time={time}",
+        "#SBATCH --nodes=1",
+        f"#SBATCH --partition={partition}",
+    ]
+    if reservation:
+        lines.append(f"#SBATCH --reservation={reservation}")
+    lines += [
+        "#SBATCH --output=logs/%j/log.out",
+        "#SBATCH --error=logs/%j/log.out",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def decode_log(data: bytes) -> str:
     """Decode log bytes to string, tolerating partial UTF-8 sequences at the tail.
 

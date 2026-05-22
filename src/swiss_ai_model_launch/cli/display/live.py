@@ -1,8 +1,12 @@
 import os
+import time
 from collections.abc import Coroutine
+from datetime import datetime
 from typing import Any
 
 import rich
+from rich import box
+from rich.console import RenderableType
 from rich.segment import Segments
 from rich.table import Table
 from rich.traceback import Traceback
@@ -12,7 +16,7 @@ from textual.widgets import Footer, Header, Label, TabbedContent, TabPane, TextA
 from textual.worker import Worker, WorkerState
 
 from swiss_ai_model_launch.cli.display.state import DisplayState
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth
+from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 
 _JOB_STATUS_STYLE: dict[JobStatus, str] = {
@@ -29,9 +33,62 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
     ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
 }
 
+_REPLICA_HEALTH_STYLE: dict[ModelHealth, str] = {
+    ModelHealth.HEALTHY: "[green]HEALTHY[/green]",
+    ModelHealth.ERROR: "[orange]ERROR[/orange]",
+    ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",
+    ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
+}
+
 _STATUS_LABEL_ID = "status-label"
+_REPLICA_LABEL_ID = "replica-label"
 _OUT_LOG_ID = "out-log"
 _ERR_LOG_ID = "err-log"
+
+
+def _replica_summary(report: ReplicaHealthReport) -> str:
+    expected = report.expected_replicas if report.expected_replicas > 0 else report.found
+    healthy = sum(r.health == ModelHealth.HEALTHY for r in report.replicas)
+    color = "green" if report.complete else "yellow"
+    return f"Replica Health — [{color}]{healthy}/{expected} healthy[/{color}]"
+
+
+def _format_heartbeat(last_seen: int | None) -> str:
+    if last_seen is None:
+        return "[dim]—[/dim]"
+    when = datetime.fromtimestamp(last_seen).strftime("%H:%M:%S")
+    # Relative to the live wall clock (both epochs are UTC) so the age ticks up
+    # smoothly on each panel re-render between data refreshes.
+    ago = max(0, int(time.time()) - last_seen)
+    return f"{when} [dim]({ago}s ago)[/dim]"
+
+
+def _render_replica_panel(state: DisplayState) -> RenderableType:
+    if state.replica_check_in_progress:
+        return "[bold]Replica Health[/bold]\n[yellow]Checking replicas…[/yellow]"
+    report: ReplicaHealthReport | None = state.replica_report
+    if report is None:
+        return "[bold]Replica Health[/bold]\n[dim]Waiting for the model to become healthy…[/dim]"
+    if report.table_error is not None:
+        return f"[bold]Replica Health[/bold]\n[orange]Could not query the mesh: {report.table_error}[/orange]"
+    if not report.replicas:
+        return "[bold]Replica Health[/bold]\n[red]No replicas registered on the mesh.[/red]"
+    table = Table(box=box.SIMPLE_HEAD, expand=True, title=_replica_summary(report), title_justify="left")
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("Peer ID", overflow="fold")
+    table.add_column("Health", justify="right", width=16)
+    table.add_column("Last Heartbeat", justify="right")
+    for i, replica in enumerate(report.replicas, start=1):
+        table.add_row(
+            str(i),
+            replica.peer_id,
+            _REPLICA_HEALTH_STYLE[replica.health],
+            _format_heartbeat(replica.last_seen),
+        )
+    if report.checked_at is not None:
+        table.caption = f"checked at {datetime.fromtimestamp(report.checked_at).strftime('%H:%M:%S')}"
+        table.caption_justify = "right"
+    return table
 
 
 class _SMLApp(App[bool]):
@@ -49,6 +106,14 @@ class _SMLApp(App[bool]):
         padding: 1 2;
         border: solid $primary;
     }
+    #replica-label {
+        height: auto;
+        max-height: 14;
+        width: 1fr;
+        padding: 0 2;
+        border: solid $secondary;
+        overflow-y: auto;
+    }
     TabbedContent {
         height: 1fr;
     }
@@ -65,6 +130,7 @@ class _SMLApp(App[bool]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Label(self._render_status(), id=_STATUS_LABEL_ID, markup=True)
+        yield Label(_render_replica_panel(self._state), id=_REPLICA_LABEL_ID, markup=True)
         with TabbedContent("stdout", "stderr"):
             with TabPane("stdout"):
                 yield TextArea("", id=_OUT_LOG_ID, read_only=True)
@@ -74,6 +140,9 @@ class _SMLApp(App[bool]):
 
     async def on_mount(self) -> None:
         self._state._on_change = self._refresh_all
+        # Re-render the replica panel twice a second so the per-replica heartbeat
+        # "ago" counter ticks smoothly, independent of the slower data refresh.
+        self.set_interval(0.5, self._refresh_replicas)
         self.run_worker(self._work, exclusive=True)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -119,8 +188,12 @@ class _SMLApp(App[bool]):
         )
         return table
 
+    def _refresh_replicas(self) -> None:
+        self.query_one(f"#{_REPLICA_LABEL_ID}", Label).update(_render_replica_panel(self._state))
+
     def _refresh_all(self) -> None:
         self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
+        self._refresh_replicas()
 
         out_lines = list(self._state.out_logs)
         out_log = self.query_one(f"#{_OUT_LOG_ID}", TextArea)
