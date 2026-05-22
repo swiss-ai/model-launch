@@ -48,6 +48,8 @@ class LaunchArgs(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> "LaunchArgs":
+        if not self.disable_metrics and not self.metrics_remote_write_url:
+            raise ValueError("Metrics require a remote write URL when metrics are enabled.")
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "
