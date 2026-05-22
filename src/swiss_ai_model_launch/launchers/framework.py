@@ -354,12 +354,8 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     )
 
 
-def _metrics_enabled(launch_args: LaunchArgs) -> bool:
-    return not launch_args.disable_metrics and bool(launch_args.metrics_remote_write_url)
-
-
 def _dcgm_enabled(launch_args: LaunchArgs) -> bool:
-    return _metrics_enabled(launch_args) and not launch_args.disable_dcgm_exporter
+    return not launch_args.disable_metrics and not launch_args.disable_dcgm_exporter
 
 
 def _render_arch_detection(launch_args: LaunchArgs) -> str:
@@ -367,7 +363,7 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
     dcgm_base = launch_args.dcgm_exporter_binary
     # Only emit metrics_agent_bin / dcgm_exporter_bin assignments when something
     # downstream consumes them — otherwise shellcheck flags SC2034 (unused var).
-    needs_metrics_bin = _metrics_enabled(launch_args)
+    needs_metrics_bin = not launch_args.disable_metrics
     needs_dcgm_bin = _dcgm_enabled(launch_args)
     # /ocfbin/{prod,dev}/otela-<arch> are stable symlinks maintained by
     # OpenTela's release / deploy-dev workflows; they point at versioned
@@ -480,7 +476,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
 
 
 def _render_vmagent(launch_args: LaunchArgs) -> str:
-    if not _metrics_enabled(launch_args):
+    if launch_args.disable_metrics:
         return ""
     url = launch_args.metrics_remote_write_url
     served = launch_args.served_model_name
