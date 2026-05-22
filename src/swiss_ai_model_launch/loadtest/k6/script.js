@@ -92,6 +92,13 @@ const CFG_PROMPT_LABELS =
 const BASE_URL = RUN_CFG.server_url ?? DEFAULT_BASE_URL;
 const API_KEY = RUN_CFG.api_key ?? "";
 const MODEL = RUN_CFG.model ?? "";
+// k6 strips non-allowlisted global --tag values from HTTP samples in the
+// prometheus exporter, so we re-attach model/run_label per-request below.
+const RUN_LABEL = __ENV.RUN_LABEL ?? RUN_CFG.run_label ?? "";
+const REQUEST_TAGS = {
+  ...(MODEL ? { model: MODEL } : {}),
+  ...(RUN_LABEL ? { run_label: RUN_LABEL } : {}),
+};
 const REQUEST_TIMEOUT =
   RUN_CFG.request_timeout ??
   RUN_CFG.scenario_definition?.request_timeout ??
@@ -388,7 +395,7 @@ function runNonStreaming(prompt) {
   const res = http.post(`${BASE_URL}${ENDPOINT}`, payload(prompt), {
     headers: HEADERS,
     timeout: REQUEST_TIMEOUT,
-    tags: { [LABEL_TAG]: prompt.label, stream: "false" },
+    tags: { ...REQUEST_TAGS, [LABEL_TAG]: prompt.label, stream: "false" },
   });
 
   activeRequests.add(-1);

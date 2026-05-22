@@ -72,6 +72,8 @@ def build_cluster_loadtest_script(
             'RUN_CONFIG_JSON="$(cat /work/run_config.json)"',
             "--env",
             f"PROMPTS_FILE={shlex.quote(prompts_path)}",
+            "--env",
+            f"RUN_LABEL={shlex.quote(run_label)}",
             "--summary-export",
             "/work/summary.json",
             "/work/script.js",
