@@ -17,15 +17,26 @@ A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST
 
 ## Quickstart
 
+Install from source with [uv](https://docs.astral.sh/uv/) (requires Python 3.10–3.14):
+
 ```bash
-pip install git+https://github.com/swiss-ai/model-launch.git
-sml init
-sml
+git clone https://github.com/swiss-ai/model-launch.git
+cd model-launch
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install .
 ```
 
-That's it — the second command `sml init` sets up credentials, the third launches a model interactively.
+Then set up credentials and launch a model:
 
-Prefer a script you can copy? Browse [`examples/`](examples/) and run any of them after `pip install`.
+```bash
+sml init   # one-time: configures credentials
+sml        # launch a model interactively
+```
+
+Each new shell, re-activate the venv with `source .venv/bin/activate` before running `sml`.
+
+Prefer a script you can copy? Browse [`examples/`](examples/) and run any of them once `sml` is installed and initialized.
 
 ## Documentation
 
