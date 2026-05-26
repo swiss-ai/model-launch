@@ -4,6 +4,7 @@ from swiss_ai_model_launch.cli.loadtest import (
     _prompt_loadtest_scenario,
     make_cluster_loadtest_config,
     make_loadtest_config,
+    make_loadtest_config_from_values,
 )
 from swiss_ai_model_launch.cli.main import _build_parser
 from swiss_ai_model_launch.loadtest.setup import DEFAULT_CLUSTER_CONTAINER_IMAGE
@@ -35,6 +36,15 @@ def test_loadtest_scenario_config_default_is_throughput() -> None:
     args = parser.parse_args(["loadtest", "run"])
 
     assert make_loadtest_config(args).scenario == "throughput"
+
+
+def test_loadtest_config_rejects_unknown_scenario() -> None:
+    with pytest.raises(ValueError, match="Unknown loadtest scenario 'missing'"):
+        make_loadtest_config_from_values(
+            scenario="missing",
+            max_tokens=None,
+            ignore_eos=None,
+        )
 
 
 def test_loadtest_run_help_excludes_removed_scenario_owned_flags(capsys: pytest.CaptureFixture[str]) -> None:
@@ -207,6 +217,33 @@ def test_loadtest_job_time_rejects_invalid_format() -> None:
     args = parser.parse_args(["loadtest", "run", "--loadtest-job-time", "1h"])
 
     with pytest.raises(ValueError, match="--loadtest-job-time"):
+        make_cluster_loadtest_config(args)
+
+
+def test_loadtest_ready_timeout_rejects_non_positive_value() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["loadtest", "run", "--loadtest-ready-timeout", "0"])
+
+    with pytest.raises(ValueError, match="--loadtest-ready-timeout"):
+        make_cluster_loadtest_config(args)
+
+
+def test_loadtest_cancel_requires_wait() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(
+        [
+            "loadtest",
+            "advanced",
+            "--serving-framework",
+            "sglang",
+            "--slurm-environment",
+            "/path/to/env.toml",
+            "--cancel-after-loadtest",
+            "--no-wait-for-loadtest",
+        ]
+    )
+
+    with pytest.raises(ValueError, match="--cancel-after-loadtest"):
         make_cluster_loadtest_config(args)
 
 

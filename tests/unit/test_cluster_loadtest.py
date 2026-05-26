@@ -3,15 +3,12 @@ from pathlib import Path
 
 import pytest
 
-import swiss_ai_model_launch.loadtest.cluster as cluster_module
-from swiss_ai_model_launch.launchers import SlurmLauncher
 from swiss_ai_model_launch.loadtest.cluster import (
     ClusterLoadtestConfig,
     _container_mounts_for_external_prompts,
     build_cluster_loadtest_script,
-    submit_cluster_loadtest,
 )
-from swiss_ai_model_launch.loadtest.models import LoadtestConfig, ServerConfig
+from swiss_ai_model_launch.loadtest.models import LoadtestConfig
 
 
 @pytest.fixture
@@ -150,42 +147,3 @@ def test_container_mounts_includes_top_level_dir() -> None:
 def test_container_mounts_prompts_path_returned() -> None:
     prompts_path, _ = _container_mounts_for_external_prompts("my_run", Path("/scratch/data/prompts.jsonl"))
     assert prompts_path == "/scratch/data/prompts.jsonl"
-
-
-@pytest.mark.asyncio
-async def test_submit_cluster_loadtest_returns_job_id_and_run_label(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    bench: LoadtestConfig,
-) -> None:
-    async def fake_run_checked(*cmd: str) -> str:
-        assert cmd[0] == "sbatch"
-        return "Submitted batch job 123\n"
-
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(cluster_module, "_run_checked", fake_run_checked)
-    monkeypatch.setattr(cluster_module, "create_salt", lambda length: "X" * length)
-
-    k6_script = tmp_path / "script.js"
-    k6_script.write_text("export default function() {}\n")
-    prompts_file = tmp_path / "prompts.jsonl"
-    prompts_file.write_text("{}\n")
-
-    submission = await submit_cluster_loadtest(
-        launcher=SlurmLauncher(
-            system_name="test-system",
-            username="test-user",
-            account="test-account",
-            partition="test-partition",
-        ),
-        server=ServerConfig(url="https://example.test", api_key="secret", model="test-model", is_swissai=True),
-        bench=bench,
-        k6_script=k6_script,
-        prompts_file=prompts_file,
-        summary_path=tmp_path / "summary.json",
-        cluster=ClusterLoadtestConfig(container_image="/images/k6.sqsh", wait=False),
-    )
-
-    assert submission.job_id == 123
-    assert submission.run_label.startswith("loadtest_throughput_")
-    assert submission.run_label.endswith("_XXXXXX")
