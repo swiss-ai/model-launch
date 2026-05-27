@@ -131,12 +131,15 @@ async def test_launch_apertus_and_health(
     try:
         await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
         await wait_for_model_healthy(launcher, job_id, served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
-        await wait_for_all_replicas_healthy(
-            launcher,
-            job_id,
-            served_model_name,
-            launch_request.replicas,
-            _REPLICA_TIMEOUT,
-        )
+        # For multi-replica launches the e2e check only proves *one* replica
+        # answers, so additionally confirm every replica is healthy.
+        if launch_request.replicas > 1:
+            await wait_for_all_replicas_healthy(
+                launcher,
+                job_id,
+                served_model_name,
+                launch_request.replicas,
+                _REPLICA_TIMEOUT,
+            )
     finally:
         await launcher.cancel_job(job_id)
