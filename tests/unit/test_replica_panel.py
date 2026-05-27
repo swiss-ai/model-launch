@@ -9,31 +9,25 @@ from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealth, Re
 
 
 def _render(state: DisplayState) -> str:
-    console = Console(width=120, record=True)
+    console = Console(width=140, record=True)
     console.print(_render_replica_panel(state))
     return console.export_text()
 
 
 def test_panel_waiting_state() -> None:
-    assert "Waiting for the model" in _render(DisplayState())
+    assert "Waiting" in _render(DisplayState())
 
 
-def test_panel_in_progress() -> None:
+def test_panel_report_error() -> None:
     state = DisplayState()
-    state.set_replica_check_in_progress()
-    assert "Checking replicas" in _render(state)
-
-
-def test_panel_table_error() -> None:
-    state = DisplayState()
-    state.set_replica_report(ReplicaHealthReport("m", 2, (), table_error="connection refused"))
-    assert "connection refused" in _render(state)
+    state.set_replica_report(ReplicaHealthReport("m", 2, (), error="report unreadable"))
+    assert "report unreadable" in _render(state)
 
 
 def test_panel_no_replicas() -> None:
     state = DisplayState()
     state.set_replica_report(ReplicaHealthReport("m", 2, ()))
-    assert "No replicas registered" in _render(state)
+    assert "No replicas reported" in _render(state)
 
 
 def test_panel_lists_each_replica_with_summary(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,19 +38,19 @@ def test_panel_lists_each_replica_with_summary(monkeypatch: pytest.MonkeyPatch) 
             "m",
             3,
             (
-                ReplicaHealth("QmReplicaAAA", ModelHealth.HEALTHY, last_seen=1995),
-                ReplicaHealth("QmReplicaBBB", ModelHealth.HEALTHY, last_seen=1990),
-                ReplicaHealth("QmReplicaCCC", ModelHealth.NOT_RESPONDING, last_seen=1980),
+                ReplicaHealth(ModelHealth.HEALTHY, "QmReplicaAAA", 1995, 0, "10.0.0.1"),
+                ReplicaHealth(ModelHealth.HEALTHY, "QmReplicaBBB", 1990, 1, "10.0.0.2"),
+                ReplicaHealth(ModelHealth.NOT_RESPONDING, None, 1980, 2, "10.0.0.3"),
             ),
             checked_at=2000,
         )
     )
     out = _render(state)
     assert "2/3 healthy" in out  # summary reflects only HEALTHY replicas
-    for peer_id in ("QmReplicaAAA", "QmReplicaBBB", "QmReplicaCCC"):
-        assert peer_id in out
-    assert "NOT RESPONDING" in out
-    assert "Last Heartbeat" in out
+    assert "Node IP" in out
+    assert "Peer ID" in out
+    for token in ("QmReplicaAAA", "QmReplicaBBB", "10.0.0.1", "10.0.0.3", "NOT RESPONDING"):
+        assert token in out
     # heartbeat age is rendered relative to the live clock (frozen here at 2000)
     for ago in ("5s ago", "10s ago", "20s ago"):
         assert ago in out

@@ -33,13 +33,6 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
     ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
 }
 
-_REPLICA_HEALTH_STYLE: dict[ModelHealth, str] = {
-    ModelHealth.HEALTHY: "[green]HEALTHY[/green]",
-    ModelHealth.ERROR: "[orange]ERROR[/orange]",
-    ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",
-    ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
-}
-
 _STATUS_LABEL_ID = "status-label"
 _REPLICA_LABEL_ID = "replica-label"
 _OUT_LOG_ID = "out-log"
@@ -64,25 +57,25 @@ def _format_heartbeat(last_seen: int | None) -> str:
 
 
 def _render_replica_panel(state: DisplayState) -> RenderableType:
-    if state.replica_check_in_progress:
-        return "[bold]Replica Health[/bold]\n[yellow]Checking replicas…[/yellow]"
     report: ReplicaHealthReport | None = state.replica_report
     if report is None:
-        return "[bold]Replica Health[/bold]\n[dim]Waiting for the model to become healthy…[/dim]"
-    if report.table_error is not None:
-        return f"[bold]Replica Health[/bold]\n[orange]Could not query the mesh: {report.table_error}[/orange]"
+        return "[bold]Replica Health[/bold]\n[dim]Waiting for the job's first health report…[/dim]"
+    if report.error is not None:
+        return f"[bold]Replica Health[/bold]\n[orange]Report unavailable: {report.error}[/orange]"
     if not report.replicas:
-        return "[bold]Replica Health[/bold]\n[red]No replicas registered on the mesh.[/red]"
+        return "[bold]Replica Health[/bold]\n[red]No replicas reported.[/red]"
     table = Table(box=box.SIMPLE_HEAD, expand=True, title=_replica_summary(report), title_justify="left")
-    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("Node", justify="right", style="dim", width=4)
+    table.add_column("Node IP")
     table.add_column("Peer ID", overflow="fold")
     table.add_column("Health", justify="right", width=16)
     table.add_column("Last Heartbeat", justify="right")
-    for i, replica in enumerate(report.replicas, start=1):
+    for replica in report.replicas:
         table.add_row(
-            str(i),
-            replica.peer_id,
-            _REPLICA_HEALTH_STYLE[replica.health],
+            str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
+            replica.node_ip or "[dim]—[/dim]",
+            replica.peer_id or "[dim]—[/dim]",
+            _MODEL_HEALTH_STYLE[replica.health],
             _format_heartbeat(replica.last_seen),
         )
     if report.checked_at is not None:

@@ -46,31 +46,38 @@ async def wait_for_model_healthy(
     pytest.fail(f"'{model_name}' didn't become HEALTHY within {timeout_min} mins.")
 
 
-async def check_all_replicas_healthy(
+async def wait_for_all_replicas_healthy(
     launcher: Launcher,
+    job_id: int,
     model_name: str,
-    api_key: str,
     expected_replicas: int,
     timeout_min: int,
+    poll_interval_seconds: int = 30,
 ) -> None:
-    """Assert that every replica registered under ``model_name`` is HEALTHY.
+    """Assert every launched replica is HEALTHY, per the job's own health report.
 
     The end-to-end check only proves one replica answers through the gateway;
-    this submits a helper job that probes each replica via the DNT mesh and
-    verifies the full expected count is alive.
+    the model's job writes a per-replica report (``logs/<job_id>/replica_health.json``)
+    that we read here and require to show the full expected count all HEALTHY.
     """
-    report = await launcher.check_replicas_health(
-        model_name,
-        api_key,
-        expected_replicas=expected_replicas,
-        timeout_seconds=timeout_min * 60,
-    )
-    print(f"[{model_name}] replica report: {report}")
-    if report.table_error is not None:
-        pytest.fail(f"Replica check for '{model_name}' could not query the DNT table: {report.table_error}")
-    if report.found != expected_replicas:
-        pytest.fail(f"Expected {expected_replicas} replica(s) for '{model_name}', DNT registered {report.found}.")
-    unhealthy = [r for r in report.replicas if r.health != ModelHealth.HEALTHY]
-    if unhealthy:
-        details = ", ".join(f"{r.peer_id}={r.health.value}" for r in unhealthy)
-        pytest.fail(f"Not all replicas of '{model_name}' are healthy: {details}")
+    deadline = asyncio.get_event_loop().time() + timeout_min * 60
+    last_report = None
+    while asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(poll_interval_seconds)
+        report = await launcher.get_replica_health(job_id, model_name, expected_replicas)
+        if report is None:
+            continue  # the in-job checker hasn't written the first report yet
+        last_report = report
+        print(f"[{model_name}] replica report: {report}")
+        if report.error is None and report.found == expected_replicas and report.all_healthy:
+            return
+    if last_report is None:
+        pytest.fail(f"No replica health report appeared for '{model_name}' within {timeout_min} mins.")
+    if last_report.error is not None:
+        pytest.fail(f"Replica report for '{model_name}' was unreadable: {last_report.error}")
+    if last_report.found != expected_replicas:
+        pytest.fail(f"Expected {expected_replicas} replica(s) for '{model_name}', report had {last_report.found}.")
+    unhealthy = [
+        f"rank {r.node_rank}={r.health.value}" for r in last_report.replicas if r.health != ModelHealth.HEALTHY
+    ]
+    pytest.fail(f"Not all replicas of '{model_name}' became healthy within {timeout_min} mins: {', '.join(unhealthy)}")

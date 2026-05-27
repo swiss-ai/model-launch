@@ -10,14 +10,13 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import Launcher
+from swiss_ai_model_launch.launchers.launcher import REPLICA_HEALTH_FILENAME, Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     call_with_firecrest_retry,
     create_salt,
     decode_log,
-    render_helper_sbatch_header,
     render_sbatch_header,
     resolve_model_path,
 )
@@ -168,32 +167,23 @@ class FirecRESTLauncher(Launcher):
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
-    async def _submit_helper_script(self, script_body: str, *, job_name: str, time: str) -> int:
-        working_dir = self._get_working_dir()
-        await call_with_firecrest_retry(
-            lambda: self.client.mkdir(
-                system_name=self.system_name,
-                path=working_dir,
-                create_parents=True,
-            )
-        )
-        header = render_helper_sbatch_header(
-            job_name=job_name,
-            account=self.account,
-            partition=self.partition,
-            time=time,
-            reservation=self.reservation,
-        )
-        script_str = header + "\n" + script_body
-        job_submission_report = await call_with_firecrest_retry(
-            lambda: self.client.submit(
-                system_name=self.system_name,
-                working_dir=working_dir,
-                script_str=script_str,
-                account=self.account,
-            )
-        )
-        return int(job_submission_report["jobId"])
+    async def _read_replica_report(self, job_id: int) -> str | None:
+        remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / REPLICA_HEALTH_FILENAME
+        with tempfile.TemporaryDirectory(prefix=f"sml_health_{job_id}_") as target_dir:
+            target_path = Path(target_dir) / REPLICA_HEALTH_FILENAME
+            try:
+                await call_with_firecrest_retry(
+                    lambda: self.client.download(
+                        system_name=self.system_name,
+                        source_path=str(remote_path),
+                        target_path=target_path,
+                        account=self.account,
+                        blocking=True,
+                    )
+                )
+                return target_path.read_text()
+            except (FileNotFoundError, f7t.FirecrestException):
+                return None
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]

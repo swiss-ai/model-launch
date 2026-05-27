@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import contextlib
 import getpass
 import grp
 import importlib.metadata
@@ -14,7 +13,6 @@ from typing import Any, cast
 
 import firecrest as f7t
 
-from swiss_ai_model_launch.assets.replica_probe import REPORT_BEGIN, REPORT_END
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.configuration.models import (
     ChainConfiguration,
@@ -24,7 +22,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
     TextConfiguration,
 )
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
-from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_model_health, parse_report
+from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
@@ -545,94 +543,53 @@ async def _create_launcher(
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
 
-# The replica probe re-queries the mesh on this cadence on the cluster, and the
-# TUI re-downloads its latest report on roughly the same cadence. The panel
-# itself re-renders twice a second (set_interval in live.py:_SMLApp.on_mount) so
-# the heartbeat "ago" counter animates smoothly between these data refreshes.
-_REPLICA_PROBE_REFRESH_SECONDS = 30
-_REPLICA_FETCH_INTERVAL_SECONDS = 30
-
-
 async def _run_monitor(
     launcher: Launcher,
     launch_coro: Coroutine[Any, Any, tuple[int, str]],
     cscs_api_key: str,
     *,
     expected_replicas: int,
-    model_time: str,
-    bootstrap_addr: str | None = None,
 ) -> None:
     state = DisplayState()
     state.update(cluster=launcher.system_name, partition=launcher.partition)
 
-    replica_task: asyncio.Task[None] | None = None
-    probe_job_id: int | None = None
-
-    async def _monitor_replicas(served: str) -> None:
-        nonlocal probe_job_id
-        state.set_replica_check_in_progress()
-        # The DNT API is internal-only, so a helper job runs the probe on a
-        # compute node and keeps re-reporting; we pull its latest report here.
-        # CancelledError is a BaseException, so the broad except below won't
-        # swallow shutdown — only genuine probe failures land in the panel.
-        try:
-            probe_job_id = await launcher.start_replica_probe(
-                served,
-                cscs_api_key,
-                bootstrap_addr=bootstrap_addr,
-                refresh_interval_seconds=_REPLICA_PROBE_REFRESH_SECONDS,
-                time_limit=model_time,
-            )
-            while True:
-                await asyncio.sleep(_REPLICA_FETCH_INTERVAL_SECONDS)
-                stdout, _ = await launcher.get_job_logs(probe_job_id)
-                if REPORT_BEGIN in stdout and REPORT_END in stdout:
-                    state.set_replica_report(parse_report(stdout, served, expected_replicas))
-        except Exception as exc:  # surface any probe failure in the panel
-            state.set_replica_report(
-                ReplicaHealthReport(served, expected_replicas, table_error=f"replica probe failed: {exc}")
-            )
-
-    async def _monitor() -> None:
-        nonlocal replica_task
-        job_id, served = await launch_coro
-        state.update(
-            job_id=job_id,
-            served_model_name=served,
-            model_health=ModelHealth.NOT_DEPLOYED,
-        )
+    async def _monitor_model_health(served: str) -> None:
+        # End-to-end probe through the public gateway. It can block for its full
+        # timeout, so it runs in its own loop — see _monitor_job.
         ever_healthy = False
         while True:
             await asyncio.sleep(5)
-
-            job_status = await launcher.get_job_status(job_id)
-            state.update(job_status=job_status)
-
             model_health = await check_model_health(served, cscs_api_key)
             if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
                 model_health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
             state.update(model_health=model_health)
 
-            # Once the model answers through the gateway, start the per-replica
-            # probe loop so every replica's health + last heartbeat stay live.
-            if model_health == ModelHealth.HEALTHY and replica_task is None:
-                replica_task = asyncio.create_task(_monitor_replicas(served))
-
+    async def _monitor_job(job_id: int, served: str) -> None:
+        # Job status, per-replica health, and logs — independent of the e2e
+        # gateway probe so a slow probe never delays these updates. The model's
+        # own job writes the replica report; we read the latest (None until the
+        # in-job checker first writes it).
+        while True:
+            await asyncio.sleep(5)
+            state.update(job_status=await launcher.get_job_status(job_id))
+            report = await launcher.get_replica_health(job_id, served, expected_replicas)
+            if report is not None:
+                state.set_replica_report(report)
             o, e = await launcher.get_job_logs(job_id)
             state.set_out_log(o)
             state.set_err_log(e)
 
+    async def _monitor() -> None:
+        job_id, served = await launch_coro
+        state.update(
+            job_id=job_id,
+            served_model_name=served,
+            model_health=ModelHealth.NOT_DEPLOYED,
+        )
+        await asyncio.gather(_monitor_model_health(served), _monitor_job(job_id, served))
+
     kill_job = await LiveDisplay(state).run(_monitor())
-    if replica_task is not None and not replica_task.done():
-        replica_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await replica_task
-    # The probe job is only useful while the TUI is open — stop it on exit
-    # regardless of whether the model job is kept or killed.
-    if probe_job_id is not None:
-        with contextlib.suppress(Exception):
-            await launcher.cancel_job(probe_job_id)
     if kill_job and state.job_id is not None:
         await launcher.cancel_job(state.job_id)
 
@@ -653,7 +610,6 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
             launch_coro,
             cscs_api_key,
             expected_replicas=launch_request.replicas,
-            model_time=launch_request.time,
         )
     else:
         job_id, served = await launch_coro
@@ -774,8 +730,6 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             launch_coro,
             cscs_api_key,
             expected_replicas=launch_args.topology.replicas,
-            model_time=launch_args.time,
-            bootstrap_addr=launch_args.ocf_bootstrap_addr,
         )
     else:
         job_id, served = await launch_coro

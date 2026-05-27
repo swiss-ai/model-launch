@@ -13,7 +13,6 @@ class DisplayState:
         self.job_status: JobStatus | None = None
         self.model_health: ModelHealth = ModelHealth.NOT_DEPLOYED
         self.served_model_name: str | None = None
-        self.replica_check_in_progress: bool = False
         self.replica_report: ReplicaHealthReport | None = None
         self.out_logs: deque[str] = deque()
         self.err_logs: deque[str] = deque()
@@ -45,12 +44,7 @@ class DisplayState:
             self.served_model_name = served_model_name
         self._notify()
 
-    def set_replica_check_in_progress(self) -> None:
-        self.replica_check_in_progress = True
-        self._notify()
-
     def set_replica_report(self, report: ReplicaHealthReport) -> None:
-        self.replica_check_in_progress = False
         self.replica_report = report
         self._notify()
 

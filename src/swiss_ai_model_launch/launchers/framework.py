@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import shlex
+from importlib.resources import files
 from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -26,6 +27,14 @@ _VMAGENT_SCRAPE_CONFIG_NO_DCGM = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-no-dcgm.
 _VMAGENT_SCRAPE_CONFIG_DCGM_ONLY = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-dcgm-only.yaml"
 _DCGM_EXPORTER_PORT = 9400
 _DCGM_COUNTERS = f"{_METRICS_CONFIG_DIR}/default-counters.csv"
+
+# In-job replica health checker (its source is embedded into master.sh and run on
+# the batch node). OCF serves its HTTP API (incl. /v1/self) on port 8092.
+_HEALTH_CHECKER_TEXT = files("swiss_ai_model_launch.assets").joinpath("replica_health_checker.py").read_text()
+_HEALTH_CHECKER_HEREDOC = "__SML_HEALTH_CHECKER_EOF__"
+_OCF_HTTP_PORT = 8092
+_HEALTH_INTERVAL_SECONDS = 30
+_HEALTH_TIMEOUT_SECONDS = 10
 
 
 class Framework:
@@ -572,6 +581,39 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
     return f"{batch_block}\n\n{worker_block}"
 
 
+def _render_health_checker(launch_args: LaunchArgs) -> str:
+    topology = launch_args.topology
+    npr = topology.nodes_per_replica
+    # Parallel whitespace-separated lists of each replica's head IP (set by the
+    # discovery step above) and head node name (for the per-node /v1/self query).
+    replica_ips = " ".join(f"$replica_{r}_head_ip" for r in range(topology.replicas))
+    replica_hosts = " ".join(f"${{nodes[{r * npr}]}}" for r in range(topology.replicas))
+    report_path = "logs/${SLURM_JOB_ID}/replica_health.json"
+    checker_path = "$RANKS_DIR/replica_health_checker.py"
+    checker_log = "logs/${SLURM_JOB_ID}/replica_health_checker.log"
+    return (
+        "# ── replica health checker ───────────────────────────────────────────────\n"
+        "# Background loop on the batch node (it shares the job's internal network),\n"
+        "# probing each replica's framework /health directly and writing an atomic\n"
+        "# JSON report the CLI reads. Non-critical: disowned (out of `wait -n`'s\n"
+        "# scope) and killed by the EXIT trap when master.sh ends.\n"
+        f"cat > \"{checker_path}\" <<'{_HEALTH_CHECKER_HEREDOC}'\n"
+        f"{_HEALTH_CHECKER_TEXT.rstrip()}\n"
+        f"{_HEALTH_CHECKER_HEREDOC}\n"
+        f'SML_HEALTH_REPORT_PATH="{report_path}" \\\n'
+        f"    SML_HEALTH_FRAMEWORK_PORT={FRAMEWORK_PORT} \\\n"
+        f"    SML_HEALTH_OCF_PORT={_OCF_HTTP_PORT} \\\n"
+        f"    SML_HEALTH_INTERVAL={_HEALTH_INTERVAL_SECONDS} \\\n"
+        f"    SML_HEALTH_TIMEOUT={_HEALTH_TIMEOUT_SECONDS} \\\n"
+        f"    SML_HEALTH_NODES_PER_REPLICA={npr} \\\n"
+        f'    SML_HEALTH_REPLICA_IPS="{replica_ips}" \\\n'
+        f'    SML_HEALTH_REPLICA_HOSTS="{replica_hosts}" \\\n'
+        f'    python3 "{checker_path}" > "{checker_log}" 2>&1 &\n'
+        "health_checker_pid=$!\n"
+        'disown "$health_checker_pid"'
+    )
+
+
 def _render_router_launch(launch_args: LaunchArgs) -> str:
     topology = launch_args.topology
     if not launch_args.use_router or topology.replicas <= 1:
@@ -612,6 +654,9 @@ def _render_footer() -> str:
         "cleanup() {\n"
         '    if [[ -n "$vmagent_pid" ]]; then\n'
         '        kill "$vmagent_pid" 2>/dev/null || true\n'
+        "    fi\n"
+        '    if [[ -n "$health_checker_pid" ]]; then\n'
+        '        kill "$health_checker_pid" 2>/dev/null || true\n'
         "    fi\n"
         "    if (( ${#critical_pids[@]} > 0 )); then\n"
         '        kill "${critical_pids[@]}" 2>/dev/null || true\n'
@@ -657,7 +702,7 @@ def render_master(launch_args: LaunchArgs) -> str:
         # so it stays out of `wait -n`'s scope but is still killed by the
         # EXIT trap. Initialised here so `set -u` is happy even when no
         # vmagent is rendered, or if cleanup runs before launches start.
-        'critical_pids=()\nvmagent_pid=""',
+        'critical_pids=()\nvmagent_pid=""\nhealth_checker_pid=""',
         _render_self_extracting_ranks(render_rank_scripts(launch_args)),
     ]
 
@@ -676,6 +721,8 @@ def render_master(launch_args: LaunchArgs) -> str:
     vmagent = _render_vmagent(launch_args)
     if vmagent:
         sections.append(vmagent)
+
+    sections.append(_render_health_checker(launch_args))
 
     router_launch = _render_router_launch(launch_args)
     if router_launch:
