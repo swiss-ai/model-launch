@@ -26,7 +26,7 @@ def test_to_sbatch_args_contains_required() -> None:
     assert "--nodes=4" in sbatch
     assert "--partition=normal" in sbatch
     assert "--output=logs/%j/log.out" in sbatch
-    assert "--error=logs/%j/log.out" in sbatch
+    assert "--error=logs/%j/log.err" in sbatch
 
 
 def test_to_sbatch_args_nodes_auto_computed() -> None:

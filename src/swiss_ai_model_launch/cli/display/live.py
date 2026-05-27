@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from collections.abc import Coroutine
 from datetime import datetime
@@ -35,8 +36,12 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
 
 _STATUS_LABEL_ID = "status-label"
 _REPLICA_LABEL_ID = "replica-label"
-_OUT_LOG_ID = "out-log"
-_ERR_LOG_ID = "err-log"
+_SOURCE_TABS_ID = "source-tabs"
+
+
+def _slug(source: str) -> str:
+    """A widget-id-safe slug for a log source label (unique per distinct label)."""
+    return re.sub(r"[^a-z0-9]+", "-", source.lower()).strip("-")
 
 
 def _replica_summary(report: ReplicaHealthReport) -> str:
@@ -119,16 +124,23 @@ class _SMLApp(App[bool]):
         super().__init__()
         self._state = state
         self._work = work
+        self._slug_to_source = {_slug(source): source for source in state.sources}
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Label(self._render_status(), id=_STATUS_LABEL_ID, markup=True)
         yield Label(_render_replica_panel(self._state), id=_REPLICA_LABEL_ID, markup=True)
-        with TabbedContent("stdout", "stderr"):
-            with TabPane("stdout"):
-                yield TextArea("", id=_OUT_LOG_ID, read_only=True)
-            with TabPane("stderr"):
-                yield TextArea("", id=_ERR_LOG_ID, read_only=True)
+        # Outer tabs: one per log source (Master, Replica 0, …, Router). Inside
+        # each, stdout/stderr sub-tabs. Only the active source's logs are fetched.
+        with TabbedContent(id=_SOURCE_TABS_ID):
+            for source in self._state.sources:
+                slug = _slug(source)
+                with TabPane(source, id=f"src-{slug}"):
+                    with TabbedContent():
+                        with TabPane("stdout"):
+                            yield TextArea("", id=f"log-{slug}-out", read_only=True)
+                        with TabPane("stderr"):
+                            yield TextArea("", id=f"log-{slug}-err", read_only=True)
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -137,6 +149,16 @@ class _SMLApp(App[bool]):
         # "ago" counter ticks smoothly, independent of the slower data refresh.
         self.set_interval(0.5, self._refresh_replicas)
         self.run_worker(self._work, exclusive=True)
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        # Only the outer (source) tabs change which source the monitor fetches;
+        # ignore the inner stdout/stderr switches.
+        if event.tabbed_content.id != _SOURCE_TABS_ID:
+            return
+        source = self._slug_to_source.get((event.tabbed_content.active or "").removeprefix("src-"))
+        if source is not None:
+            self._state.set_active_source(source)
+            self._load_source(source)  # show cached content immediately
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -184,19 +206,21 @@ class _SMLApp(App[bool]):
     def _refresh_replicas(self) -> None:
         self.query_one(f"#{_REPLICA_LABEL_ID}", Label).update(_render_replica_panel(self._state))
 
+    def _load_source(self, source: str) -> None:
+        slug = _slug(source)
+        out, err = self._state.source_logs.get(source, ("", ""))
+        out_area = self.query_one(f"#log-{slug}-out", TextArea)
+        out_area.load_text(out)
+        out_area.scroll_end(animate=False)
+        err_area = self.query_one(f"#log-{slug}-err", TextArea)
+        err_area.load_text(err)
+        err_area.scroll_end(animate=False)
+
     def _refresh_all(self) -> None:
         self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
         self._refresh_replicas()
-
-        out_lines = list(self._state.out_logs)
-        out_log = self.query_one(f"#{_OUT_LOG_ID}", TextArea)
-        out_log.load_text("\n".join(out_lines))
-        out_log.scroll_end(animate=False)
-
-        err_lines = list(self._state.err_logs)
-        err_log = self.query_one(f"#{_ERR_LOG_ID}", TextArea)
-        err_log.load_text("\n".join(err_lines))
-        err_log.scroll_end(animate=False)
+        # Only the active source's logs are fetched/updated each cycle.
+        self._load_source(self._state.active_source)
 
 
 class LiveDisplay:

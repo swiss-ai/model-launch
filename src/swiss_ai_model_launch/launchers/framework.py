@@ -448,7 +448,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
     npr = topology.nodes_per_replica
     env = launch_args.environment
 
-    def srun_call(node_index: int, script: str, args: str, comment: str) -> str:
+    def srun_call(node_index: int, script: str, args: str, comment: str, log_base: str) -> str:
         return (
             f"# {comment}\n"
             f'srun --nodes=1 --ntasks=1 --nodelist="${{nodes[{node_index}]}}" \\\n'
@@ -459,6 +459,10 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             # static mount list, which is being narrowed and read-only-ed.
             f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
             f'    --environment="{env}" \\\n'
+            # Per-replica stdout/stderr (the batch script's own log.out/log.err
+            # only carries the master's orchestration output).
+            f'    --output="logs/${{SLURM_JOB_ID}}/{log_base}.out" \\\n'
+            f'    --error="logs/${{SLURM_JOB_ID}}/{log_base}.err" \\\n'
             f'    bash "$RANKS_DIR/{script}" {args} &\n'
             # Track this srun's PID so the footer's `wait -n` exits as soon
             # as the first critical bg job dies (and the trap kills the rest).
@@ -473,6 +477,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
                 "head.sh",
                 f'"$replica_{r}_head_ip"',
                 f"replica {r}, rank 0 (head)",
+                f"replica_{r}",
             )
         )
         for k in range(1, npr):
@@ -482,6 +487,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
                     "follower.sh",
                     f'{k} "$replica_{r}_head_ip"',
                     f"replica {r}, rank {k} (follower)",
+                    f"replica_{r}_node{k}",
                 )
             )
     return "\n\n".join(blocks)
@@ -629,6 +635,8 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
         f'    --environment="{launch_args.environment}" \\\n'
         "    --overlap \\\n"
+        '    --output="logs/${SLURM_JOB_ID}/router.out" \\\n'
+        '    --error="logs/${SLURM_JOB_ID}/router.err" \\\n'
         f'    bash "$RANKS_DIR/router.sh" {ip_args} &\n'
         "critical_pids+=($!)\n"
         "\n"

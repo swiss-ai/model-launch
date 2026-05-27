@@ -1,4 +1,3 @@
-from collections import deque
 from collections.abc import Callable
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
@@ -6,7 +5,7 @@ from swiss_ai_model_launch.launchers.job_status import JobStatus
 
 
 class DisplayState:
-    def __init__(self) -> None:
+    def __init__(self, sources: list[str] | None = None) -> None:
         self.cluster: str | None = None
         self.partition: str | None = None
         self.job_id: int | None = None
@@ -14,8 +13,12 @@ class DisplayState:
         self.model_health: ModelHealth = ModelHealth.NOT_DEPLOYED
         self.served_model_name: str | None = None
         self.replica_report: ReplicaHealthReport | None = None
-        self.out_logs: deque[str] = deque()
-        self.err_logs: deque[str] = deque()
+        # Log sources shown as tabs (e.g. "Master", "Replica 0", …, "Router").
+        # Each maps to its (stdout, stderr); `active_source` is the tab currently
+        # in view, so the monitor only fetches that source's logs.
+        self.sources: list[str] = sources or ["Master"]
+        self.active_source: str = self.sources[0]
+        self.source_logs: dict[str, tuple[str, str]] = {source: ("", "") for source in self.sources}
         self._on_change: Callable[[], None] = lambda: None
 
     def _notify(self) -> None:
@@ -48,10 +51,11 @@ class DisplayState:
         self.replica_report = report
         self._notify()
 
-    def set_out_log(self, text: str) -> None:
-        self.out_logs = deque(text.splitlines())
-        self._notify()
+    def set_active_source(self, source: str) -> None:
+        # No notify: the tab switch is already rendered; this only tells the
+        # monitor which source's logs to fetch next.
+        self.active_source = source
 
-    def set_err_log(self, text: str) -> None:
-        self.err_logs = deque(text.splitlines())
+    def set_source_log(self, source: str, out: str, err: str) -> None:
+        self.source_logs[source] = (out, err)
         self._notify()

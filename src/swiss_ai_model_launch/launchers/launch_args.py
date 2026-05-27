@@ -74,7 +74,7 @@ class LaunchArgs(BaseModel):
             f"--nodes={self.total_nodes}",
             f"--partition={self.partition}",
             "--output=logs/%j/log.out",
-            "--error=logs/%j/log.out",
+            "--error=logs/%j/log.err",
         ]
         if reservation:
             args.append(f"--reservation={reservation}")

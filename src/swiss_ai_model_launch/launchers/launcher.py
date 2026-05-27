@@ -45,9 +45,6 @@ class Launcher(ABC):
     async def get_job_status(self, job_id: int) -> JobStatus: ...
 
     @abstractmethod
-    async def get_job_logs(self, job_id: int) -> tuple[str, str]: ...
-
-    @abstractmethod
     async def cancel_job(self, job_id: int) -> None: ...
 
     def get_log_dir(self, job_id: int) -> str:
@@ -57,15 +54,25 @@ class Launcher(ABC):
     def get_log_dir(self, job_id: int) -> str: ...
 
     @abstractmethod
-    async def _read_replica_report(self, job_id: int) -> str | None:
-        """Return the raw contents of the job's ``replica_health.json``.
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        """Return the decoded contents of ``logs/<job_id>/<filename>``.
 
-        Reads ``logs/<job_id>/replica_health.json`` from the job's log directory
-        (local file for SLURM, FirecREST download otherwise). Returns ``None`` if
-        the file doesn't exist yet (the in-job checker writes it shortly after the
-        replicas come up).
+        Reads from the job's log directory (local file for SLURM, FirecREST
+        download otherwise). Returns ``None`` if the file doesn't exist yet — the
+        per-replica logs and the checker's ``replica_health.json`` only appear
+        once those processes start.
         """
         ...
+
+    async def get_job_logs(self, job_id: int) -> tuple[str, str]:
+        """The master's own ``log.out`` / ``log.err`` (orchestration output).
+
+        Per-replica framework output goes to ``replica_<r>.out`` / ``.err`` — read
+        those via ``read_job_file``.
+        """
+        out = await self.read_job_file(job_id, "log.out")
+        err = await self.read_job_file(job_id, "log.err")
+        return out or "", err or ""
 
     async def get_replica_health(
         self,
@@ -81,7 +88,7 @@ class Launcher(ABC):
         """
         from swiss_ai_model_launch.cli.healthcheck import parse_health_report
 
-        report_json = await self._read_replica_report(job_id)
+        report_json = await self.read_job_file(job_id, REPLICA_HEALTH_FILENAME)
         if report_json is None:
             return None
         return parse_health_report(report_json, served_model_name, expected_replicas)

@@ -66,7 +66,7 @@ def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = N
         lines.append(f"#SBATCH --reservation={reservation}")
     lines += [
         "#SBATCH --output=logs/%j/log.out",
-        "#SBATCH --error=logs/%j/log.out",
+        "#SBATCH --error=logs/%j/log.err",
     ]
     return "\n".join(lines) + "\n"
 

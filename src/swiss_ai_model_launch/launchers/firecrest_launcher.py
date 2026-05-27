@@ -10,7 +10,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import REPLICA_HEALTH_FILENAME, Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -167,10 +167,10 @@ class FirecRESTLauncher(Launcher):
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
-    async def _read_replica_report(self, job_id: int) -> str | None:
-        remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / REPLICA_HEALTH_FILENAME
-        with tempfile.TemporaryDirectory(prefix=f"sml_health_{job_id}_") as target_dir:
-            target_path = Path(target_dir) / REPLICA_HEALTH_FILENAME
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / filename
+        with tempfile.TemporaryDirectory(prefix=f"sml_logs_{job_id}_") as target_dir:
+            target_path = Path(target_dir) / Path(filename).name
             try:
                 await call_with_firecrest_retry(
                     lambda: self.client.download(
@@ -181,7 +181,7 @@ class FirecRESTLauncher(Launcher):
                         blocking=True,
                     )
                 )
-                return target_path.read_text()
+                return decode_log(target_path.read_bytes())
             except (FileNotFoundError, f7t.FirecrestException):
                 return None
 

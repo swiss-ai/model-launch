@@ -7,7 +7,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import REPLICA_HEALTH_FILENAME, Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -117,10 +117,10 @@ class SlurmLauncher(Launcher):
         # sbatch prints: "Submitted batch job 12345"
         return int(stdout.decode().strip().split()[-1])
 
-    async def _read_replica_report(self, job_id: int) -> str | None:
-        path = self._get_working_dir() / "logs" / str(job_id) / REPLICA_HEALTH_FILENAME
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        path = self._get_working_dir() / "logs" / str(job_id) / filename
         try:
-            return path.read_text()
+            return decode_log(path.read_bytes())
         except FileNotFoundError:
             return None
 
