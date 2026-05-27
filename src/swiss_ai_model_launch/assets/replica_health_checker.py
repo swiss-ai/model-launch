@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -138,6 +139,9 @@ def build_report(
 
 
 def write_report_atomically(report: dict[str, Any], report_path: str) -> None:
+    directory = os.path.dirname(report_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     tmp_path = f"{report_path}.tmp"
     with open(tmp_path, "w") as handle:
         json.dump(report, handle)
@@ -158,19 +162,25 @@ def main() -> int:
     peer_attempts: dict[int, int] = {}
     last_seen: dict[int, int] = {}
     while True:
-        report = build_report(
-            replica_ips,
-            replica_hosts,
-            nodes_per_replica,
-            framework_port,
-            ocf_port,
-            timeout,
-            peer_ids,
-            peer_attempts,
-            last_seen,
-            int(time.time()),
-        )
-        write_report_atomically(report, report_path)
+        # Never let a transient failure (e.g. a momentary write error) kill the
+        # checker — log it and keep going so the report self-heals next cycle.
+        try:
+            report = build_report(
+                replica_ips,
+                replica_hosts,
+                nodes_per_replica,
+                framework_port,
+                ocf_port,
+                timeout,
+                peer_ids,
+                peer_attempts,
+                last_seen,
+                int(time.time()),
+            )
+            write_report_atomically(report, report_path)
+        except Exception as exc:  # resilience: keep the loop alive on any error
+            sys.stderr.write(f"replica health checker: iteration failed: {exc}\n")
+            sys.stderr.flush()
         time.sleep(interval)
 
 

@@ -594,29 +594,37 @@ def _render_health_checker(launch_args: LaunchArgs) -> str:
     # discovery step above) and head node name (for the per-node /v1/self query).
     replica_ips = " ".join(f"$replica_{r}_head_ip" for r in range(topology.replicas))
     replica_hosts = " ".join(f"${{nodes[{r * npr}]}}" for r in range(topology.replicas))
-    report_path = "logs/${SLURM_JOB_ID}/replica_health.json"
+    log_dir = "logs/${SLURM_JOB_ID}"
+    report_path = f"{log_dir}/replica_health.json"
     checker_path = "$RANKS_DIR/replica_health_checker.py"
-    checker_log = "logs/${SLURM_JOB_ID}/replica_health_checker.log"
+    checker_log = f"{log_dir}/replica_health_checker.log"
     return (
         "# ── replica health checker ───────────────────────────────────────────────\n"
         "# Background loop on the batch node (it shares the job's internal network),\n"
         "# probing each replica's framework /health directly and writing an atomic\n"
         "# JSON report the CLI reads. Non-critical: disowned (out of `wait -n`'s\n"
-        "# scope) and killed by the EXIT trap when master.sh ends.\n"
+        "# scope) and killed by the EXIT trap when master.sh ends. mkdir + the\n"
+        "# python3 guard make startup robust and leave a breadcrumb in the job log.\n"
+        f'mkdir -p "{log_dir}"\n'
         f"cat > \"{checker_path}\" <<'{_HEALTH_CHECKER_HEREDOC}'\n"
         f"{_HEALTH_CHECKER_TEXT.rstrip()}\n"
         f"{_HEALTH_CHECKER_HEREDOC}\n"
-        f'SML_HEALTH_REPORT_PATH="{report_path}" \\\n'
-        f"    SML_HEALTH_FRAMEWORK_PORT={FRAMEWORK_PORT} \\\n"
-        f"    SML_HEALTH_OCF_PORT={_OCF_HTTP_PORT} \\\n"
-        f"    SML_HEALTH_INTERVAL={_HEALTH_INTERVAL_SECONDS} \\\n"
-        f"    SML_HEALTH_TIMEOUT={_HEALTH_TIMEOUT_SECONDS} \\\n"
-        f"    SML_HEALTH_NODES_PER_REPLICA={npr} \\\n"
-        f'    SML_HEALTH_REPLICA_IPS="{replica_ips}" \\\n'
-        f'    SML_HEALTH_REPLICA_HOSTS="{replica_hosts}" \\\n'
-        f'    python3 "{checker_path}" > "{checker_log}" 2>&1 &\n'
-        "health_checker_pid=$!\n"
-        'disown "$health_checker_pid"'
+        "if command -v python3 >/dev/null 2>&1; then\n"
+        f'    SML_HEALTH_REPORT_PATH="{report_path}" \\\n'
+        f"        SML_HEALTH_FRAMEWORK_PORT={FRAMEWORK_PORT} \\\n"
+        f"        SML_HEALTH_OCF_PORT={_OCF_HTTP_PORT} \\\n"
+        f"        SML_HEALTH_INTERVAL={_HEALTH_INTERVAL_SECONDS} \\\n"
+        f"        SML_HEALTH_TIMEOUT={_HEALTH_TIMEOUT_SECONDS} \\\n"
+        f"        SML_HEALTH_NODES_PER_REPLICA={npr} \\\n"
+        f'        SML_HEALTH_REPLICA_IPS="{replica_ips}" \\\n'
+        f'        SML_HEALTH_REPLICA_HOSTS="{replica_hosts}" \\\n'
+        f'        python3 "{checker_path}" > "{checker_log}" 2>&1 &\n'
+        "    health_checker_pid=$!\n"
+        '    disown "$health_checker_pid"\n'
+        f'    echo "Replica health checker started (pid $health_checker_pid) -> {report_path}"\n'
+        "else\n"
+        '    echo "python3 not found on the batch node; replica health checker disabled." >&2\n'
+        "fi"
     )
 
 

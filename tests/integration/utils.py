@@ -7,6 +7,10 @@ from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launcher import Launcher
 
 
+def _tail(text: str, lines: int = 50) -> str:
+    return "\n".join(text.splitlines()[-lines:]) if text else "(empty)"
+
+
 async def wait_for_job_running(
     launcher: Launcher,
     job_id: int,
@@ -72,7 +76,16 @@ async def wait_for_all_replicas_healthy(
         if report.error is None and report.found == expected_replicas and report.all_healthy:
             return
     if last_report is None:
-        pytest.fail(f"No replica health report appeared for '{model_name}' within {timeout_min} mins.")
+        # Surface the in-job checker's own log so the cause is visible in CI
+        # (e.g. python3 missing, a crash, or a write error) instead of opaque.
+        checker_log = await launcher.read_job_file(job_id, "replica_health_checker.log")
+        out_log, err_log = await launcher.get_job_logs(job_id)
+        pytest.fail(
+            f"No replica health report appeared for '{model_name}' within {timeout_min} mins.\n"
+            f"--- replica_health_checker.log ---\n{checker_log or '(absent/empty)'}\n"
+            f"--- master log.out (tail) ---\n{_tail(out_log)}\n"
+            f"--- master log.err (tail) ---\n{_tail(err_log)}"
+        )
     if last_report.error is not None:
         pytest.fail(f"Replica report for '{model_name}' was unreadable: {last_report.error}")
     if last_report.found != expected_replicas:
