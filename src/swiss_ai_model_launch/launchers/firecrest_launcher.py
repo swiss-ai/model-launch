@@ -1,8 +1,8 @@
 import json
-import tempfile
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from typing import cast
 
 import firecrest as f7t
 
@@ -16,7 +16,6 @@ from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     call_with_firecrest_retry,
     create_salt,
-    decode_log,
     render_sbatch_header,
     resolve_model_path,
 )
@@ -29,6 +28,10 @@ _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.to
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
 
 _APP_WORKING_DIRECTORY = ".sml"
+
+# Tail the last N lines of the (ever-growing) job log rather than downloading it
+# whole on every poll.
+_LOG_TAIL_LINES = 1000
 
 
 class FirecRESTLauncher(Launcher):
@@ -168,22 +171,15 @@ class FirecRESTLauncher(Launcher):
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
     async def _read_replica_report(self, job_id: int) -> str | None:
+        # The report is small (one entry per replica), so view it in-memory
+        # rather than downloading to disk; None until the checker first writes it.
         remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / REPLICA_HEALTH_FILENAME
-        with tempfile.TemporaryDirectory(prefix=f"sml_health_{job_id}_") as target_dir:
-            target_path = Path(target_dir) / REPLICA_HEALTH_FILENAME
-            try:
-                await call_with_firecrest_retry(
-                    lambda: self.client.download(
-                        system_name=self.system_name,
-                        source_path=str(remote_path),
-                        target_path=target_path,
-                        account=self.account,
-                        blocking=True,
-                    )
-                )
-                return target_path.read_text()
-            except (FileNotFoundError, f7t.FirecrestException):
-                return None
+        try:
+            return await call_with_firecrest_retry(
+                lambda: self.client.view(system_name=self.system_name, path=str(remote_path))
+            )
+        except (FileNotFoundError, f7t.FirecrestException):
+            return None
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
@@ -222,40 +218,24 @@ class FirecRESTLauncher(Launcher):
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)
 
-        with tempfile.TemporaryDirectory(prefix=f"sml_logs_{job_id}_") as target_dir:
-            target_dir_path = Path(target_dir)
-
+        async def _tail(filename: str) -> str:
+            # `tail` returns the trailing content as a string (its stub is typed
+            # `dict`, but the API yields the file text); "" if the file is absent.
             try:
-                await call_with_firecrest_retry(
-                    lambda: self.client.download(
-                        system_name=self.system_name,
-                        source_path=str(log_dir / "log.out"),
-                        target_path=target_dir_path / "log.out",
-                        account=self.account,
-                        blocking=True,
-                    )
+                return cast(
+                    str,
+                    await call_with_firecrest_retry(
+                        lambda: self.client.tail(
+                            system_name=self.system_name,
+                            path=str(log_dir / filename),
+                            num_lines=_LOG_TAIL_LINES,
+                        )
+                    ),
                 )
-                with open(target_dir_path / "log.out", "rb") as out_f:
-                    out_log = decode_log(out_f.read())
             except (FileNotFoundError, f7t.FirecrestException):
-                out_log = ""
+                return ""
 
-            try:
-                await call_with_firecrest_retry(
-                    lambda: self.client.download(
-                        system_name=self.system_name,
-                        source_path=str(log_dir / "log.err"),
-                        target_path=target_dir_path / "log.err",
-                        account=self.account,
-                        blocking=True,
-                    )
-                )
-                with open(target_dir_path / "log.err", "rb") as err_f:
-                    err_log = decode_log(err_f.read())
-            except (FileNotFoundError, f7t.FirecrestException):
-                err_log = ""
-
-            return out_log, err_log
+        return await _tail("log.out"), await _tail("log.err")
 
     def get_tail_hint(self, job_id: int) -> str:
         return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
