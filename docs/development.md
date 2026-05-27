@@ -59,7 +59,7 @@ Set `SML_DEBUG=1` to include local variables in crash tracebacks:
 export SML_DEBUG=1
 ```
 
-> **Warning:** `SML_DEBUG=1` may expose secrets (CSCS API key, FirecREST credentials) in crash output. Don't share terminal output captured with this flag.
+> **Warning:** `SML_DEBUG=1` may expose secrets (CSCS Serving API Key, FirecREST credentials) in crash output. Don't share terminal output captured with this flag.
 
 By default, locals are stripped from crash reports.
 

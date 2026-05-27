@@ -14,6 +14,7 @@ from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import create_salt
 
@@ -88,7 +89,6 @@ async def _create_launcher(
         raise RuntimeError("No partition specified. Call `establish` first, or set the SML_PARTITION env var.")
     config = InitConfig.load()
     launcher_type = config.get_non_none_value("launcher")
-    telemetry_endpoint = config.get_value("telemetry_endpoint")
 
     if launcher_type == "firecrest":
         if not system:
@@ -98,7 +98,7 @@ async def _create_launcher(
             system_name=system,
             partition=partition,
             reservation=reservation,
-            telemetry_endpoint=telemetry_endpoint,
+            telemetry_endpoint=TELEMETRY_ENDPOINT,
         )
     elif launcher_type == "slurm":
         return SlurmLauncher(
@@ -107,7 +107,7 @@ async def _create_launcher(
             account=grp.getgrgid(os.getgid()).gr_name,
             partition=partition,
             reservation=reservation,
-            telemetry_endpoint=telemetry_endpoint,
+            telemetry_endpoint=TELEMETRY_ENDPOINT,
         )
     else:
         raise RuntimeError(f"Launcher type '{launcher_type}' is not supported.")

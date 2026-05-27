@@ -33,12 +33,11 @@ class InitConfig(ChainConfiguration):
                         options={
                             "firecrest": (
                                 "FirecREST",
-                                "If you have FirecREST credentials of the cluster.",
+                                "5-10min setup instructions at https://docs.cscs.ch/services/devportal/#getting-started",
                             ),
                             "slurm": (
                                 "SLURM Commands",
-                                "If you are running the CLI on the cluster head node "
-                                "and want to directly submit jobs using SLURM.",
+                                "Assumes you are already SSH'd into the cluster.",
                             ),
                         },
                     ),
@@ -59,6 +58,12 @@ class InitConfig(ChainConfiguration):
                                 PasswordConfiguration(
                                     name="firecrest_client_id",
                                     prompt="What is your FirecREST client ID?",
+                                    intro=(
+                                        "\nFirecREST client ID & secret come from your CSCS Developer Portal app.\n"
+                                        "Get them at: https://developer.svc.cscs.ch/devportal/apis\n"
+                                        "(See https://docs.cscs.ch/services/devportal/#manage-your-applications "
+                                        "for the walkthrough)\n"
+                                    ),
                                     env_var="SML_FIRECREST_CLIENT_ID",
                                     expose_as_arg=False,
                                 ),
@@ -75,14 +80,13 @@ class InitConfig(ChainConfiguration):
                 ),
                 PasswordConfiguration(
                     name="cscs_api_key",
-                    prompt="What is your CSCS API key? (https://serving.swissai.svc.cscs.ch)",
+                    prompt="What is your CSCS Serving API Key?",
+                    intro=(
+                        "\nThe CSCS Serving API Key is used for health checks against your served model.\n"
+                        "Get one at: https://serving.swissai.svc.cscs.ch  (log in -> View API Keys)\n"
+                    ),
                     env_var="SML_CSCS_API_KEY",
                     expose_as_arg=False,
-                ),
-                TextConfiguration(
-                    name="telemetry_endpoint",
-                    prompt="Where to send telemetry reports?",
-                    default="https://sml-dev.swissai.svc.cscs.ch/launches",
                 ),
             ],
         )

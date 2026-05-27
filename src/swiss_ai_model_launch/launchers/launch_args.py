@@ -11,6 +11,8 @@ from swiss_ai_model_launch.launchers.topology import Topology
 # it as a knob just creates ways for the three to drift.
 FRAMEWORK_PORT = 8080
 
+TELEMETRY_ENDPOINT = "https://sml-dev.swissai.svc.cscs.ch/launches"
+
 _PORT_FLAG_RE = re.compile(r"(?:^|\s)--port(?:[\s=])")
 
 

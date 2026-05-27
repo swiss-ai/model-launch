@@ -239,8 +239,8 @@ class FirecRESTLauncher(Launcher):
 
             return out_log, err_log
 
-    def get_log_dir(self, job_id: int) -> str:
-        return str(Path(self._get_working_dir()) / "logs" / str(job_id))
+    def get_tail_hint(self, job_id: int) -> str:
+        return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
 
     async def cancel_job(self, job_id: int) -> None:
         try:
