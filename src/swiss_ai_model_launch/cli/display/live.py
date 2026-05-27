@@ -72,14 +72,12 @@ def _render_replica_panel(state: DisplayState) -> RenderableType:
     table = Table(box=box.SIMPLE_HEAD, expand=True, title=_replica_summary(report), title_justify="left")
     table.add_column("Node", justify="right", style="dim", width=4)
     table.add_column("Node IP")
-    table.add_column("Peer ID", overflow="fold")
     table.add_column("Health", justify="right", width=16)
     table.add_column("Last Heartbeat", justify="right")
     for replica in report.replicas:
         table.add_row(
             str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
             replica.node_ip or "[dim]—[/dim]",
-            replica.peer_id or "[dim]—[/dim]",
             _MODEL_HEALTH_STYLE[replica.health],
             _format_heartbeat(replica.last_seen),
         )

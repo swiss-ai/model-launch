@@ -48,8 +48,7 @@ def test_panel_lists_each_replica_with_summary(monkeypatch: pytest.MonkeyPatch) 
     out = _render(state)
     assert "2/3 healthy" in out  # summary reflects only HEALTHY replicas
     assert "Node IP" in out
-    assert "Peer ID" in out
-    for token in ("QmReplicaAAA", "QmReplicaBBB", "10.0.0.1", "10.0.0.3", "NOT RESPONDING"):
+    for token in ("10.0.0.1", "10.0.0.3", "NOT RESPONDING"):
         assert token in out
     # heartbeat age is rendered relative to the live clock (frozen here at 2000)
     for ago in ("5s ago", "10s ago", "20s ago"):
