@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import shlex
 from typing import ClassVar
 
@@ -319,6 +320,7 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     use_router = "true" if launch_args.use_router else "false"
     use_ocf = "false" if launch_args.disable_ocf else "true"
     fa = _compose_framework_args(launch_args)
+    sml_version = importlib.metadata.version("swiss-ai-model-launch")
     payload = (
         "{"
         '"user": "\'"${SLURM_JOB_USER}"\'", '
@@ -344,7 +346,8 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
         f'"ocf_enabled": {use_ocf}, '
         f'"ocf_bootstrap_addr": "{_resolve_ocf_bootstrap_addr(launch_args)}", '
         '"ocf_service_name": "llm", '
-        f'"ocf_service_port": {FRAMEWORK_PORT}'
+        f'"ocf_service_port": {FRAMEWORK_PORT}, '
+        f'"model_launch_version": "{sml_version}"'
         "}"
     )
     return (
