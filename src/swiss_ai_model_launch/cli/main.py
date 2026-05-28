@@ -85,6 +85,19 @@ def _make_reservation_config() -> ChainConfiguration:
     )
 
 
+def _make_slurm_account_config() -> ChainConfiguration:
+    return ChainConfiguration(
+        name="slurm_account_configuration",
+        chain=[
+            TextConfiguration(
+                name="slurm_account",
+                prompt="SLURM account (optional, leave blank to use your default group).",
+                env_var="SML_ACCOUNT",
+            ),
+        ],
+    )
+
+
 def _make_launch_request_config(
     vendor_models_factory: _OptionsFactory = None,
     frameworks_factory: _OptionsFactory = None,
@@ -158,11 +171,13 @@ def _build_parser() -> argparse.ArgumentParser:
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
     _make_partition_config().add_to_parser(preconfigured_parser)
     _make_reservation_config().add_to_parser(preconfigured_parser)
+    _make_slurm_account_config().add_to_parser(preconfigured_parser)
     _make_launch_request_config().add_to_parser(preconfigured_parser)
 
     advanced_parser = subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
     _make_firecrest_launcher_config().add_to_parser(advanced_parser)
     _make_partition_config().add_to_parser(advanced_parser)
+    _make_slurm_account_config().add_to_parser(advanced_parser)
     advanced_parser.add_argument(
         "--serving-framework",
         dest="framework",
@@ -349,16 +364,22 @@ async def _get_firecrest_launcher_with_client(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
+        account = (getattr(args, "slurm_account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
         reservation = reservation_config.get_value("reservation") or None
+
+        slurm_account_config = _make_slurm_account_config()
+        await slurm_account_config.aconfigure(args=args)
+        account = slurm_account_config.get_value("slurm_account") or None
 
     return await FirecRESTLauncher.from_client(
         client=client,
         system_name=system_name,
         partition=partition_config.get_non_none_value("partition"),
         reservation=reservation,
+        account=account,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -388,15 +409,24 @@ async def _get_slurm_launcher(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
+        account = (
+            (getattr(args, "slurm_account", None) if args else None)
+            or os.environ.get("SML_ACCOUNT")
+            or grp.getgrgid(os.getgid()).gr_name
+        )
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
         reservation = reservation_config.get_value("reservation") or None
 
+        slurm_account_config = _make_slurm_account_config()
+        await slurm_account_config.aconfigure(args=args)
+        account = slurm_account_config.get_value("slurm_account") or grp.getgrgid(os.getgid()).gr_name
+
     return SlurmLauncher(
         system_name="local",
         username=getpass.getuser(),
-        account=grp.getgrgid(os.getgid()).gr_name,
+        account=account,
         partition=partition_config.get_non_none_value("partition"),
         reservation=reservation,
         telemetry_endpoint=telemetry_endpoint,

@@ -59,6 +59,7 @@ class FirecRESTLauncher(Launcher):
         system_name: str,
         partition: str,
         reservation: str | None = None,
+        account: str | None = None,
         telemetry_endpoint: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
@@ -66,7 +67,7 @@ class FirecRESTLauncher(Launcher):
             client=client,
             system_name=system_name,
             username=user_info["user"]["name"],
-            account=user_info["group"]["name"],
+            account=account or user_info["group"]["name"],
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,

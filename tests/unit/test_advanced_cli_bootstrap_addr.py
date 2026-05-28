@@ -1,4 +1,8 @@
-from swiss_ai_model_launch.cli.main import _build_parser, build_launch_args_from_advanced
+from swiss_ai_model_launch.cli.main import (
+    _build_parser,
+    build_launch_args_from_advanced,
+)
+from swiss_ai_model_launch.launchers import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV
 
 
@@ -38,3 +42,49 @@ def test_advanced_explicit_addr_overrides_dev():
     args = _minimal_advanced_args("--dev", "--otela-bootstrap-addr", custom)
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
     assert la.ocf_bootstrap_addr == custom
+
+
+def test_advanced_slurm_account_is_parsed():
+    args = _minimal_advanced_args("--slurm-account", "proj99")
+    assert args.slurm_account == "proj99"
+
+
+def test_preconfigured_slurm_account_is_parsed():
+    parser = _build_parser()
+    args = parser.parse_args(
+        [
+            "preconfigured",
+            "--firecrest-system",
+            "clariden",
+            "--partition",
+            "normal",
+            "--slurm-account",
+            "proj99",
+            "--model",
+            "vendor/model-abc",
+            "--framework",
+            "sglang",
+            "--replicas",
+            "1",
+            "--use-router",
+            "no",
+            "--time",
+            "02:00:00",
+        ]
+    )
+    assert args.slurm_account == "proj99"
+
+
+async def test_firecrest_from_client_uses_account():
+    class FakeClient:
+        async def userinfo(self, system_name):
+            return {"user": {"name": "user"}, "group": {"name": "default"}}
+
+    launcher = await FirecRESTLauncher.from_client(
+        client=FakeClient(),
+        system_name="clariden",
+        partition="normal",
+        account="proj99",
+    )
+
+    assert launcher.account == "proj99"
