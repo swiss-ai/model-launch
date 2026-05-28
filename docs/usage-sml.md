@@ -23,6 +23,7 @@ You can pre-fill any prompt with a CLI flag or environment variable. Whatever yo
 | `--firecrest-system` | `SML_FIRECREST_SYSTEM`   | Target system (required if launcher is `firecrest`)    |
 | `--partition`        | `SML_PARTITION`          | SLURM partition                                        |
 | `--reservation`      | `SML_RESERVATION`        | SLURM reservation (optional)                           |
+| `--slurm-account`    | `SML_ACCOUNT`            | SLURM account used for job submission (optional)       |
 | `--model`            |                          | Model to launch (`<vendor>/<model>`)                   |
 | `--framework`        |                          | Inference framework                                    |
 | `--replicas`         |                          | Number of replicas                                     |

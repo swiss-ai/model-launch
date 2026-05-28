@@ -14,6 +14,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | --------------------------- | ----------------------- | ----------------------------------------------------------------- |
 | `--firecrest-system`        | `SML_FIRECREST_SYSTEM`  | Target HPC system                                                 |
 | `--partition`               | `SML_PARTITION`         | SLURM partition                                                   |
+| `--slurm-account`           | `SML_ACCOUNT`           | SLURM account used for job submission                             |
 | `--slurm-reservation`       | `SML_RESERVATION`       | SLURM reservation (optional)                                      |
 | `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
 | `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
