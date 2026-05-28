@@ -38,7 +38,6 @@ def sml_config_dir() -> Iterator[Path]:
     config.set_value("firecrest_client_id", os.environ["SML_FIRECREST_CLIENT_ID"])
     config.set_value("firecrest_client_secret", os.environ["SML_FIRECREST_CLIENT_SECRET"])
     config.set_value("cscs_api_key", os.environ["SML_CSCS_API_KEY"])
-    config.set_value("telemetry_endpoint", "")
     config.save()
 
     yield _BOOTSTRAP_DIR

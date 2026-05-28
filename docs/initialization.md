@@ -32,15 +32,14 @@ If you're not sure, start with `firecrest` — it's what most users run.
 | `--firecrest-token-uri` |                               | FirecREST token URI (default: CSCS auth endpoint)              |
 |                         | `SML_FIRECREST_CLIENT_ID`     | FirecREST client ID                                            |
 |                         | `SML_FIRECREST_CLIENT_SECRET` | FirecREST client secret                                        |
-|                         | `SML_CSCS_API_KEY`            | CSCS API key (used for health checks against the served model) |
-| `--telemetry-endpoint`  |                               | Endpoint for telemetry reports                                 |
+|                         | `SML_CSCS_API_KEY`            | CSCS Serving API Key (used for health checks of served model)  |
 
 The FirecREST fields are only required when `--launcher firecrest`. `SML_CSCS_API_KEY` is required regardless of launcher.
 
 ## Where credentials come from
 
 - **FirecREST client ID / secret** — Acquire from the [CSCS Developer Portal](https://developer.svc.cscs.ch/devportal/apis). See the [FirecREST docs](https://docs.cscs.ch/services/devportal/#manage-your-applications) for the full walkthrough.
-- **CSCS API key** — Log in at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) with your institutional account, then go to **View API Keys**.
+- **CSCS Serving API Key** — Log in at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) with your institutional account, then go to **View API Keys**.
 
 ## Config file shape
 
@@ -53,7 +52,6 @@ firecrest_token_uri: https://auth.cscs.ch/...
 firecrest_client_id: <secret>
 firecrest_client_secret: <secret>
 cscs_api_key: <secret>
-telemetry_endpoint: https://...
 ```
 
 Treat this file as a secret. Don't commit it.

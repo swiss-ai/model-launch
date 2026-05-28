@@ -41,5 +41,8 @@ class Launcher(ABC):
     @abstractmethod
     async def cancel_job(self, job_id: int) -> None: ...
 
+    def get_log_dir(self, job_id: int) -> str:
+        return f"~/.sml/logs/{job_id}"
+
     @abstractmethod
-    def get_log_dir(self, job_id: int) -> str: ...
+    def get_tail_hint(self, job_id: int) -> str: ...

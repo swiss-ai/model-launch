@@ -49,6 +49,7 @@ class _Configuration(BaseModel):
 class _ResolvableConfiguration(_Configuration):
     value: str | None = None
     prompt: str | None = Field(default=None, exclude=True)
+    intro: str | None = Field(default=None, exclude=True)
     env_var: str | None = Field(default=None, exclude=True)
     expose_as_arg: bool = Field(default=True, exclude=True)
 
@@ -57,6 +58,10 @@ class _ResolvableConfiguration(_Configuration):
 
     def _on_answer(self) -> None:
         pass
+
+    def _print_intro(self) -> None:
+        if self.intro:
+            print(self.intro)
 
     def _try_resolve_without_prompt(self, args: argparse.Namespace | None) -> str | None:
         if self.expose_as_arg and args is not None:
@@ -88,6 +93,7 @@ class _ResolvableConfiguration(_Configuration):
             return
         if non_interactive:
             raise ValueError(self._missing_value_message())
+        self._print_intro()
         self.value = await self._get_question().ask_async()
         self._on_answer()
 
@@ -167,6 +173,7 @@ class TextConfiguration(_ResolvableConfiguration):
             return
         if non_interactive:
             raise ValueError(self._missing_value_message())
+        self._print_intro()
         self.value = await questionary.text(
             self.prompt or self.name,
             default=await self._resolve_default(get_value) or "",
@@ -286,6 +293,7 @@ class OptionsConfiguration(_ResolvableConfiguration):
         if len(options) == 1:
             self.value = next(iter(options))
         else:
+            self._print_intro()
             self.value = await self._build_question(options).ask_async()
         self._on_answer()
 

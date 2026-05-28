@@ -26,7 +26,7 @@ from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
+from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT, LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
@@ -466,7 +466,6 @@ async def _create_launcher(
     non_interactive: bool = False,
 ) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
-    telemetry_endpoint = config.get_value("telemetry_endpoint")
 
     if launcher_type == "slurm" and getattr(args, "firecrest_system", None):
         _logger.warning("--firecrest-system is ignored when using the SLURM launcher")
@@ -477,7 +476,7 @@ async def _create_launcher(
             Launcher,
             await _get_firecrest_launcher_with_client(
                 firecrest_client,
-                telemetry_endpoint=telemetry_endpoint,
+                telemetry_endpoint=TELEMETRY_ENDPOINT,
                 args=args,
                 non_interactive=non_interactive,
             ),
@@ -486,7 +485,7 @@ async def _create_launcher(
         return cast(
             Launcher,
             await _get_slurm_launcher(
-                telemetry_endpoint=telemetry_endpoint,
+                telemetry_endpoint=TELEMETRY_ENDPOINT,
                 args=args,
                 non_interactive=non_interactive,
             ),
@@ -549,6 +548,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
         print(f"Job submitted: {job_id}")
         print(f"Served model name: {served}")
         print(f"Logs: {launcher.get_log_dir(job_id)}")
+        print(f"Tail: {launcher.get_tail_hint(job_id)}")
 
 
 def build_launch_args_from_advanced(
@@ -627,7 +627,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         args,
         account=launcher.account,
         partition=launcher.partition,
-        telemetry_endpoint=config.get_value("telemetry_endpoint"),
+        telemetry_endpoint=TELEMETRY_ENDPOINT,
     )
 
     if args.output_script:
@@ -662,6 +662,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         print(f"Job submitted: {job_id}")
         print(f"Served model name: {served}")
         print(f"Logs: {launcher.get_log_dir(job_id)}")
+        print(f"Tail: {launcher.get_tail_hint(job_id)}")
 
 
 def _run_mcp() -> None:
