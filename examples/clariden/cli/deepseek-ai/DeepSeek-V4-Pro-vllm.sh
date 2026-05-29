@@ -13,5 +13,6 @@ sml advanced \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V4-Pro \
     --served-model-name deepseek-ai/DeepSeek-V4-Pro-$(whoami) \
     --tensor-parallel-size 16 \
+    --kv-cache-dtype fp8 \
     --host 0.0.0.0 \
     --trust-remote-code"
