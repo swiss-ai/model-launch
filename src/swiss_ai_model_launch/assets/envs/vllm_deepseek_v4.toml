@@ -28,6 +28,10 @@ FI_CXI_DEFAULT_TX_SIZE = "32768"
 FI_CXI_DISABLE_HOST_REGISTER = "1"
 OFI_NCCL_DISABLE_DMABUF = "1"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
+# DeepSeek-V4's first request JIT-compiles the FlashMLA-Sparse attention kernels;
+# on the 1.6T Base model this can take ~5min and overruns the default execute-model
+# RPC deadline ("RPC call to sample_tokens timed out"). Give the warmup room.
+VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS = "900"
 
 [annotations]
 com.hooks.aws_ofi_nccl.enabled = "true"
