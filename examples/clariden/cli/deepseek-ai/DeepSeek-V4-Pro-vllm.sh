@@ -23,10 +23,14 @@
 #      128) -> "input_size_per_partition = 192 is not divisible by block_k=128".
 #      So use TP=8 (3072/8 = 384 = 3x128) and reach all 16 GPUs via PP=2.
 #
-#   4. First-request warmup. The first completion JIT-compiles the sparse-attn
-#      Triton kernels; for V4-Pro this finishes within vllm's RPC deadline, but
-#      for the larger Base model it can exceed it -- see the Base example, which
-#      bumps VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS in the env toml.
+#   4. Warmup / JIT timeout. Requests JIT-compile the sparse-attn Triton kernels
+#      the first time each new shape is seen (not just the first request ever) --
+#      a fresh-shape prompt minutes in can still trigger a multi-minute compile
+#      that overruns vllm's execute-model RPC deadline and kills the engine
+#      ("RPC call to sample_tokens timed out"). We saw this take down both this
+#      model and Base. Mitigation: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=900 in
+#      src/swiss_ai_model_launch/assets/envs/vllm_deepseek_v4.toml (shared by both
+#      examples). A sturdier alternative is to pre-warm the shapes at startup.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

@@ -11,12 +11,14 @@
 #     so each TP shard must be a multiple of 128. TP=32 shards a 3072 dim to 96
 #     (96 % 128 != 0) and fails; TP=8 gives 384 (=3x128). PP=4 fans across all
 #     8 nodes / 32 GPUs.
-#   * First-request warmup: the first completion JIT-compiles the sparse-attn
-#     Triton kernels. At this size that took ~5.5 min and overran vllm's default
-#     execute-model RPC deadline -> "RPC call to sample_tokens timed out" and the
-#     engine died. Mitigation: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS is raised in
-#     src/swiss_ai_model_launch/assets/envs/vllm_deepseek_v4.toml so the warmup
-#     request can finish. (A throwaway warmup request after startup also works.)
+#   * Warmup / JIT timeout: requests JIT-compile the sparse-attn Triton kernels
+#     the first time each new shape is seen. At this size that took ~5.5 min and
+#     overran vllm's default execute-model RPC deadline -> "RPC call to
+#     sample_tokens timed out" and the engine died. Note this is NOT first-request
+#     only -- a new-shape prompt later in the session can re-trigger it (it took
+#     down the V4-Pro replica too). Mitigation: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+#     is raised in src/swiss_ai_model_launch/assets/envs/vllm_deepseek_v4.toml.
+#     A sturdier alternative is to pre-warm the expected shapes at startup.
 sml advanced \
   --firecrest-system clariden \
   --partition normal \

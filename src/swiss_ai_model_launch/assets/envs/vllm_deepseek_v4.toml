@@ -28,9 +28,11 @@ FI_CXI_DEFAULT_TX_SIZE = "32768"
 FI_CXI_DISABLE_HOST_REGISTER = "1"
 OFI_NCCL_DISABLE_DMABUF = "1"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
-# DeepSeek-V4's first request JIT-compiles the FlashMLA-Sparse attention kernels;
-# on the 1.6T Base model this can take ~5min and overruns the default execute-model
-# RPC deadline ("RPC call to sample_tokens timed out"). Give the warmup room.
+# DeepSeek-V4 JIT-compiles the FlashMLA-Sparse attention kernels the first time it
+# sees each new request shape (not only the first request). That compile can take
+# minutes and overrun the default execute-model RPC deadline, killing the engine
+# ("RPC call to sample_tokens timed out") -- observed on both V4-Pro and Base.
+# Give the compile room. (Pre-warming the expected shapes at startup is sturdier.)
 VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS = "900"
 
 [annotations]
