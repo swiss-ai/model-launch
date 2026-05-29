@@ -5,6 +5,7 @@ from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 _HEALTH_CHECK_URL = "https://api.swissai.svc.cscs.ch/v1/chat/completions"
 _MESSAGE = {"role": "user", "content": "Say hello."}
 _TIMEOUT_SECONDS = 10
+_MAX_TOKENS = 16
 
 
 async def check_model_health(model_name: str, api_key: str) -> ModelHealth:
@@ -20,6 +21,7 @@ async def check_model_health(model_name: str, api_key: str) -> ModelHealth:
                     "model": model_name,
                     "messages": [_MESSAGE],
                     "stream": False,
+                    "max_tokens": _MAX_TOKENS,
                 },
                 timeout=_TIMEOUT_SECONDS,
             )
