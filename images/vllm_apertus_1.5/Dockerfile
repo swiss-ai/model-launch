@@ -5,8 +5,10 @@ ARG MAX_JOBS=8
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
+ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
+ARG TARGETARCH
 
-ENV TORCH_CUDA_ARCH_LIST="9.0a" \
+ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
     MAX_JOBS="${MAX_JOBS}" \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -26,7 +28,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /opt
 
 # hadolint ignore=DL3008
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     bash bash-completion ca-certificates ccache curl git less vim-tiny \
     build-essential cmake ninja-build pkgconf \
     libibverbs-dev libnuma1 libnuma-dev \
@@ -42,17 +46,18 @@ ENV PATH="/opt/venv/bin:/root/.local/bin:${PATH}"
 RUN python --version && python -m pip --version && uv --version
 
 # hadolint ignore=DL3013
-RUN python -m pip install --upgrade \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python -m pip install --upgrade \
     pip \
     wheel \
     "setuptools>=77.0.3,<81.0.0"
 
-RUN uv pip install --python /opt/venv/bin/python \
-        --index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv pip install --python /opt/venv/bin/python \
+        --extra-index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
         torch==2.10.0 \
         torchvision==0.25.0 \
-        torchaudio==2.10.0 && \
-    uv pip install --python /opt/venv/bin/python \
+        torchaudio==2.10.0 \
         "packaging>=24.2" \
         ninja \
         "cmake>=3.26.1" \
@@ -81,17 +86,22 @@ ENV VLLM_REPO=/workspace/vllm \
     EMU35=/workspace/Emu3.5 \
     ec=/workspace/benchmark-audio-tokenizer \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python3.12/site-packages/torch/lib \
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib \
     VLLM_APERTUS_EMU35_CODEBASE=/workspace/Emu3.5
 
 WORKDIR /workspace/vllm
 
-RUN set -eu; \
-    export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"; \
-    mkdir -p "${UV_CACHE_DIR}"; \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    set -eu; \
     export VLLM_PRECOMPILED_WHEEL_VARIANT="${VLLM_PRECOMPILED_WHEEL_VARIANT:-cu130}"; \
     export VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION:-13.0}"; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://github.com/vllm-project/vllm/releases/download/v0.19.0/vllm-0.19.0+cu130-cp38-abi3-manylinux_2_35_aarch64.whl}"; \
+    ARCH="${TARGETARCH:-$(uname -m)}"; \
+    case "$ARCH" in \
+        amd64|x86_64) WHEEL_ARCH="x86_64" ;; \
+        arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
+        *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://github.com/vllm-project/vllm/releases/download/v0.19.0/vllm-0.19.0+cu130-cp38-abi3-manylinux_2_35_${WHEEL_ARCH}.whl}"; \
     if [ -z "${VLLM_PRECOMPILED_WHEEL_COMMIT:-}" ] && VLLM_GIT_COMMIT="$(git -C "${VLLM_REPO}" rev-parse HEAD 2>/dev/null)"; then \
     export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_GIT_COMMIT}"; \
     fi; \
