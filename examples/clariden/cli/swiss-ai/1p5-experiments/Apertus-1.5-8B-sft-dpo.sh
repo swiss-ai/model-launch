@@ -17,6 +17,6 @@ sml advanced \
     --port 8080 \
     --trust-remote-code \
     --trust-request-chat-template \
-    --max-model-len 256000 \
+    --max-model-len 262144 \
     --gpu-memory-utilization 0.6 \
     --skip-mm-profiling"
