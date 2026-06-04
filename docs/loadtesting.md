@@ -9,7 +9,7 @@ Each loadtest submits a one-node SLURM job that runs k6 in a container.
 Default k6 container:
 
 ```bash
-/capstor/scratch/cscs/bsezen/container-images/k6.sqsh
+/capstor/store/cscs/swissai/infra01/container-images/ci/k6.sqsh
 ```
 
 The image is built from `grafana/k6:1.7.1`.
@@ -31,22 +31,22 @@ Trend metrics are exported as explicit stats, not native histograms, for dashboa
 
 Prompt corpora are not committed to git and are not uploaded with the job. They must already exist at a path visible from the cluster container.
 
-Default prompt corpus:
+Shared prompt corpus:
 
 ```bash
-/capstor/scratch/cscs/bsezen/loadtest/prompts.json
+/capstor/store/cscs/swissai/infra01/loadtest/prompts.json
 ```
 
-Override it with:
+Use it with:
 
 ```bash
---loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json
+--loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json
 ```
 
 or:
 
 ```bash
-export SML_LOADTEST_PROMPTS_FILE=/capstor/scratch/cscs/bsezen/loadtest/prompts.json
+export SML_LOADTEST_PROMPTS_FILE=/capstor/store/cscs/swissai/infra01/loadtest/prompts.json
 ```
 
 ## Run Against An Existing Endpoint
@@ -60,7 +60,7 @@ sml loadtest run \
   --loadtest-server-url https://your.endpoint.example \
   --loadtest-model your-model-name \
   --loadtest-scenario throughput \
-  --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json
+  --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json
 ```
 
 `--loadtest-model` is the value sent in the OpenAI-compatible request body. If you pass `--served-model-name`, SML uses that as the default model value.
@@ -75,7 +75,7 @@ Use `sml loadtest preconfigured` for a guided model launch followed by a cluster
 sml loadtest preconfigured \
   --firecrest-system clariden \
   --partition normal \
-  --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json \
+  --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json \
   --cancel-after-loadtest
 ```
 
@@ -86,7 +86,7 @@ sml loadtest preconfigured \
   --firecrest-system clariden \
   --partition normal \
   --loadtest-scenario open_loop \
-  --loadtest-prompts-file /capstor/scratch/cscs/bsezen/loadtest/prompts.json \
+  --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json \
   --cancel-after-loadtest
 ```
 
