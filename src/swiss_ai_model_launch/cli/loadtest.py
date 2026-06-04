@@ -15,7 +15,11 @@ from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import Launcher
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.loadtest.cluster import ClusterLoadtestConfig, submit_cluster_loadtest
+from swiss_ai_model_launch.loadtest.cluster import (
+    DEFAULT_CLUSTER_LOADTEST_TIME,
+    ClusterLoadtestConfig,
+    submit_cluster_loadtest,
+)
 from swiss_ai_model_launch.loadtest.models import LoadtestConfig, ServerConfig, load_scenarios
 from swiss_ai_model_launch.loadtest.setup import (
     DEFAULT_CLUSTER_CONTAINER_IMAGE,
@@ -28,7 +32,6 @@ _DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1000000
 _DEFAULT_LOADTEST_READY_POLL_SECONDS = 10
 _LOADTEST_READY_PROGRESS_SECONDS = 300
 _DEFAULT_LOADTEST_METRICS_REMOTE_WRITE_URL = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
-_DEFAULT_LOADTEST_JOB_TIME = "00:30:00"
 _DEFAULT_LOADTEST_SCENARIO = "throughput"
 
 _AddConfig = Callable[[], Any]
@@ -94,9 +97,9 @@ def _add_loadtest_arguments(
     parser.add_argument(
         "--loadtest-job-time",
         dest="loadtest_job_time",
-        default=_DEFAULT_LOADTEST_JOB_TIME,
+        default=DEFAULT_CLUSTER_LOADTEST_TIME,
         metavar="HH:MM:SS",
-        help=f"SLURM time limit for the cluster k6 loadtest job (default: {_DEFAULT_LOADTEST_JOB_TIME}).",
+        help=f"SLURM time limit for the cluster k6 loadtest job (default: {DEFAULT_CLUSTER_LOADTEST_TIME}).",
     )
     parser.add_argument(
         "--loadtest-server-url",

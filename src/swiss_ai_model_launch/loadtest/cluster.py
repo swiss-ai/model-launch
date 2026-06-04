@@ -17,11 +17,13 @@ from swiss_ai_model_launch.launchers.utils import create_salt
 from .core import build_run_config
 from .models import LoadtestConfig, ServerConfig
 
+DEFAULT_CLUSTER_LOADTEST_TIME = "02:00:00"
+
 
 @dataclass
 class ClusterLoadtestConfig:
     container_image: str
-    time: str = "00:30:00"
+    time: str = DEFAULT_CLUSTER_LOADTEST_TIME
     cpus_per_task: int = 4
     wait: bool = True
     reservation: str | None = None

@@ -202,7 +202,7 @@ def test_loadtest_job_time_defaults_to_cluster_default() -> None:
     parser = _build_parser()
     args = parser.parse_args(["loadtest", "run"])
 
-    assert make_cluster_loadtest_config(args).time == "00:30:00"
+    assert make_cluster_loadtest_config(args).time == "02:00:00"
 
 
 def test_loadtest_job_time_can_be_overridden() -> None:
