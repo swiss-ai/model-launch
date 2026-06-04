@@ -2,6 +2,9 @@
 # Loadtest Apertus-8B on Clariden (NVIDIA / sglang) under two parallelism configs:
 #   1) TP=4
 #   2) TP=1, DP=4
+# This file intentionally does not use `sml loadtest advanced`. It expands the
+# same launch + wait-healthy + k6 + cancel flow shown compactly in
+# `tp-vs-dp-loadtest-advanced.sh`, while submitting both model jobs up-front.
 # Both jobs are submitted up-front so they queue/start in parallel; loadtests
 # run sequentially as each model becomes healthy.
 set -euo pipefail
@@ -57,7 +60,10 @@ JOB_2=$(echo "$OUT_2" | grep "Job submitted:" | awk '{print $3}')
 
 # --- Experiment 1: TP=4 ---
 echo "Waiting for $SERVED_1 to be healthy..."
-until curl -fsS -H "Authorization: Bearer $CSCS_SERVING_API" "$LOADTEST_SERVER_URL/v1/models" | grep -q "$SERVED_1"; do
+until curl -fsS \
+  -H "Authorization: Bearer $CSCS_SERVING_API" \
+  "$LOADTEST_SERVER_URL/v1/models" \
+  | grep -q "$SERVED_1"; do
   sleep 30
 done
 
@@ -74,7 +80,10 @@ scancel "$JOB_1"
 
 # --- Experiment 2: TP=1, DP=4 ---
 echo "Waiting for $SERVED_2 to be healthy..."
-until curl -fsS -H "Authorization: Bearer $CSCS_SERVING_API" "$LOADTEST_SERVER_URL/v1/models" | grep -q "$SERVED_2"; do
+until curl -fsS \
+  -H "Authorization: Bearer $CSCS_SERVING_API" \
+  "$LOADTEST_SERVER_URL/v1/models" \
+  | grep -q "$SERVED_2"; do
   sleep 30
 done
 
