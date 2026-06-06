@@ -172,6 +172,9 @@ class DummyLauncher(Launcher):
     def get_log_dir(self, job_id: int) -> str:
         return f"/logs/{job_id}"
 
+    def get_tail_hint(self, job_id: int) -> str:
+        return f"tail -f /logs/{job_id}/log.out"
+
 
 async def test_run_loadtest_for_submitted_job_cancels_after_loadtest(
     tmp_path,
