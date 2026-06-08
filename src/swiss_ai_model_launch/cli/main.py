@@ -24,6 +24,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
 from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
+from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT, LaunchArgs
@@ -150,34 +151,11 @@ def _make_launch_request_config(
     )
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="sml",
-        description="Swiss AI Model Launcher",
-    )
-    _meta = importlib.metadata.metadata("swiss-ai-model-launch")
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"sml {_meta['Version']}",
-    )
-    subparsers = parser.add_subparsers(dest="subcommand", required=False)
-
-    init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
-    InitConfig().add_to_parser(init_parser)
-
-    preconfigured_parser = subparsers.add_parser("preconfigured", help="Launch a model with guided prompts")
-    _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
-    _make_partition_config().add_to_parser(preconfigured_parser)
-    _make_reservation_config().add_to_parser(preconfigured_parser)
-    _make_slurm_account_config().add_to_parser(preconfigured_parser)
-    _make_launch_request_config().add_to_parser(preconfigured_parser)
-
-    advanced_parser = subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
-    _make_firecrest_launcher_config().add_to_parser(advanced_parser)
-    _make_partition_config().add_to_parser(advanced_parser)
-    _make_slurm_account_config().add_to_parser(advanced_parser)
+def _add_advanced_launch_arguments(
+    advanced_parser: argparse.ArgumentParser,
+    *,
+    tui_default: bool | None,
+) -> None:
     advanced_parser.add_argument(
         "--serving-framework",
         dest="framework",
@@ -290,12 +268,13 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="CMDS",
         help="Commands to run before launching the model.",
     )
-    advanced_parser.add_argument(
-        "--tui",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Launch the interactive TUI after submitting the job.",
-    )
+    if tui_default is not None:
+        advanced_parser.add_argument(
+            "--tui",
+            action=argparse.BooleanOptionalAction,
+            default=tui_default,
+            help="Launch the interactive TUI after submitting the job.",
+        )
     advanced_parser.add_argument(
         "--output-script",
         dest="output_script",
@@ -310,11 +289,51 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="sml",
+        description="Swiss AI Model Launcher",
+    )
+    _meta = importlib.metadata.metadata("swiss-ai-model-launch")
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"sml {_meta['Version']}",
+    )
+    subparsers = parser.add_subparsers(dest="subcommand", required=False)
+
+    init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
+    InitConfig().add_to_parser(init_parser)
+
+    preconfigured_parser = subparsers.add_parser("preconfigured", help="Launch a model with guided prompts")
+    _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
+    _make_partition_config().add_to_parser(preconfigured_parser)
+    _make_reservation_config().add_to_parser(preconfigured_parser)
+    _make_slurm_account_config().add_to_parser(preconfigured_parser)
+    _make_launch_request_config().add_to_parser(preconfigured_parser)
+
+    advanced_parser = subparsers.add_parser("advanced", help="Launch a model with advanced configuration")
+    _make_firecrest_launcher_config().add_to_parser(advanced_parser)
+    _make_partition_config().add_to_parser(advanced_parser)
+    _make_slurm_account_config().add_to_parser(advanced_parser)
+    _add_advanced_launch_arguments(advanced_parser, tui_default=False)
+
     preconfigured_parser.add_argument(
         "--tui",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Launch the interactive TUI after submitting the job.",
+    )
+
+    add_loadtest_parser(
+        subparsers,
+        make_firecrest_launcher_config=_make_firecrest_launcher_config,
+        make_partition_config=_make_partition_config,
+        make_reservation_config=_make_reservation_config,
+        make_launch_request_config=_make_launch_request_config,
+        add_advanced_launch_arguments=lambda p: _add_advanced_launch_arguments(p, tui_default=None),
     )
 
     subparsers.add_parser("mcp", help="Start the SML MCP server")
@@ -628,7 +647,6 @@ def build_launch_args_from_advanced(
             nodes_per_replica=args.nodes_per_replica,
         ),
         time=args.time,
-        reservation=args.reservation or None,
         environment=args.slurm_environment,
         framework=args.framework,
         framework_args=args.framework_args,
@@ -669,7 +687,9 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         master_path = out_dir / "master.sh"
-        master_path.write_text(render_sbatch_header(launch_args) + render_master(launch_args))
+        master_path.write_text(
+            render_sbatch_header(launch_args, reservation=launcher.reservation) + render_master(launch_args)
+        )
         master_path.chmod(0o755)
 
         written = ["master.sh"]
@@ -707,6 +727,13 @@ async def _main(args: argparse.Namespace) -> None:
         await _run_preconfigured(args)
     elif subcommand == "advanced":
         await _run_advanced(args)
+    elif subcommand == "loadtest":
+        await run_loadtest_command(
+            args,
+            create_launcher=_create_launcher,
+            get_launch_request=_get_launch_request,
+            build_launch_args_from_advanced=build_launch_args_from_advanced,
+        )
 
 
 def main() -> None:

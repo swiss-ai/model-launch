@@ -63,7 +63,6 @@ class SlurmLauncher(Launcher):
                 nodes_per_replica=launch_request.nodes_per_replica,
             ),
             time=launch_request.time,
-            reservation=self.reservation,
             environment=launch_request.environment,
             framework=launch_request.framework,
             served_model_name=served_model_name,
@@ -105,7 +104,7 @@ class SlurmLauncher(Launcher):
             "sbatch",
             "--chdir",
             str(working_dir),
-            *launch_args.to_sbatch_args(),
+            *launch_args.to_sbatch_args(reservation=self.reservation),
             str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -124,7 +123,6 @@ class SlurmLauncher(Launcher):
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         launch_args = launch_args.model_copy(
             update={
-                "reservation": self.reservation,
                 "environment": str(Path(launch_args.environment).resolve()),
             }
         )

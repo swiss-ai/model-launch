@@ -30,7 +30,6 @@ class LaunchArgs(BaseModel):
     topology: Topology = Field(default_factory=Topology)
 
     time: str = "02:00:00"
-    reservation: str | None = None
     environment: str
 
     framework: str
@@ -66,7 +65,7 @@ class LaunchArgs(BaseModel):
     def total_nodes(self) -> int:
         return self.topology.replicas * self.topology.nodes_per_replica
 
-    def to_sbatch_args(self) -> list[str]:
+    def to_sbatch_args(self, *, reservation: str | None = None) -> list[str]:
         args = [
             f"--job-name={self.job_name}",
             f"--account={self.account}",
@@ -77,8 +76,8 @@ class LaunchArgs(BaseModel):
             "--output=logs/%j/log.out",
             "--error=logs/%j/log.out",
         ]
-        if self.reservation:
-            args.append(f"--reservation={self.reservation}")
+        if reservation:
+            args.append(f"--reservation={reservation}")
         return args
 
     def to_job_env(self) -> dict[str, str]:

@@ -52,7 +52,7 @@ def create_salt(length: int) -> str:
     return "".join(secrets.choice(string.ascii_letters) for _ in range(length))
 
 
-def render_sbatch_header(launch_args: LaunchArgs) -> str:
+def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = None) -> str:
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name={launch_args.job_name}",
@@ -62,8 +62,8 @@ def render_sbatch_header(launch_args: LaunchArgs) -> str:
         f"#SBATCH --nodes={launch_args.total_nodes}",
         f"#SBATCH --partition={launch_args.partition}",
     ]
-    if launch_args.reservation:
-        lines.append(f"#SBATCH --reservation={launch_args.reservation}")
+    if reservation:
+        lines.append(f"#SBATCH --reservation={reservation}")
     lines += [
         "#SBATCH --output=logs/%j/log.out",
         "#SBATCH --error=logs/%j/log.out",

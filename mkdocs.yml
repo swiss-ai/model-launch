@@ -23,6 +23,7 @@ nav:
   - Performance:
       - Sizing a Model: sizing.md
       - Benchmarking: benchmarking.md
+      - Loadtesting: loadtesting.md
   - MCP Server: mcp.md
   - Architecture: architecture.md
   - Development: development.md

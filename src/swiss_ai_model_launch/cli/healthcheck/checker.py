@@ -2,8 +2,8 @@ import httpx
 
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 
-_HEALTH_CHECK_URL = "https://api.swissai.svc.cscs.ch/v1/chat/completions"
 _MESSAGE = {"role": "user", "content": 'Say the word "Hello". Nothing more.'}
+_HEALTH_CHECK_URL = "https://api.swissai.svc.cscs.ch/v1/chat/completions"
 _TIMEOUT_SECONDS = 10
 _MAX_TOKENS = 16
 
