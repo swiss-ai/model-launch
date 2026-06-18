@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
     types: [opened, reopened, synchronize, labeled, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Single image dir under images/ to build (leave empty to build all)."
+        required: false
+        default: ""
 
 jobs:
   static-checks:
@@ -27,7 +33,10 @@ jobs:
       - name: Detect changed image directories
         id: detect
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image }}" ]; then
+            # Manual run targeting one image; validated against images/ below.
+            CHANGED="${{ inputs.image }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}" -- images/ \
               | grep '^images/' \
               | cut -d/ -f2 \
