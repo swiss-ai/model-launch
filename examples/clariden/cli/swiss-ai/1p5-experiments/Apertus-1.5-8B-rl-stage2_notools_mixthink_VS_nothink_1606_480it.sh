@@ -40,10 +40,9 @@ sml advanced \
     --max-model-len 262144 \
     --gpu-memory-utilization 0.6 \
     --skip-mm-profiling \
-    --reasoning-parser deepseek_r1"
+    --reasoning-parser deepseek_r1 \
+    --default-chat-template-kwargs.enable_thinking true"
 
-# NOT USED - we will instead make a virtual model in OWUI set thinking on the virtual one:
-#--default-chat-template-kwargs.enable_thinking true"
 
 # nothink - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_nothink_1606_480it
   sml advanced \
