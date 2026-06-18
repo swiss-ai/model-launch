@@ -25,6 +25,7 @@ _TERMINAL_STATES = {
 
 def _build_slurm_script(
     image_name: str,
+    arch: str,
     account: str,
     partition: str,
     reservation: str | None,
@@ -34,11 +35,13 @@ def _build_slurm_script(
     ghcr_actor: str,
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
-    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest"
+    # Push to an arch-specific tag; a later merge step combines the per-arch
+    # tags into a single multi-arch manifest list under ":latest".
+    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest-{arch}"
     return dedent(
         f"""
         #!/bin/bash
-        #SBATCH --job-name=build-{image_name}
+        #SBATCH --job-name=build-{image_name}-{arch}
         #SBATCH --nodes=1
         #SBATCH --ntasks=1
         #SBATCH --cpus-per-task=64
@@ -57,8 +60,8 @@ def _build_slurm_script(
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
-        IMAGE_TAG="{image_name}:${{SLURM_JOB_ID}}"
-        SCRATCH_SQSH="${{SCRATCH}}/{image_name}.sqsh"
+        IMAGE_TAG="{image_name}-{arch}:${{SLURM_JOB_ID}}"
+        SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}.sqsh"
 
         cleanup() {{
             podman logout ghcr.io 2>/dev/null || true
@@ -120,14 +123,47 @@ async def _print_logs(
                 print(f"  Could not retrieve {suffix} log: {e}")
 
 
-async def main(image_name: str) -> int:
+def _arch_env(base_key: str, arch: str) -> str | None:
+    """Resolve a per-arch FireCREST setting.
+
+    arm64 (the original Grace cluster) uses the base var, e.g. SML_FIRECREST_URL.
+    Other arches use a strictly arch-suffixed var, e.g. SML_FIRECREST_URL_AMD64,
+    with NO fallback to the base var — falling back would silently build on the
+    wrong cluster. Credentials and token URI are shared across clusters.
+    Reservation is optional per arch (e.g. the amd64 cluster has none).
+    """
+    if arch == "arm64":
+        return os.environ.get(base_key)
+    return os.environ.get(f"{base_key}_{arch.upper()}")
+
+
+async def main(image_name: str, arch: str) -> int:
+    # Shared across both clusters.
     client_id = os.environ["SML_FIRECREST_CLIENT_ID"]
     client_secret = os.environ["SML_FIRECREST_CLIENT_SECRET"]
     token_uri = os.environ["SML_FIRECREST_TOKEN_URI"]
-    firecrest_url = os.environ["SML_FIRECREST_URL"]
-    system_name = os.environ["SML_FIRECREST_SYSTEM"]
-    partition = os.environ["SML_PARTITION"]
-    reservation = os.environ.get("SML_RESERVATION")
+
+    # Per-arch: different cluster reached via a different FireCREST endpoint.
+    firecrest_url = _arch_env("SML_FIRECREST_URL", arch)
+    system_name = _arch_env("SML_FIRECREST_SYSTEM", arch)
+    partition = _arch_env("SML_PARTITION", arch)
+    reservation = _arch_env("SML_RESERVATION", arch)
+    missing = [
+        name
+        for name, val in (
+            ("SML_FIRECREST_URL", firecrest_url),
+            ("SML_FIRECREST_SYSTEM", system_name),
+            ("SML_PARTITION", partition),
+        )
+        if not val
+    ]
+    if missing:
+        print(
+            f"Missing FireCREST config for arch '{arch}': {', '.join(missing)} "
+            f"(set <VAR>_{arch.upper()} or the base <VAR>)",
+            file=sys.stderr,
+        )
+        return 1
 
     ghcr_token = os.environ["GHCR_TOKEN"]
     ghcr_actor = os.environ["GHCR_ACTOR"]
@@ -139,7 +175,9 @@ async def main(image_name: str) -> int:
     username = user_info["user"]["name"]
     account = user_info["group"]["name"]
 
-    remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}"
+    # Arch-suffixed so concurrent arm64/amd64 builds don't clobber each other's
+    # uploaded build context on a shared home filesystem.
+    remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}-{arch}"
     remote_logs_dir = f"/users/{username}/.sml/image-builds/logs"
 
     print("Creating remote directories...")
@@ -160,10 +198,13 @@ async def main(image_name: str) -> int:
                 blocking=True,
             )
 
-    output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}.sqsh"
+    # Arch-suffixed: capstor is a shared store, so per-arch builds must not
+    # write to the same path.
+    output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}-{arch}.sqsh"
 
     script = _build_slurm_script(
         image_name=image_name,
+        arch=arch,
         account=account,
         partition=partition,
         reservation=reservation,
@@ -205,7 +246,12 @@ async def main(image_name: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <image_name>", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print(f"Usage: {sys.argv[0]} <image_name> [arch]", file=sys.stderr)
         sys.exit(1)
-    sys.exit(asyncio.run(main(sys.argv[1])))
+    image_arg = sys.argv[1]
+    arch_arg = sys.argv[2] if len(sys.argv) == 3 else "arm64"
+    if arch_arg not in ("arm64", "amd64"):
+        print(f"Unsupported arch '{arch_arg}' (expected arm64 or amd64)", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(asyncio.run(main(image_arg, arch_arg)))
