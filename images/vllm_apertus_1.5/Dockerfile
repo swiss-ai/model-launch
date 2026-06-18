@@ -74,7 +74,7 @@ WORKDIR /workspace
 
 RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477 && \
-    git clone https://github.com/baaivision/Emu3.5.git /workspace/Emu3.5 && \
+    git clone https://github.com/swiss-ai/Emu3.5.git /workspace/Emu3.5 && \
     git -C /workspace/Emu3.5 checkout 8fcf1da48f9c5252fe0a0b8dc842e07b6efcd745 && \
     git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
     git -C /workspace/benchmark-audio-tokenizer checkout f8fe507212aa672a067baddb157b92ba3cfe9467 && \
@@ -102,8 +102,10 @@ RUN set -eu; \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation \
-    --editable . \
+    --editable .[audio] \
     --torch-backend=auto;
+
+RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
 
 RUN <<'EOF'
 python - <<'PY'
@@ -120,7 +122,6 @@ except Exception as exc:
 else:
     print("vLLM native extension import check passed.")
 PY
-uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest vllm[audio]  "fastapi[standard]>=0.115.0,<0.137.0"
 printf '%s\n' \
     'Production CUDA 13 image with local vLLM source built inline in Dockerfile.' \
     'Included paths:' \
