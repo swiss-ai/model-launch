@@ -4,7 +4,7 @@ sml advanced \
   --partition normal \
   --slurm-replicas 2 \
   --slurm-nodes-per-replica 4 \
-  --use-router \
+  --router SGL \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --pre-launch-cmds "pip install blobfile" \
