@@ -168,7 +168,7 @@ def test_router_registers_as_llm_front_door_on_router_port():
     args = _make_args(
         disable_ocf=False,
         topology=Topology(replicas=2, nodes_per_replica=1),
-        use_router=True,
+        router="SGL",
     )
     router = render_rank_scripts(args)["router.sh"]
     assert "$OCF_BIN start" in router
@@ -184,7 +184,7 @@ def test_head_goes_metrics_only_when_fronted_by_router():
     args = _make_args(
         disable_ocf=False,
         topology=Topology(replicas=2, nodes_per_replica=1),
-        use_router=True,
+        router="SGL",
     )
     head = render_rank_scripts(args)["head.sh"]
     assert "$OCF_BIN start" in head
@@ -196,7 +196,7 @@ def test_head_registers_as_llm_without_router():
     args = _make_args(
         disable_ocf=False,
         topology=Topology(replicas=2, nodes_per_replica=1),
-        use_router=False,
+        router="OCF",
     )
     head = render_rank_scripts(args)["head.sh"]
     assert "--service.name llm" in head
@@ -206,7 +206,7 @@ def test_router_omits_ocf_wrap_when_disabled():
     args = _make_args(
         disable_ocf=True,
         topology=Topology(replicas=2, nodes_per_replica=1),
-        use_router=True,
+        router="SGL",
     )
     router = render_rank_scripts(args)["router.sh"]
     assert "$OCF_BIN start" not in router
@@ -221,7 +221,7 @@ def test_telemetry_ocf_service_port_follows_router():
         _make_args(
             telemetry_endpoint="https://telemetry.example.com/jobs",
             topology=Topology(replicas=2, nodes_per_replica=1),
-            use_router=True,
+            router="SGL",
         )
     )
     assert '"ocf_service_port": 30000' in with_router
@@ -230,7 +230,7 @@ def test_telemetry_ocf_service_port_follows_router():
         _make_args(
             telemetry_endpoint="https://telemetry.example.com/jobs",
             topology=Topology(replicas=2, nodes_per_replica=1),
-            use_router=False,
+            router="OCF",
         )
     )
     assert '"ocf_service_port": 8080' in without_router

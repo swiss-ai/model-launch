@@ -1,10 +1,18 @@
 import math
 import re
 import warnings
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from swiss_ai_model_launch.launchers.topology import Topology
+
+# Routing strategy across replicas. OCF (default): OpenTela load-balances across
+# the replica peers on the mesh. SGL: an in-job SGLang router fronts the replicas
+# and becomes the served endpoint.
+RouterMode = Literal["OCF", "SGL"]
+ROUTER_OCF: RouterMode = "OCF"
+ROUTER_SGL: RouterMode = "SGL"
 
 # The framework's HTTP server port is hardcoded across the system: it's
 # auto-injected as ``--port`` into framework_args, used as OCF's
@@ -83,7 +91,7 @@ class LaunchArgs(BaseModel):
     framework: str
     framework_args: str = ""
     pre_launch_cmds: str = ""
-    use_router: bool = False
+    router: RouterMode = ROUTER_OCF
     router_args: str = ""
     disable_ocf: bool = False
     ocf_bootstrap_addr: str | None = None
@@ -141,7 +149,7 @@ class LaunchArgs(BaseModel):
             "PRE_LAUNCH_CMDS": self.pre_launch_cmds,
             "REPLICAS": str(self.topology.replicas),
             "NODES_PER_REPLICA": str(self.topology.nodes_per_replica),
-            "USE_ROUTER": "true" if self.use_router else "false",
+            "ROUTER": self.router,
             "ROUTER_ENVIRONMENT": self.environment,
             "ROUTER_ARGS": self.router_args,
             "USE_OCF": "false" if self.disable_ocf else "true",

@@ -250,7 +250,12 @@ async def launch_preconfigured_model(
     framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
     replicas: Annotated[int, "Number of independent inference engine instances to launch."] = 1,
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
-    use_router: Annotated[bool, "Enable router for load balancing across replicas."] = False,
+    router: Annotated[
+        Literal["OCF", "SGL"],
+        "Routing strategy across replicas. 'OCF' (default): OpenTela load-balances across "
+        "the replica peers on the mesh. 'SGL': an in-job SGLang router fronts the replicas "
+        "and becomes the served endpoint (needs replicas > 1).",
+    ] = "OCF",
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -289,7 +294,7 @@ async def launch_preconfigured_model(
         replicas=replicas,
         time=time,
         served_model_name=f"{model}-{create_salt(4)}",
-        use_router=use_router,
+        router=router,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")

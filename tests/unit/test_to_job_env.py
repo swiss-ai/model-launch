@@ -22,7 +22,7 @@ def test_to_job_env_keys():
         "PRE_LAUNCH_CMDS",
         "REPLICAS",
         "NODES_PER_REPLICA",
-        "USE_ROUTER",
+        "ROUTER",
         "ROUTER_ENVIRONMENT",
         "ROUTER_ARGS",
         "USE_OCF",
@@ -63,9 +63,9 @@ def test_to_job_env_injects_port_with_no_user_args():
     assert env["FRAMEWORK_ARGS"] == "--port 8080"
 
 
-def test_to_job_env_use_router():
-    assert _make_args(use_router=False).to_job_env()["USE_ROUTER"] == "false"
-    assert _make_args(use_router=True).to_job_env()["USE_ROUTER"] == "true"
+def test_to_job_env_router():
+    assert _make_args(router="OCF").to_job_env()["ROUTER"] == "OCF"
+    assert _make_args(router="SGL").to_job_env()["ROUTER"] == "SGL"
 
 
 def test_to_job_env_use_ocf():

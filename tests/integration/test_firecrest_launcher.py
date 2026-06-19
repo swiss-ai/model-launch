@@ -59,7 +59,7 @@ _STD_LAUNCH_REQUESTS = [
             ModelCatalogEntry.model_validate(entry),
             replicas=replicas,
             time="04:00:00",
-            use_router=use_router,
+            router="SGL" if use_router else "OCF",
         ),
         id=f"{entry['model']}/{entry['framework']}/{config_id}",
         marks=[pytest.mark.std],

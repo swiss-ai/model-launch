@@ -44,7 +44,7 @@ def _parse_sml_advanced_script(content: str):
 # - singular sglang on a different system + partition (beverin/mi300, ROCm env)
 # - singular vllm (the common single-node vllm case)
 # - multi-node single-replica sglang (--slurm-nodes-per-replica > 1)
-# - multi-replica multi-node with router (--use-router + --slurm-replicas)
+# - multi-replica multi-node with router (--router SGL + --slurm-replicas)
 # - multi-node single-replica vllm (vLLM Ray bootstrapping path)
 _SELECTED_EXAMPLES = [
     "examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh",

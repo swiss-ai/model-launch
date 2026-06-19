@@ -30,8 +30,11 @@ from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, re
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     DEFAULT_MAX_JOB_TIME,
+    ROUTER_OCF,
+    ROUTER_SGL,
     TELEMETRY_ENDPOINT,
     LaunchArgs,
+    RouterMode,
     time_str_to_seconds,
 )
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
@@ -109,7 +112,7 @@ def _make_slurm_account_config() -> ChainConfiguration:
 def _make_launch_request_config(
     vendor_models_factory: _OptionsFactory = None,
     frameworks_factory: _OptionsFactory = None,
-    use_router_factory: _OptionsFactory = None,
+    router_factory: _OptionsFactory = None,
 ) -> ChainConfiguration:
     """Build the launch request config.
 
@@ -118,8 +121,8 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        "yes": ("Yes", "Use router to load balance across replicas"),
-        "no": ("No", "Do not use router"),
+        ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
+        ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
     }
     return ChainConfiguration(
         name="launcher_request_configuration",
@@ -143,10 +146,10 @@ def _make_launch_request_config(
                 default="1",
             ),
             OptionsConfiguration(
-                name="use_router",
-                prompt="Use router to load balance across replicas.",
-                options_factory=use_router_factory,
-                options=None if use_router_factory else _router_options,
+                name="router",
+                prompt="Routing strategy across replicas (OCF = OpenTela mesh, SGL = in-job SGLang router).",
+                options_factory=router_factory,
+                options=None if router_factory else _router_options,
             ),
             TextConfiguration(
                 name="time",
@@ -254,10 +257,17 @@ def _add_advanced_launch_arguments(
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
-        "--use-router",
-        dest="use_router",
-        action="store_true",
-        help="Enable router to load balance across replicas.",
+        "--router",
+        dest="router",
+        choices=[ROUTER_OCF, ROUTER_SGL],
+        type=str.upper,
+        default=ROUTER_OCF,
+        help=(
+            "Routing strategy across replicas. "
+            f"'{ROUTER_OCF}' (default): OpenTela load-balances across the replica peers "
+            f"on the mesh. '{ROUTER_SGL}': an in-job SGLang router fronts the replicas and "
+            "becomes the served endpoint (needs replicas > 1)."
+        ),
     )
     advanced_parser.add_argument(
         "--router-args",
@@ -494,13 +504,15 @@ async def _get_slurm_launcher(
 
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
     replicas = get_value("replicas")
+    # The in-job SGLang router only makes sense with more than one replica to
+    # balance across; with a single replica only mesh-level OCF routing applies.
     if replicas is not None and int(replicas) > 1:
         return {
-            "yes": ("Yes", "Use router to load balance across replicas"),
-            "no": ("No", "Do not use router"),
+            ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
+            ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas"),
         }
     return {
-        "no": ("No", "Do not use router"),
+        ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
     }
 
 
@@ -525,7 +537,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
     launch_req_config = _make_launch_request_config(
         vendor_models_factory=_get_vendor_models,
         frameworks_factory=_get_frameworks,
-        use_router_factory=lambda get_value: _get_router_options(get_value),
+        router_factory=lambda get_value: _get_router_options(get_value),
     )
     await launch_req_config.aconfigure(args=args)
 
@@ -542,7 +554,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{model}-{create_salt(4)}",
-        use_router=launch_req_config.get_non_none_value("use_router") == "yes",
+        router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
     )
 
 
@@ -583,7 +595,7 @@ async def _create_launcher(
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
 
-def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, str, str]]:
+def _log_sources(expected_replicas: int, router: RouterMode) -> list[tuple[str, str, str]]:
     """The log sources shown as TUI tabs, as (label, stdout_file, stderr_file).
 
     The master's own orchestration output is in log.out/log.err; each replica's
@@ -591,7 +603,7 @@ def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, st
     """
     sources = [("Master", "log.out", "log.err")]
     sources += [(f"Replica {r}", f"replica_{r}.out", f"replica_{r}.err") for r in range(expected_replicas)]
-    if use_router and expected_replicas > 1:
+    if router == ROUTER_SGL and expected_replicas > 1:
         sources.append(("Router", "router.out", "router.err"))
     return sources
 
@@ -626,9 +638,9 @@ async def _run_monitor(
     cscs_api_key: str,
     *,
     expected_replicas: int,
-    use_router: bool = False,
+    router: RouterMode = ROUTER_OCF,
 ) -> None:
-    sources = _log_sources(expected_replicas, use_router)
+    sources = _log_sources(expected_replicas, router)
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
     state = DisplayState([label for label, _, _ in sources])
     state.update(cluster=launcher.system_name, partition=launcher.partition)
@@ -724,7 +736,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
             _as_single_chain(launch_coro),
             cscs_api_key,
             expected_replicas=launch_request.replicas,
-            use_router=launch_request.use_router,
+            router=launch_request.router,
         )
     else:
         job_id, served = await launch_coro
@@ -785,7 +797,7 @@ def build_launch_args_from_advanced(
         framework=args.framework,
         framework_args=args.framework_args,
         pre_launch_cmds=args.pre_launch_cmds,
-        use_router=args.use_router,
+        router=args.router,
         router_args=args.router_args,
         disable_ocf=args.disable_ocf,
         ocf_bootstrap_addr=ocf_bootstrap_addr,
@@ -883,7 +895,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             submit_coro,
             cscs_api_key,
             expected_replicas=launch_args.topology.replicas,
-            use_router=launch_args.use_router,
+            router=launch_args.router,
         )
     else:
         scheduled = await submit_coro

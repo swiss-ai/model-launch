@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
+    ROUTER_SGL,
     LaunchArgs,
     time_str_to_seconds,
 )
@@ -126,7 +127,7 @@ def _fronted_by_router(launch_args: LaunchArgs) -> bool:
     # A router only fronts the replicas when explicitly requested AND there is
     # more than one replica to balance across (mirrors the gate in
     # render_rank_scripts / _render_router_launch).
-    return launch_args.use_router and launch_args.topology.replicas > 1
+    return launch_args.router == ROUTER_SGL and launch_args.topology.replicas > 1
 
 
 def _ocf_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
@@ -365,7 +366,9 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     if not launch_args.telemetry_endpoint:
         return ""
     topology = launch_args.topology
-    use_router = "true" if launch_args.use_router else "false"
+    # The telemetry backend's schema predates the OCF/SGL router model and still
+    # keys on a boolean; derive it from the router mode rather than send a new field.
+    use_router = "true" if launch_args.router == ROUTER_SGL else "false"
     use_ocf = "false" if launch_args.disable_ocf else "true"
     # When a router fronts the replicas it is the OpenTela `llm` front door, so
     # the servable endpoint is advertised on the router port (the heads go
@@ -678,7 +681,7 @@ def _render_health_checker(launch_args: LaunchArgs) -> str:
 
 def _render_router_launch(launch_args: LaunchArgs) -> str:
     topology = launch_args.topology
-    if not launch_args.use_router or topology.replicas <= 1:
+    if not _fronted_by_router(launch_args):
         return ""
     # Pass all replica head IPs to router.sh as positional args.
     ip_args = " ".join(f'"$replica_{r}_head_ip"' for r in range(topology.replicas))
@@ -811,7 +814,7 @@ def render_rank_scripts(launch_args: LaunchArgs) -> dict[str, str]:
         if npr > 1:
             scripts["follower.sh"] = _render_vllm_follower(launch_args, framework)
 
-    if launch_args.use_router and launch_args.topology.replicas > 1:
+    if _fronted_by_router(launch_args):
         scripts["router.sh"] = _render_router(launch_args)
 
     return scripts

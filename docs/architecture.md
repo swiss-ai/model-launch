@@ -68,7 +68,7 @@ SML is one piece of a larger system. The siblings:
 2. SML serializes launch args, builds an `sbatch` script, submits via FirecREST or directly via SLURM.
 3. SLURM allocates nodes; the job script starts the inference framework on each replica.
 4. Each replica registers itself on the OpenTela p2p mesh under the served model name (unless `--disable-ocf` was passed).
-5. (Optional) `--use-router` puts a framework router (e.g. sglang-router) in front of the replicas inside the job. This is orthogonal to OpenTela — the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+5. (Optional) `--router SGL` puts a framework router (e.g. sglang-router) in front of the replicas inside the job (the default `--router OCF` lets OpenTela balance across the replica peers instead). The in-job router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 6. DCGM exporter and vmagent start in sidecar fashion on each replica node, pushing metrics to the telemetry endpoint.
 7. A user request hits serving-api → serving-api uses OpenTela to look up the model name and pick a registered peer → the request flows through the OpenTela mesh to that peer, where the peer's local OpenTela layer hands it off to the framework process.
 

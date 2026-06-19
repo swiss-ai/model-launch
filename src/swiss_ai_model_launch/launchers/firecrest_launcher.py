@@ -127,7 +127,7 @@ class FirecRESTLauncher(Launcher):
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
-            use_router=launch_request.use_router,
+            router=launch_request.router,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:

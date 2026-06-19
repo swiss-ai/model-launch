@@ -26,8 +26,8 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)        |
 | `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
-| `--router-args`             |                         | Arguments forwarded to the router                                 |
+| `--router`                  |                         | Routing: `OCF` (default) or `SGL` (in-job router, replicas > 1)   |
+| `--router-args`             |                         | Arguments forwarded to the router (`--router SGL`)                |
 | `--disable-ocf`             |                         | Disable OCF wrapper                                               |
 | `--otela-bootstrap-addr`    |                         | Override the OCF/OpenTela bootstrap peer (full multiaddr)         |
 | `--dev`                     |                         | Shorthand for the dev OCF/OpenTela bootstrap peer                 |

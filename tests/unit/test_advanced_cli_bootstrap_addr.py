@@ -37,6 +37,26 @@ def test_advanced_dev_flag_selects_dev_bootstrap_addr():
     assert la.ocf_bootstrap_addr == OCF_BOOTSTRAP_ADDR_DEV
 
 
+def test_advanced_router_defaults_to_ocf():
+    # Default routing strategy is OCF (mesh load-balancing) -> no SGLang router.
+    args = _minimal_advanced_args()
+    assert args.router == "OCF"
+    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    assert la.router == "OCF"
+
+
+def test_advanced_router_sgl_enables_router():
+    args = _minimal_advanced_args("--router", "SGL")
+    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    assert la.router == "SGL"
+
+
+def test_advanced_router_is_case_insensitive():
+    args = _minimal_advanced_args("--router", "sgl")
+    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    assert la.router == "SGL"
+
+
 def test_advanced_explicit_addr_overrides_dev():
     custom = "/ip4/10.0.0.42/tcp/43905/p2p/QmCustomPeerXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     args = _minimal_advanced_args("--dev", "--otela-bootstrap-addr", custom)
@@ -66,8 +86,8 @@ def test_preconfigured_slurm_account_is_parsed():
             "sglang",
             "--replicas",
             "1",
-            "--use-router",
-            "no",
+            "--router",
+            "OCF",
             "--time",
             "02:00:00",
         ]

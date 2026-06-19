@@ -97,7 +97,7 @@ A single `master.sh` (visible via `--output-script` — see [usage](usage-advanc
 5. **Per-replica head IP discovery** — one `hostname -i` srun per replica
 6. **Per-rank `srun` calls** — one block per (replica, rank). Each binds the rank dir into the pyxis container via `--container-mounts="$RANKS_DIR:$RANKS_DIR"` and invokes `bash $RANKS_DIR/<role>.sh`
 7. **vmagent** (optional) — metrics scraper on the batch node
-8. **Router** (optional) — `sglang_router` on `nodes[0]` when `replicas > 1 && --use-router`
+8. **Router** (optional) — `sglang_router` on `nodes[0]` when `replicas > 1 && --router SGL`
 9. **Footer** — connect/cancel hints, `wait`, "Script finished"
 
 ### Where to make changes
