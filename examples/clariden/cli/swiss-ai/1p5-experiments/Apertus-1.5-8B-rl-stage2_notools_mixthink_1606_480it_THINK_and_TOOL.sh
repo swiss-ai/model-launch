@@ -19,7 +19,8 @@ sml advanced \
     --max-model-len 262144 \
     --gpu-memory-utilization 0.6 \
     --skip-mm-profiling \
-    --reasoning-parser deepseek_r1 \
+    --reasoning-parser apertus \
+    --reasoning-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_reasoning_parser.py \
     --enable-auto-tool-choice \
     --tool-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_tool_parser.py  \
     --tool-call-parser apertus \
