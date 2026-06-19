@@ -95,6 +95,21 @@ def test_panel_shows_all_running_jobs_during_handover() -> None:
         assert ip in out
 
 
+def test_clearing_reports_drops_stale_per_job_panels() -> None:
+    state = DisplayState()
+    state.set_replica_reports(
+        [(101, ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "Q", 1, 0, "10.0.0.1"),)))]
+    )
+    assert "Job 101 — " in _render(state)
+    # No RUNNING jobs left -> reports replaced with []; the panel must stop showing
+    # the now-stale per-job section rather than leaving it lingering.
+    state.set_replica_reports([])
+    out = _render(state)
+    assert "Job 101" not in out
+    assert "10.0.0.1" not in out
+    assert "Waiting" in out
+
+
 def test_reports_take_precedence_over_single_report() -> None:
     state = DisplayState()
     state.set_replica_report(ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "QmX", 1, 0, "9.9.9.9"),)))

@@ -177,6 +177,20 @@ def build_report(
     return {"checked_at": now, "replicas": replicas}
 
 
+def all_replicas_healthy(report, expected):
+    # type: (Dict[str, Any], int) -> bool
+    """Whether every expected replica is present and HEALTHY in this report.
+
+    Guards against ``expected == 0`` (an empty/unset replica list): with no
+    replicas the ``all(...)`` below is vacuously true, which would otherwise let
+    the handover cancel the predecessor immediately and drop the only allocation.
+    """
+    if expected <= 0:
+        return False
+    replicas = report.get("replicas", [])
+    return len(replicas) >= expected and all(r.get("health") == "HEALTHY" for r in replicas)
+
+
 def write_report_atomically(report: Dict[str, Any], report_path: str) -> None:
     directory = os.path.dirname(report_path)
     if directory:
@@ -223,16 +237,13 @@ def main() -> int:
             write_report_atomically(report, report_path)
             # Handover: cancel the predecessor only once every expected replica is
             # serving here, so the chain never drops below a healthy allocation.
-            if previous_job_id and not handover_done:
-                replicas = report.get("replicas", [])
-                all_healthy = len(replicas) >= expected and all(r.get("health") == "HEALTHY" for r in replicas)
-                if all_healthy:
-                    sys.stdout.write(
-                        "replica health checker: all %d replicas healthy; cancelling predecessor job %s\n"
-                        % (expected, previous_job_id)
-                    )
-                    sys.stdout.flush()
-                    handover_done = cancel_previous_job(previous_job_id)
+            if previous_job_id and not handover_done and all_replicas_healthy(report, expected):
+                sys.stdout.write(
+                    "replica health checker: all %d replicas healthy; cancelling predecessor job %s\n"
+                    % (expected, previous_job_id)
+                )
+                sys.stdout.flush()
+                handover_done = cancel_previous_job(previous_job_id)
         except Exception as exc:  # resilience: keep the loop alive on any error
             sys.stderr.write(f"replica health checker: iteration failed: {exc}\n")
             sys.stderr.flush()

@@ -602,7 +602,9 @@ def _focus_job(scheduled: list[ScheduledJob], statuses: dict[int, JobStatus]) ->
     After a handover, the newest RUNNING job is what's actually serving, so it
     wins. Before anything is running, focus the next job still PENDING so the user
     watches it come up; once the whole chain is gone, fall back to the last job.
-    Jobs that finish or get cancelled read as UNKNOWN (squeue drops them).
+    Only RUNNING and PENDING jobs are candidates here, so any terminal state
+    (COMPLETED / CANCELLED / FAILED / TIMEOUT, or UNKNOWN once squeue drops the
+    job and sacct has nothing) is simply skipped.
     """
     running = [s for s in scheduled if statuses.get(s.job_id) == JobStatus.RUNNING]
     if running:
@@ -671,8 +673,10 @@ async def _run_monitor(
                     report = await launcher.get_replica_health(job.job_id, served, expected_replicas)
                     if report is not None:
                         reports.append((job.job_id, report))
-                if reports:
-                    state.set_replica_reports(reports)
+                # Always replace (even with []) so the panel tracks the current
+                # RUNNING set — a finished/cancelled job's replicas stop showing
+                # instead of lingering as stale per-job sections.
+                state.set_replica_reports(reports)
             else:
                 report = await launcher.get_replica_health(focused.job_id, served, expected_replicas)
                 if report is not None:

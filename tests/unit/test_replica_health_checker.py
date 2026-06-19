@@ -202,3 +202,25 @@ def test_cancel_previous_job_subprocess_error(monkeypatch) -> None:  # type: ign
 
     monkeypatch.setattr(checker.subprocess, "run", _boom)
     assert checker.cancel_previous_job("4242") is False
+
+
+def _report(*healths: str) -> dict:
+    return {"checked_at": 1, "replicas": [{"health": h} for h in healths]}
+
+
+def test_all_replicas_healthy_true_when_all_present_and_healthy() -> None:
+    assert checker.all_replicas_healthy(_report("HEALTHY", "HEALTHY"), 2) is True
+
+
+def test_all_replicas_healthy_false_when_any_unhealthy_or_missing() -> None:
+    assert checker.all_replicas_healthy(_report("HEALTHY", "NOT_RESPONDING"), 2) is False
+    assert checker.all_replicas_healthy(_report("HEALTHY"), 2) is False  # one not reported yet
+
+
+def test_all_replicas_healthy_guards_zero_expected() -> None:
+    # No expected replicas -> never "all healthy"; otherwise the empty all() would
+    # be vacuously true and the handover would cancel the predecessor immediately,
+    # dropping the only allocation.
+    assert checker.all_replicas_healthy(_report(), 0) is False
+    assert checker.all_replicas_healthy({"replicas": []}, 0) is False
+    assert checker.all_replicas_healthy(_report(), -1) is False
