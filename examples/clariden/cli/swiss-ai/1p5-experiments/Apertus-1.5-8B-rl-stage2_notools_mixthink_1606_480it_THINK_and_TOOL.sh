@@ -2,7 +2,7 @@
 
 
 
-# THINK - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it-THINK
+# THINK-TOOL - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it-THINK-TOOL
 sml advanced \
   --firecrest-system clariden \
   --partition normal \
