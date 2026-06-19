@@ -9,10 +9,14 @@ import pytest
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from tests.integration.utils import wait_for_job_running, wait_for_model_healthy
+from tests.integration.utils import wait_for_all_replicas_healthy, wait_for_job_running, wait_for_model_healthy
 
-_LAUNCH_TIMEOUT = 240
-_HEALTH_TIMEOUT = 240
+# Timeouts in minutes. Overridable via env so a failing run can be made to time
+# out quickly for debugging (e.g. SML_TEST_REPLICA_TIMEOUT=5) without changing
+# the committed defaults.
+_LAUNCH_TIMEOUT = int(os.environ.get("SML_TEST_LAUNCH_TIMEOUT") or "60")
+_HEALTH_TIMEOUT = int(os.environ.get("SML_TEST_HEALTH_TIMEOUT") or "60")
+_REPLICA_TIMEOUT = int(os.environ.get("SML_TEST_REPLICA_TIMEOUT") or "60")
 
 _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
@@ -130,5 +134,15 @@ async def test_launch_apertus_and_health(
     try:
         await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
         await wait_for_model_healthy(launcher, job_id, served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
+        # For multi-replica launches the e2e check only proves *one* replica
+        # answers, so additionally confirm every replica is healthy.
+        if launch_request.replicas > 1:
+            await wait_for_all_replicas_healthy(
+                launcher,
+                job_id,
+                served_model_name,
+                launch_request.replicas,
+                _REPLICA_TIMEOUT,
+            )
     finally:
         await launcher.cancel_job(job_id)

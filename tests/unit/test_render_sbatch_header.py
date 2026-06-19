@@ -26,7 +26,7 @@ def test_render_sbatch_header_structure() -> None:
     assert "#SBATCH --exclusive" in header
     assert "#SBATCH --partition=normal" in header
     assert "#SBATCH --output=logs/%j/log.out" in header
-    assert "#SBATCH --error=logs/%j/log.out" in header
+    assert "#SBATCH --error=logs/%j/log.err" in header
 
 
 def test_render_sbatch_header_with_reservation() -> None:

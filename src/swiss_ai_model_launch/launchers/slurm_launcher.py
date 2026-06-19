@@ -117,6 +117,13 @@ class SlurmLauncher(Launcher):
         # sbatch prints: "Submitted batch job 12345"
         return int(stdout.decode().strip().split()[-1])
 
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        path = self._get_working_dir() / "logs" / str(job_id) / filename
+        try:
+            return decode_log(path.read_bytes())
+        except FileNotFoundError:
+            return None
+
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 

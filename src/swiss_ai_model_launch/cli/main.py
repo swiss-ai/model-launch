@@ -543,13 +543,61 @@ async def _create_launcher(
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
 
+def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, str, str]]:
+    """The log sources shown as TUI tabs, as (label, stdout_file, stderr_file).
+
+    The master's own orchestration output is in log.out/log.err; each replica's
+    framework output is in replica_<r>.out/.err (see framework._render_replica_launches).
+    """
+    sources = [("Master", "log.out", "log.err")]
+    sources += [(f"Replica {r}", f"replica_{r}.out", f"replica_{r}.err") for r in range(expected_replicas)]
+    if use_router and expected_replicas > 1:
+        sources.append(("Router", "router.out", "router.err"))
+    return sources
+
+
 async def _run_monitor(
     launcher: Launcher,
     launch_coro: Coroutine[Any, Any, tuple[int, str]],
     cscs_api_key: str,
+    *,
+    expected_replicas: int,
+    use_router: bool = False,
 ) -> None:
-    state = DisplayState()
+    sources = _log_sources(expected_replicas, use_router)
+    source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
+    state = DisplayState([label for label, _, _ in sources])
     state.update(cluster=launcher.system_name, partition=launcher.partition)
+
+    async def _monitor_model_health(served: str) -> None:
+        # End-to-end probe through the public gateway. It can block for its full
+        # timeout, so it runs in its own loop — see _monitor_job.
+        ever_healthy = False
+        while True:
+            await asyncio.sleep(5)
+            model_health = await check_model_health(served, cscs_api_key)
+            if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
+                model_health = ModelHealth.NOT_DEPLOYED
+            ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
+            state.update(model_health=model_health)
+
+    async def _monitor_job(job_id: int, served: str) -> None:
+        # Job status, per-replica health, and logs — independent of the e2e
+        # gateway probe so a slow probe never delays these updates. The model's
+        # own job writes the replica report; we read the latest (None until the
+        # in-job checker first writes it). Only the active tab's logs are fetched,
+        # so log traffic stays bounded regardless of replica count.
+        while True:
+            await asyncio.sleep(5)
+            state.update(job_status=await launcher.get_job_status(job_id))
+            report = await launcher.get_replica_health(job_id, served, expected_replicas)
+            if report is not None:
+                state.set_replica_report(report)
+            source = state.active_source
+            out_file, err_file = source_files[source]
+            out = await launcher.read_job_file(job_id, out_file)
+            err = await launcher.read_job_file(job_id, err_file)
+            state.set_source_log(source, out or "", err or "")
 
     async def _monitor() -> None:
         job_id, served = await launch_coro
@@ -558,22 +606,7 @@ async def _run_monitor(
             served_model_name=served,
             model_health=ModelHealth.NOT_DEPLOYED,
         )
-        ever_healthy = False
-        while True:
-            await asyncio.sleep(5)
-
-            job_status = await launcher.get_job_status(job_id)
-            state.update(job_status=job_status)
-
-            model_health = await check_model_health(served, cscs_api_key)
-            if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
-                model_health = ModelHealth.NOT_DEPLOYED
-            ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
-            state.update(model_health=model_health)
-
-            o, e = await launcher.get_job_logs(job_id)
-            state.set_out_log(o)
-            state.set_err_log(e)
+        await asyncio.gather(_monitor_model_health(served), _monitor_job(job_id, served))
 
     kill_job = await LiveDisplay(state).run(_monitor())
     if kill_job and state.job_id is not None:
@@ -591,7 +624,13 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     launch_request = await _get_launch_request(launcher, args)
     launch_coro = launcher.launch_model(launch_request)
     if args.tui:
-        await _run_monitor(launcher, launch_coro, cscs_api_key)
+        await _run_monitor(
+            launcher,
+            launch_coro,
+            cscs_api_key,
+            expected_replicas=launch_request.replicas,
+            use_router=launch_request.use_router,
+        )
     else:
         job_id, served = await launch_coro
         print(f"Job submitted: {job_id}")
@@ -706,7 +745,13 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
     launch_coro = launcher.launch_with_args(launch_args)
     if args.tui:
-        await _run_monitor(launcher, launch_coro, cscs_api_key)
+        await _run_monitor(
+            launcher,
+            launch_coro,
+            cscs_api_key,
+            expected_replicas=launch_args.topology.replicas,
+            use_router=launch_args.use_router,
+        )
     else:
         job_id, served = await launch_coro
         print(f"Job submitted: {job_id}")

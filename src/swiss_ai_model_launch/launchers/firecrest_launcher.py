@@ -167,6 +167,24 @@ class FirecRESTLauncher(Launcher):
         )
         return int(job_submission_report["jobId"]), launch_args.served_model_name
 
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / filename
+        with tempfile.TemporaryDirectory(prefix=f"sml_logs_{job_id}_") as target_dir:
+            target_path = Path(target_dir) / Path(filename).name
+            try:
+                await call_with_firecrest_retry(
+                    lambda: self.client.download(
+                        system_name=self.system_name,
+                        source_path=str(remote_path),
+                        target_path=target_path,
+                        account=self.account,
+                        blocking=True,
+                    )
+                )
+                return decode_log(target_path.read_bytes())
+            except (FileNotFoundError, f7t.FirecrestException):
+                return None
+
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 

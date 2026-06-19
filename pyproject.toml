@@ -53,6 +53,10 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+# The in-job replica health checker must stay Python 3.6-compatible (it runs
+# under the HPC batch node's own python3), so it cannot adopt the modern typing
+# syntax (PEP 585/604) that pyupgrade would rewrite it to.
+"src/swiss_ai_model_launch/assets/replica_health_checker.py" = ["UP"]
 
 [tool.mypy]
 files = ["src"]
