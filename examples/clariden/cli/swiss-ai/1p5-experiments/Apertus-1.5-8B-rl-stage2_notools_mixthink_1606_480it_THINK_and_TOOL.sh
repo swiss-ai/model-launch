@@ -24,5 +24,9 @@ sml advanced \
     --enable-auto-tool-choice \
     --tool-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_tool_parser.py  \
     --tool-call-parser apertus \
+    --chat-template /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_chat_template.jinja \
     --default-chat-template-kwargs.enable_thinking true"
 
+# apertus_chat_template.jinja = model dir template + tool_call.arguments dict/string fix (no prime).
+# Required for multi-turn tool calls (model dir template throws "str + dict" on tool-call replay).
+# TODO: drop --chat-template once the fix lands upstream (swiss-ai/apertus-omni-tokenizer PR #3).

@@ -38,7 +38,9 @@ sml advanced \
     --max-model-len 262144 \
     --gpu-memory-utilization 0.6 \
     --skip-mm-profiling \
-    --reasoning-parser deepseek_r1 \
+    --reasoning-parser apertus \
+    --reasoning-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_reasoning_parser.py \
+    --chat-template /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_chat_template_think.jinja \
     --default-chat-template-kwargs.enable_thinking true"
 
 
