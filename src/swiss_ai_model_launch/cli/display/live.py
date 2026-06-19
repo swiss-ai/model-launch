@@ -44,6 +44,20 @@ def _slug(source: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", source.lower()).strip("-")
 
 
+def _model_health_label(health: ModelHealth, blink_on: bool) -> str:
+    """The styled health text, with a green heart beside HEALTHY that blinks.
+
+    The heart is driven by the panel's 0.5s refresh tick (``blink_on`` flips each
+    tick). When off, a 2-cell placeholder keeps its slot reserved so the label
+    doesn't jitter as the heart toggles.
+    """
+    label = _MODEL_HEALTH_STYLE[health]
+    if health != ModelHealth.HEALTHY:
+        return label
+    heart = "[green]💚[/green]" if blink_on else "  "
+    return f"{heart} {label}"
+
+
 def _replica_summary(report: ReplicaHealthReport) -> str:
     expected = report.expected_replicas if report.expected_replicas > 0 else report.found
     healthy = sum(r.health == ModelHealth.HEALTHY for r in report.replicas)
@@ -61,7 +75,7 @@ def _format_heartbeat(last_seen: int | None) -> str:
     return f"{when} [dim]({ago}s ago)[/dim]"
 
 
-def _render_replica_panel(state: DisplayState) -> RenderableType:
+def _render_replica_panel(state: DisplayState, blink_on: bool = False) -> RenderableType:
     report: ReplicaHealthReport | None = state.replica_report
     if report is None:
         return "[bold]Replica Health[/bold]\n[dim]Waiting for the job's first health report…[/dim]"
@@ -78,7 +92,7 @@ def _render_replica_panel(state: DisplayState) -> RenderableType:
         table.add_row(
             str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
             replica.node_ip or "[dim]—[/dim]",
-            _MODEL_HEALTH_STYLE[replica.health],
+            _model_health_label(replica.health, blink_on),
             _format_heartbeat(replica.last_seen),
         )
     if report.checked_at is not None:
@@ -122,12 +136,13 @@ class _SMLApp(App[bool]):
         super().__init__()
         self._state = state
         self._work = work
+        self._blink_on = False
         self._slug_to_source = {_slug(source): source for source in state.sources}
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Label(self._render_status(), id=_STATUS_LABEL_ID, markup=True)
-        yield Label(_render_replica_panel(self._state), id=_REPLICA_LABEL_ID, markup=True)
+        yield Label(_render_replica_panel(self._state, self._blink_on), id=_REPLICA_LABEL_ID, markup=True)
         # Outer tabs: one per log source (Master, Replica 0, …, Router). Inside
         # each, stdout/stderr sub-tabs. Only the active source's logs are fetched.
         with TabbedContent(id=_SOURCE_TABS_ID):
@@ -143,9 +158,9 @@ class _SMLApp(App[bool]):
 
     async def on_mount(self) -> None:
         self._state._on_change = self._refresh_all
-        # Re-render the replica panel twice a second so the per-replica heartbeat
-        # "ago" counter ticks smoothly, independent of the slower data refresh.
-        self.set_interval(0.5, self._refresh_replicas)
+        # Re-render twice a second so the per-replica heartbeat "ago" counter ticks
+        # smoothly and the HEALTHY heart blinks, independent of the slower data refresh.
+        self.set_interval(0.5, self._tick)
         self.run_worker(self._work, exclusive=True)
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
@@ -197,12 +212,18 @@ class _SMLApp(App[bool]):
         )
         table.add_row(
             f"[bold]Job Status:[/bold] {job_status}",
-            f"[bold]Model Health:[/bold] {_MODEL_HEALTH_STYLE[s.model_health]}",
+            f"[bold]Model Health:[/bold] {_model_health_label(s.model_health, self._blink_on)}",
         )
         return table
 
+    def _tick(self) -> None:
+        # Drive the blinking HEALTHY heart and refresh both panels that show it.
+        self._blink_on = not self._blink_on
+        self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
+        self._refresh_replicas()
+
     def _refresh_replicas(self) -> None:
-        self.query_one(f"#{_REPLICA_LABEL_ID}", Label).update(_render_replica_panel(self._state))
+        self.query_one(f"#{_REPLICA_LABEL_ID}", Label).update(_render_replica_panel(self._state, self._blink_on))
 
     def _load_source(self, source: str) -> None:
         slug = _slug(source)
