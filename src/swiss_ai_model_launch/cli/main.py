@@ -225,10 +225,10 @@ def _add_advanced_launch_arguments(
     advanced_parser.add_argument(
         "--handover-time",
         dest="handover_time",
-        default="01:00:00",
+        default="03:00:00",
         metavar="HH:MM:SS",
         help=(
-            "Overlap window for consecutive jobs (default: 01:00:00). Each job "
+            "Overlap window for consecutive jobs (default: 03:00:00). Each job "
             "starts this long before its predecessor's time limit, giving the "
             "fresh job time to become healthy before the old one expires."
         ),

@@ -23,7 +23,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
 | `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                     |
 | `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs |
-| `--handover-time`           |                         | Overlap before the previous job ends (default: `01:00:00`)        |
+| `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)        |
 | `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
 | `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
@@ -79,14 +79,14 @@ How it works:
 
 - **All jobs are submitted up front.** The job count is the minimum whose
   continuous coverage reaches `--time`, spaced `(--max-job-time − --handover-time)`
-  apart. With the defaults a `36:00:00` request becomes **4 jobs** spaced 11 h apart.
+  apart. With the defaults a `36:00:00` request becomes **4 jobs** spaced 9 h apart.
 - **Anchored to actual start, not a guessed clock.** The head job gets a single
   absolute SLURM `--begin` (≈ now); every successor is submitted with a SLURM
   `--dependency=after:<prev>+<interval>` so it starts that interval after its
   predecessor *actually begins running*. If the head (or any job) sits in the
   queue waiting for resources, the rest of the chain slides with it — the
   handover overlap stays correct instead of firing against stale wall-clock times.
-- **Handover overlap.** A job starts `--handover-time` (default `01:00:00`)
+- **Handover overlap.** A job starts `--handover-time` (default `03:00:00`)
   before its predecessor's limit, giving the fresh job time to load weights and
   become healthy before the old one expires.
 - **Self-cancelling.** Each job is stamped with its predecessor's id and cancels
@@ -98,7 +98,7 @@ How it works:
 - **Exact total.** Every job but the last runs the full `--max-job-time`; the
   last job's time limit is trimmed so the chain ends exactly at `--time` instead
   of overshooting by up to a whole job. The `36:00:00` example above runs
-  `12 h + 12 h + 12 h + 3 h`, ending right on 36 h rather than at 45 h.
+  `12 h + 12 h + 12 h + 9 h`, ending right on 36 h rather than at 39 h.
 
 In the TUI, a **Consecutive Job Chain** panel lists every job with a ▶ on the one
 currently serving, its live status (`PENDING` → `RUNNING` → `CANCELLED` once
