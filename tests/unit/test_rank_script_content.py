@@ -162,6 +162,80 @@ def test_vllm_follower_ocf_metrics_only():
     assert "ray start --address=" in follower
 
 
+def test_router_registers_as_llm_front_door_on_router_port():
+    # With a router fronting the replicas, the router is the OpenTela `llm`
+    # endpoint, advertised on the router port (not the framework port).
+    args = _make_args(
+        disable_ocf=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        use_router=True,
+    )
+    router = render_rank_scripts(args)["router.sh"]
+    assert "$OCF_BIN start" in router
+    assert "--service.name llm" in router
+    assert "--service.port 30000" in router
+    # The wrapped subprocess is still the router launcher.
+    assert "sglang_router.launch_router" in router
+
+
+def test_head_goes_metrics_only_when_fronted_by_router():
+    # The heads must NOT advertise `llm` when a router fronts them, otherwise
+    # OpenTela would route straight to a replica and bypass the router.
+    args = _make_args(
+        disable_ocf=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        use_router=True,
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "$OCF_BIN start" in head
+    assert "--service.name" not in head
+
+
+def test_head_registers_as_llm_without_router():
+    # Multi-replica but no router: each head is its own `llm` endpoint.
+    args = _make_args(
+        disable_ocf=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        use_router=False,
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "--service.name llm" in head
+
+
+def test_router_omits_ocf_wrap_when_disabled():
+    args = _make_args(
+        disable_ocf=True,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        use_router=True,
+    )
+    router = render_rank_scripts(args)["router.sh"]
+    assert "$OCF_BIN start" not in router
+    assert "--bootstrap.addr" not in router
+    assert "sglang_router.launch_router" in router
+
+
+def test_telemetry_ocf_service_port_follows_router():
+    # The telemetry record reports where `llm` is advertised: the router port
+    # when fronted by a router, otherwise the framework port.
+    with_router = render_master(
+        _make_args(
+            telemetry_endpoint="https://telemetry.example.com/jobs",
+            topology=Topology(replicas=2, nodes_per_replica=1),
+            use_router=True,
+        )
+    )
+    assert '"ocf_service_port": 30000' in with_router
+
+    without_router = render_master(
+        _make_args(
+            telemetry_endpoint="https://telemetry.example.com/jobs",
+            topology=Topology(replicas=2, nodes_per_replica=1),
+            use_router=False,
+        )
+    )
+    assert '"ocf_service_port": 8080' in without_router
+
+
 def test_master_telemetry_omitted_when_no_endpoint():
     args = _make_args(telemetry_endpoint=None)
     master = render_master(args)
