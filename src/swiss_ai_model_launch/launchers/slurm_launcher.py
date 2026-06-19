@@ -127,14 +127,20 @@ class SlurmLauncher(Launcher):
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
-    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        launch_args = launch_args.model_copy(
+    async def _prepare_launch_args(self, launch_args: LaunchArgs) -> LaunchArgs:
+        return launch_args.model_copy(
             update={
                 "environment": str(Path(launch_args.environment).resolve()),
             }
         )
-        job_id = await self._sbatch(launch_args)
-        return job_id, launch_args.served_model_name
+
+    async def _submit_one(self, launch_args: LaunchArgs) -> int:
+        return await self._sbatch(launch_args)
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        prepared = await self._prepare_launch_args(launch_args)
+        job_id = await self._submit_one(prepared)
+        return job_id, prepared.served_model_name
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
         env_path = self._get_local_env_file_path(launch_request)

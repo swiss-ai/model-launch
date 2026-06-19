@@ -6,7 +6,7 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time 12:00:00 \
+  --time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/Alignment/ap_1p5/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200-online-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout8-images-2453762-2453767 \

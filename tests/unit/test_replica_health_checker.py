@@ -167,3 +167,38 @@ def test_write_report_atomically(tmp_path) -> None:  # type: ignore[no-untyped-d
     checker.write_report_atomically({"checked_at": 5, "replicas": []}, str(target))
     assert json.loads(target.read_text()) == {"checked_at": 5, "replicas": []}
     assert not (tmp_path / "replica_health.json.tmp").exists()  # temp file renamed away
+
+
+class _Ran:
+    def __init__(self, returncode: int = 0, stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def test_cancel_previous_job_success(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    seen: dict[str, object] = {}
+
+    def _ok(cmd, **_k):  # type: ignore[no-untyped-def]
+        seen["cmd"] = cmd
+        return _Ran(returncode=0)
+
+    monkeypatch.setattr(checker.subprocess, "run", _ok)
+    assert checker.cancel_previous_job("4242") is True
+    assert seen["cmd"] == ["scancel", "4242"]
+
+
+def test_cancel_previous_job_nonzero_exit(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    class _Failed:
+        returncode = 1
+        stderr = "no such job"
+
+    monkeypatch.setattr(checker.subprocess, "run", lambda *a, **k: _Failed())
+    assert checker.cancel_previous_job("4242") is False
+
+
+def test_cancel_previous_job_subprocess_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    def _boom(*_a: object, **_k: object) -> object:
+        raise subprocess.SubprocessError("scancel missing")
+
+    monkeypatch.setattr(checker.subprocess, "run", _boom)
+    assert checker.cancel_previous_job("4242") is False

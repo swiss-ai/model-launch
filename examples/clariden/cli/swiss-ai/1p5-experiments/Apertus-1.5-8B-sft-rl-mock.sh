@@ -6,7 +6,7 @@ sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time 12:00:00 \
+  --time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/Apertus-1p5-8B-sft-capfilter-linear-it8816_gl_180steps \

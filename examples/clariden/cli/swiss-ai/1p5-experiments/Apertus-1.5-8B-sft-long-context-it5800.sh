@@ -3,7 +3,7 @@
 sml advanced \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time 12:00:00 \
+  --time 12:00:00 \
   --serving-framework vllm \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/apertus_1p5/hf_checkpoints/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_5800 \

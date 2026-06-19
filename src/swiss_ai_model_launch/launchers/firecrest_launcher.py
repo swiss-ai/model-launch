@@ -153,9 +153,11 @@ class FirecRESTLauncher(Launcher):
             launch_request.framework,
         )
 
-    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+    async def _prepare_launch_args(self, launch_args: LaunchArgs) -> LaunchArgs:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
-        launch_args = launch_args.model_copy(update={"environment": remote_env_path})
+        return launch_args.model_copy(update={"environment": remote_env_path})
+
+    async def _submit_one(self, launch_args: LaunchArgs) -> int:
         script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
         job_submission_report = await call_with_firecrest_retry(
             lambda: self.client.submit(
@@ -165,7 +167,12 @@ class FirecRESTLauncher(Launcher):
                 account=self.account,
             )
         )
-        return int(job_submission_report["jobId"]), launch_args.served_model_name
+        return int(job_submission_report["jobId"])
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        prepared = await self._prepare_launch_args(launch_args)
+        job_id = await self._submit_one(prepared)
+        return job_id, prepared.served_model_name
 
     async def read_job_file(self, job_id: int, filename: str) -> str | None:
         remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / filename

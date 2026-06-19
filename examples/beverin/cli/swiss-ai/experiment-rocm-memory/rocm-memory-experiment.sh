@@ -9,7 +9,7 @@ TIME="12:00:00"
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -21,7 +21,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -33,7 +33,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -45,7 +45,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -58,7 +58,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -71,7 +71,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \
@@ -85,7 +85,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
@@ -98,7 +98,7 @@ sml advanced \
 sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
@@ -114,7 +114,7 @@ sml advanced \
   --firecrest-system beverin \
   --partition mi300 \
   --slurm-nodes-per-replica 2 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model $MODEL \

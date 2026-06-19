@@ -1,3 +1,4 @@
+import math
 import re
 import warnings
 
@@ -13,12 +14,40 @@ FRAMEWORK_PORT = 8080
 
 TELEMETRY_ENDPOINT = "https://sml-dev.swissai.svc.cscs.ch/launches"
 
+# SLURM caps a single job at 12h on the target clusters. A model that needs to
+# stay up longer is served by a chain of consecutive jobs (see --consecutive),
+# each running for at most this cap.
+DEFAULT_MAX_JOB_TIME = "12:00:00"
+
 _PORT_FLAG_RE = re.compile(r"(?:^|\s)--port(?:[\s=])")
 
 
 def time_str_to_seconds(t: str) -> int:
     h, m, s = (int(x) for x in t.split(":"))
     return h * 3600 + m * 60 + s
+
+
+def plan_consecutive_offsets(total_seconds: int, job_seconds: int, handover_seconds: int) -> list[int]:
+    """Start offsets (seconds from the chain's base time) for a consecutive chain.
+
+    Each job runs for ``job_seconds`` (the SLURM per-job cap). A successor starts
+    ``handover_seconds`` before its predecessor's time limit, so the spacing
+    between starts is ``job_seconds - handover_seconds`` and the overlap gives the
+    fresh job time to become healthy before the old one expires. The number of
+    jobs is the minimum whose continuous coverage —
+    ``(n - 1) * interval + job_seconds`` — reaches ``total_seconds``.
+
+    Returns ``[0]`` (a single job) when the requested total fits inside one job.
+    """
+    if job_seconds <= 0:
+        raise ValueError("job time must be positive")
+    if handover_seconds < 0 or handover_seconds >= job_seconds:
+        raise ValueError("handover time must be in the range [0, job time)")
+    if total_seconds <= job_seconds:
+        return [0]
+    interval = job_seconds - handover_seconds
+    n = math.ceil((total_seconds - job_seconds) / interval) + 1
+    return [i * interval for i in range(n)]
 
 
 class LaunchArgs(BaseModel):
@@ -30,6 +59,12 @@ class LaunchArgs(BaseModel):
     topology: Topology = Field(default_factory=Topology)
 
     time: str = "02:00:00"
+    # Absolute SLURM --begin time (e.g. "2026-06-19T18:00:00") for a pre-scheduled
+    # consecutive job; None submits for immediate scheduling. previous_job_id is
+    # the predecessor in a consecutive chain, which this job cancels from inside
+    # once all its replicas are healthy (see the in-job replica health checker).
+    begin: str | None = None
+    previous_job_id: int | None = None
     environment: str
 
     framework: str
@@ -78,6 +113,8 @@ class LaunchArgs(BaseModel):
         ]
         if reservation:
             args.append(f"--reservation={reservation}")
+        if self.begin:
+            args.append(f"--begin={self.begin}")
         return args
 
     def to_job_env(self) -> dict[str, str]:
@@ -98,4 +135,5 @@ class LaunchArgs(BaseModel):
             "METRICS_AGENT_BIN": self.metrics_agent_binary,
             "TELEMETRY_ENDPOINT": self.telemetry_endpoint or "",
             "SML_TIME": self.time,
+            "SML_PREVIOUS_JOB_ID": str(self.previous_job_id) if self.previous_job_id is not None else "",
         }

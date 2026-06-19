@@ -37,3 +37,12 @@ def test_render_sbatch_header_with_reservation() -> None:
 def test_render_sbatch_header_without_reservation() -> None:
     header = render_sbatch_header(_make_args())
     assert "--reservation" not in header
+
+
+def test_render_sbatch_header_with_begin() -> None:
+    header = render_sbatch_header(_make_args(begin="2026-06-19T18:00:00"))
+    assert "#SBATCH --begin=2026-06-19T18:00:00" in header
+
+
+def test_render_sbatch_header_without_begin() -> None:
+    assert "--begin" not in render_sbatch_header(_make_args())

@@ -17,7 +17,7 @@ sml loadtest advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model-path $MODEL \
@@ -33,7 +33,7 @@ sml loadtest advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model-path $MODEL \

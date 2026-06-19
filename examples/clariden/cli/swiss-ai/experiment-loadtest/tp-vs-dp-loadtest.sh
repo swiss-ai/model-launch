@@ -31,7 +31,7 @@ OUT_1=$(sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model-path $MODEL \
@@ -47,7 +47,7 @@ OUT_2=$(sml advanced \
   --firecrest-system clariden \
   --partition normal \
   --slurm-nodes 1 \
-  --slurm-time "$TIME" \
+  --time "$TIME" \
   --serving-framework sglang \
   --slurm-environment "$ENV" \
   --framework-args "--model-path $MODEL \

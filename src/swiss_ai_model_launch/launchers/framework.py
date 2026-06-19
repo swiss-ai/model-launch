@@ -598,6 +598,10 @@ def _render_health_checker(launch_args: LaunchArgs) -> str:
     report_path = f"{log_dir}/replica_health.json"
     checker_path = "$RANKS_DIR/replica_health_checker.py"
     checker_log = f"{log_dir}/replica_health_checker.log"
+    # In a consecutive chain, this job hands over from its predecessor: once all
+    # replicas here are healthy, the checker cancels that predecessor so the old
+    # allocation is released. Empty (the default) disables the handover cancel.
+    previous_job_id = launch_args.previous_job_id if launch_args.previous_job_id is not None else ""
     return (
         "# ── replica health checker ───────────────────────────────────────────────\n"
         "# Background loop on the batch node (it shares the job's internal network),\n"
@@ -618,6 +622,7 @@ def _render_health_checker(launch_args: LaunchArgs) -> str:
         f"        SML_HEALTH_NODES_PER_REPLICA={npr} \\\n"
         f'        SML_HEALTH_REPLICA_IPS="{replica_ips}" \\\n'
         f'        SML_HEALTH_REPLICA_HOSTS="{replica_hosts}" \\\n'
+        f'        SML_HEALTH_PREVIOUS_JOB_ID="{previous_job_id}" \\\n'
         f'        python3 "{checker_path}" > "{checker_log}" 2>&1 &\n'
         "    health_checker_pid=$!\n"
         '    disown "$health_checker_pid"\n'
