@@ -42,6 +42,11 @@ _CHAIN_LABEL_ID = "chain-label"
 _REPLICA_LABEL_ID = "replica-label"
 _SOURCE_TABS_ID = "source-tabs"
 
+# The in-job checker rewrites the report every 30s; if its timestamp is older
+# than this, the job (or just the checker) has stopped — so its last "HEALTHY"
+# is stale and must not be trusted (e.g. after the job ends or is cancelled).
+_REPLICA_REPORT_STALE_AFTER_SECONDS = 90
+
 
 def _slug(source: str) -> str:
     """A widget-id-safe slug for a log source label (unique per distinct label)."""
@@ -80,6 +85,26 @@ def _format_heartbeat(last_seen: int | None) -> str:
     return f"{when} [dim]({ago}s ago)[/dim]"
 
 
+def _compact_time(value: str) -> str:
+    """Shorten an ISO timestamp to ``MM-DD HH:MM`` so it fits the chain columns.
+
+    A chain spans at most a couple of days, so the year and seconds are noise and
+    just get truncated in the narrow table. Accepts the ISO variants the backends
+    emit — with/without a ``T`` separator, a trailing ``Z``, or a timezone offset
+    (SLURM uses bare local time; FirecREST may include an offset). Non-ISO values
+    (e.g. the dependency hint) are returned unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    raw = value.strip().replace(" ", "T")
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(raw).strftime("%m-%d %H:%M")
+    except ValueError:
+        return value
+
+
 def _render_chain_panel(state: DisplayState) -> RenderableType:
     """Table of every job in a consecutive chain: id, begin time, status, focus.
 
@@ -89,18 +114,28 @@ def _render_chain_panel(state: DisplayState) -> RenderableType:
     """
     table = Table(box=box.SIMPLE_HEAD, expand=True, title="Consecutive Job Chain", title_justify="left")
     table.add_column("", width=2)
-    table.add_column("Job ID")
-    table.add_column("Begins")
-    table.add_column("Ends")
+    table.add_column("Job ID", no_wrap=True)
+    table.add_column("Begins", no_wrap=True)
+    table.add_column("Ends", no_wrap=True)
     table.add_column("Status", justify="right", width=10)
     for job in state.chain:
         status = _JOB_STATUS_STYLE[job.status] if job.status is not None else "[dim]—[/dim]"
         marker = "[bold green]▶[/bold green]" if job.job_id == state.job_id else " "
+        # The head job has an absolute begin/end; successors are dependency-scheduled
+        # off the previous job's real start, so their wall-clock times are unknown
+        # until they run — show the dependency descriptor instead.
+        if job.begin:
+            begins = _compact_time(job.begin)
+        elif job.after:
+            begins = f"[dim]{job.after}[/dim]"
+        else:
+            begins = "[dim]now[/dim]"
+        ends = _compact_time(job.end) if job.end else "[dim]—[/dim]"
         table.add_row(
             marker,
             str(job.job_id),
-            job.begin or "[dim]now[/dim]",
-            job.end or "[dim]—[/dim]",
+            begins,
+            ends,
             status,
         )
     return table
@@ -114,16 +149,22 @@ def _render_one_replica_report(
         return f"[bold]{label}Replica Health[/bold]\n[orange]Report unavailable: {report.error}[/orange]"
     if not report.replicas:
         return f"[bold]{label}Replica Health[/bold]\n[red]No replicas reported.[/red]"
-    table = Table(box=box.SIMPLE_HEAD, expand=True, title=_replica_summary(report, job_id), title_justify="left")
+    # Once the report stops being refreshed, its stored health is frozen — a job
+    # that ended still reads HEALTHY. Detect that by age and show STALE instead.
+    stale = report.checked_at is not None and int(time.time()) - report.checked_at > _REPLICA_REPORT_STALE_AFTER_SECONDS
+    name = f"Job {job_id}" if job_id is not None else "Replica Health"
+    title = f"{name} — [red]stale (job no longer reporting)[/red]" if stale else _replica_summary(report, job_id)
+    table = Table(box=box.SIMPLE_HEAD, expand=True, title=title, title_justify="left")
     table.add_column("Node", justify="right", style="dim", width=4)
     table.add_column("Node IP")
     table.add_column("Health", justify="right", width=16)
     table.add_column("Last Heartbeat", justify="right")
     for replica in report.replicas:
+        health = "[dim]STALE[/dim]" if stale else _model_health_label(replica.health, blink_on)
         table.add_row(
             str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
             replica.node_ip or "[dim]—[/dim]",
-            _model_health_label(replica.health, blink_on),
+            health,
             _format_heartbeat(replica.last_seen),
         )
     if report.checked_at is not None:

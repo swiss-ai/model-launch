@@ -10,8 +10,9 @@ class ChainJobView:
     """One job in a consecutive chain, as shown in the TUI's chain panel."""
 
     job_id: int
-    begin: str | None = None  # absolute begin time; None == scheduled immediately
-    end: str | None = None  # latest the job can run to (begin + per-job time limit)
+    begin: str | None = None  # absolute begin time (head job's anchor)
+    end: str | None = None  # latest the head can run to (begin + per-job time limit)
+    after: str | None = None  # dependency descriptor for successors, e.g. "after 123 (+11h)"
     status: JobStatus | None = None
 
 
@@ -78,10 +79,23 @@ class DisplayState:
         self.chain = jobs
         self._notify()
 
-    def set_chain_status(self, job_id: int, status: JobStatus) -> None:
+    def set_chain_status(
+        self,
+        job_id: int,
+        status: JobStatus,
+        begin: str | None = None,
+        end: str | None = None,
+    ) -> None:
+        # begin/end carry the backend's real start/end once known. They're only
+        # applied when non-None so a transient fetch failure doesn't wipe a
+        # previously-shown time back to the dependency placeholder.
         for job in self.chain:
             if job.job_id == job_id:
                 job.status = status
+                if begin is not None:
+                    job.begin = begin
+                if end is not None:
+                    job.end = end
                 break
         self._notify()
 

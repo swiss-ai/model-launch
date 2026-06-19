@@ -25,14 +25,30 @@ REPLICA_HEALTH_FILENAME = "replica_health.json"
 _BEGIN_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
+def _format_duration(seconds: int) -> str:
+    """Compact h/m label for a chain interval, e.g. 39600 -> '11h', 5400 -> '1h30m'."""
+    hours, rem = divmod(seconds, 3600)
+    minutes = rem // 60
+    if hours and minutes:
+        return f"{hours}h{minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
 @dataclass(frozen=True)
 class ScheduledJob:
     """A submitted job in a consecutive chain."""
 
     job_id: int
     served_model_name: str
-    begin: str | None  # absolute SLURM --begin time; None == submitted to start now
-    end: str | None = None  # begin + per-job time limit (the latest it can run to)
+    # The head job has an absolute begin/end (its anchor). Successors are
+    # scheduled by dependency on the previous job's actual start, so their
+    # wall-clock times aren't known at submission — begin/end are None and
+    # ``after`` carries a human descriptor (e.g. "after 123 (+11h)") instead.
+    begin: str | None = None
+    end: str | None = None
+    after: str | None = None
 
 
 class Launcher(ABC):
@@ -89,9 +105,13 @@ class Launcher(ABC):
         """Pre-schedule and submit a chain of consecutive jobs serving one model.
 
         ``launch_args.time`` is the per-job SLURM cap; ``total_time`` is the total
-        uptime requested. Jobs are submitted up front with absolute ``--begin``
-        times spaced ``(per-job time − handover_time)`` apart. They are submitted
-        in order so each carries its predecessor's job id and cancels it from
+        uptime requested. The chain is submitted in order: the **head** job is
+        anchored with an absolute ``--begin`` (≈ now), and every **successor** is
+        scheduled with a SLURM ``--dependency=after:<prev>+<interval-in-minutes>``
+        — so it starts a fixed interval after its predecessor *actually begins
+        running*, not after a wall-clock time guessed at submission. This keeps
+        the handover overlap correct even if the head (or any job) is delayed in
+        the queue. Each job also carries its predecessor's id and cancels it from
         inside once healthy (see the in-job replica health checker).
 
         Returns a ``ScheduledJob`` for every job, in chain order; the served model
@@ -103,31 +123,58 @@ class Launcher(ABC):
             job_seconds,
             time_str_to_seconds(handover_time),
         )
+        interval_seconds = job_seconds - time_str_to_seconds(handover_time)
+        # SLURM dependency delays are expressed in whole minutes; floor keeps the
+        # overlap at least the requested handover (a slightly earlier successor).
+        delay_minutes = max(1, interval_seconds // 60)
         base = now or datetime.now()
         prepared = await self._prepare_launch_args(launch_args)
 
         results: list[ScheduledJob] = []
         previous_job_id: int | None = None
         for offset in offsets:
-            # Every job, including the first, gets an explicit absolute --begin
-            # anchored to one base time so the whole chain shares a single clock
-            # (and the TUI/print show a real time, not "now"). SLURM schedules a
-            # begin time in the (recent) past immediately, so the head job still
-            # starts right away.
-            begin = (base + timedelta(seconds=offset)).strftime(_BEGIN_TIME_FORMAT)
-            # The latest this job can run to: its begin plus the per-job time
-            # limit. Successors begin before this, which is the handover overlap.
-            end = (base + timedelta(seconds=offset + job_seconds)).strftime(_BEGIN_TIME_FORMAT)
-            job_args = prepared.model_copy(update={"begin": begin, "previous_job_id": previous_job_id})
+            begin: str | None
+            end: str | None
+            after: str | None
+            if previous_job_id is None:
+                # Head: a single absolute anchor (≈ now). SLURM starts a begin time
+                # in the recent past immediately, so it still launches right away.
+                begin = (base + timedelta(seconds=offset)).strftime(_BEGIN_TIME_FORMAT)
+                end = (base + timedelta(seconds=offset + job_seconds)).strftime(_BEGIN_TIME_FORMAT)
+                job_args = prepared.model_copy(update={"begin": begin, "previous_job_id": None})
+                after = None
+            else:
+                # Successor: anchored to the predecessor's real start via dependency.
+                begin = end = None
+                after = f"{_format_duration(interval_seconds)} after {previous_job_id} starts"
+                dependency = f"after:{previous_job_id}+{delay_minutes}"
+                job_args = prepared.model_copy(update={"dependency": dependency, "previous_job_id": previous_job_id})
             job_id = await self._submit_one(job_args)
             results.append(
-                ScheduledJob(job_id=job_id, served_model_name=prepared.served_model_name, begin=begin, end=end)
+                ScheduledJob(
+                    job_id=job_id,
+                    served_model_name=prepared.served_model_name,
+                    begin=begin,
+                    end=end,
+                    after=after,
+                )
             )
             previous_job_id = job_id
         return results
 
     @abstractmethod
     async def get_job_status(self, job_id: int) -> JobStatus: ...
+
+    async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:
+        """The job's ``(start, end)`` wall-clock times as display strings.
+
+        ``start`` is the actual start once running, or the scheduler's estimate
+        while pending; ``end`` is when it will (or did) hit its time limit. Either
+        is ``None`` when the backend can't report it yet. Used to show real times
+        in the consecutive-chain panel instead of submission-time guesses;
+        launchers without time reporting can leave the default.
+        """
+        return None, None
 
     @abstractmethod
     async def cancel_job(self, job_id: int) -> None: ...

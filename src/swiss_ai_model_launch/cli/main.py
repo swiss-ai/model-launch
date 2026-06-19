@@ -658,7 +658,10 @@ async def _run_monitor(
             for job in scheduled:
                 status = await launcher.get_job_status(job.job_id)
                 statuses[job.job_id] = status
-                state.set_chain_status(job.job_id, status)
+                # For a chain, also pull the backend's real start/end so the panel
+                # shows actual scheduled times rather than submission-time guesses.
+                begin, end = await launcher.get_job_times(job.job_id) if is_chain else (None, None)
+                state.set_chain_status(job.job_id, status, begin, end)
             focused = _focus_job(scheduled, statuses)
             state.update(job_id=focused.job_id, job_status=statuses[focused.job_id])
             if is_chain:
@@ -683,7 +686,9 @@ async def _run_monitor(
     async def _monitor() -> None:
         scheduled = await submit_coro
         served = scheduled[0].served_model_name
-        state.set_chain([ChainJobView(job_id=s.job_id, begin=s.begin, end=s.end) for s in scheduled])
+        # Seed only the dependency hint; the monitor fills begin/end with the
+        # backend's real scheduled times on the first poll (see _monitor_jobs).
+        state.set_chain([ChainJobView(job_id=s.job_id, after=s.after) for s in scheduled])
         state.update(
             job_id=scheduled[0].job_id,
             served_model_name=served,
@@ -881,7 +886,8 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         if len(scheduled) > 1:
             print(f"Submitted a consecutive chain of {len(scheduled)} jobs:")
             for job in scheduled:
-                print(f"  Job {job.job_id} runs {job.begin or 'now'} → {job.end or '?'}")
+                when = f"runs {job.begin} → {job.end}" if job.begin else (job.after or "starts on handover")
+                print(f"  Job {job.job_id} {when}")
             print(f"Served model name: {scheduled[0].served_model_name}")
             print(f"Logs (first job): {launcher.get_log_dir(scheduled[0].job_id)}")
         else:

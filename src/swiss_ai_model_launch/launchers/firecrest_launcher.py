@@ -30,6 +30,28 @@ _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.j
 
 _APP_WORKING_DIRECTORY = ".sml"
 
+_FIRECREST_UNKNOWN_TIMES = frozenset({"", "N/A", "Unknown", "None"})
+
+
+def _firecrest_time(value: object) -> str | None:
+    """Normalise a FirecREST/SLURM job time field to a display string or None.
+
+    Handles the shapes seen across API versions: an epoch int/float, SLURM's
+    ``{"set", "infinite", "number"}`` wrapper, or an already-formatted string.
+    """
+    if isinstance(value, dict):
+        if not value.get("set", True) or value.get("infinite"):
+            return None
+        value = value.get("number")
+    if isinstance(value, bool):  # guard: bool is an int subclass
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(int(value)).strftime("%Y-%m-%dT%H:%M:%S") if value > 0 else None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return None if stripped in _FIRECREST_UNKNOWN_TIMES else stripped
+    return None
+
 
 class FirecRESTLauncher(Launcher):
     def __init__(
@@ -225,6 +247,22 @@ class FirecRESTLauncher(Launcher):
             )
         )
         return JobStatus.from_str(str(job_info[0]["status"]["state"]))
+
+    async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:
+        job_info = await call_with_firecrest_retry(
+            lambda: self.client.job_info(
+                system_name=self.system_name,
+                jobid=str(job_id),
+            )
+        )
+        # The v2 job object carries SLURM's `time` block (start/end). Parse
+        # defensively — the field shape varies across API versions — and fall
+        # back to (None, None) so the chain panel just shows its dependency hint.
+        try:
+            time_info = job_info[0].get("time") or {}
+            return _firecrest_time(time_info.get("start")), _firecrest_time(time_info.get("end"))
+        except (AttributeError, TypeError, IndexError, KeyError):
+            return None, None
 
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)

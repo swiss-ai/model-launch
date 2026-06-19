@@ -111,15 +111,17 @@ async def test_chain_submits_one_job_for_short_total():
         _make_args(time="12:00:00"), total_time="10:00:00", handover_time="01:00:00", now=base
     )
     assert len(scheduled) == 1
-    # Even the head job carries an explicit absolute begin (anchored to base).
+    # The head job carries an explicit absolute begin/end (anchored to base) and
+    # no dependency.
     assert scheduled[0].begin == "2026-06-19T08:00:00"
-    # End = begin + the 12h per-job limit.
     assert scheduled[0].end == "2026-06-19T20:00:00"
+    assert launcher.submitted[0].begin == "2026-06-19T08:00:00"
+    assert launcher.submitted[0].dependency is None
     assert launcher.submitted[0].previous_job_id is None
     assert launcher.prepared == 1  # env prepared exactly once
 
 
-async def test_chain_threads_previous_job_id_and_begin_times():
+async def test_chain_head_is_anchored_successors_use_dependencies():
     launcher = _FakeLauncher()
     base = datetime(2026, 6, 19, 8, 0, 0)
     scheduled = await launcher.launch_consecutive_with_args(
@@ -131,12 +133,20 @@ async def test_chain_threads_previous_job_id_and_begin_times():
     assert [s.job_id for s in scheduled] == [100, 101]
     assert all(s.served_model_name == "vendor/model-abc1" for s in scheduled)
 
-    # First job is anchored to base; second begins one 10h interval later.
+    # Head: absolute begin/end anchor, no dependency.
     assert scheduled[0].begin == "2026-06-19T08:00:00"
-    assert scheduled[1].begin == "2026-06-19T18:00:00"
-    # Each end is begin + 12h; the successor begins 2h (the handover) before it.
     assert scheduled[0].end == "2026-06-19T20:00:00"
-    assert scheduled[1].end == "2026-06-20T06:00:00"
+    assert scheduled[0].after is None
+    assert launcher.submitted[0].begin == "2026-06-19T08:00:00"
+    assert launcher.submitted[0].dependency is None
+
+    # Successor: no wall-clock time; scheduled by dependency on the head's actual
+    # start, a 10h interval (12h cap − 2h handover) later, expressed in minutes.
+    assert scheduled[1].begin is None
+    assert scheduled[1].end is None
+    assert scheduled[1].after == "10h after 100 starts"
+    assert launcher.submitted[1].begin is None
+    assert launcher.submitted[1].dependency == "after:100+600"
 
     # Each job carries its predecessor's id so it can cancel it once healthy.
     assert launcher.submitted[0].previous_job_id is None
@@ -145,6 +155,19 @@ async def test_chain_threads_previous_job_id_and_begin_times():
     # Env is staged once, not per job.
     assert launcher.prepared == 1
     assert all(a.environment == "/resolved/env.toml" for a in launcher.submitted)
+
+
+async def test_chain_dependency_delay_uses_whole_minutes():
+    launcher = _FakeLauncher()
+    # 12h cap, 90m handover -> interval 10h30m -> 630 minutes.
+    scheduled = await launcher.launch_consecutive_with_args(
+        _make_args(time="12:00:00"), total_time="40:00:00", handover_time="01:30:00"
+    )
+    assert len(scheduled) > 2  # a few successors to check
+    for i in range(1, len(scheduled)):
+        prev_id = scheduled[i - 1].job_id
+        assert launcher.submitted[i].dependency == f"after:{prev_id}+630"
+        assert scheduled[i].after == f"10h30m after {prev_id} starts"
 
 
 async def test_chain_per_job_time_is_unchanged():

@@ -77,10 +77,15 @@ sml advanced \
 
 How it works:
 
-- **All jobs are submitted up front** at absolute SLURM `--begin` times, spaced
-  `(--max-job-time − --handover-time)` apart. The job count is the minimum whose
-  continuous coverage reaches `--time`. With the defaults a `36:00:00` request
-  becomes **4 jobs** spaced 11 h apart.
+- **All jobs are submitted up front.** The job count is the minimum whose
+  continuous coverage reaches `--time`, spaced `(--max-job-time − --handover-time)`
+  apart. With the defaults a `36:00:00` request becomes **4 jobs** spaced 11 h apart.
+- **Anchored to actual start, not a guessed clock.** The head job gets a single
+  absolute SLURM `--begin` (≈ now); every successor is submitted with a SLURM
+  `--dependency=after:<prev>+<interval>` so it starts that interval after its
+  predecessor *actually begins running*. If the head (or any job) sits in the
+  queue waiting for resources, the rest of the chain slides with it — the
+  handover overlap stays correct instead of firing against stale wall-clock times.
 - **Handover overlap.** A job starts `--handover-time` (default `01:00:00`)
   before its predecessor's limit, giving the fresh job time to load weights and
   become healthy before the old one expires.
@@ -91,15 +96,25 @@ How it works:
 - **One endpoint.** Every job in the chain shares the same `--served-model-name`,
   so clients see a single continuous model across handovers.
 
-In the TUI, a **Consecutive Job Chain** panel lists every job with its
-begin/end times and live status, and during an overlapping handover the replica
-panel shows each running job's replicas in its own labelled section.
+In the TUI, a **Consecutive Job Chain** panel lists every job with a ▶ on the one
+currently serving, its live status (`PENDING` → `RUNNING` → `CANCELLED` once
+handed over), and its **scheduled start/end** fetched from the scheduler — actual
+once running, the queue's estimate while pending. A job not yet scheduled shows
+its dependency instead (e.g. `15m after 2569107 starts`). During an overlapping
+handover the replica-health panel shows **each running job's** replicas in its
+own labelled section; once a job stops reporting (ended or cancelled) its
+replicas are marked `STALE` rather than left showing a frozen `HEALTHY`.
 
 > If `--time` is within the per-job cap, `--consecutive` is a no-op (single job).
 > The **last** job runs its full cap, so actual uptime can slightly exceed
 > `--time`. For a quick end-to-end test, shrink `--max-job-time` (e.g.
 > `--max-job-time 00:10:00 --handover-time 00:03:00`) so handovers fire in
 > minutes.
+>
+> Dependency anchoring keeps the chain correct under queue delay, but it can't
+> conjure capacity: if a successor still hasn't been allocated by the time its
+> predecessor hits the 12 h wall, the model is briefly down until it starts.
+> Raise `--handover-time` to widen the overlap if your partition is contended.
 
 ## Inspecting what would be submitted (`--output-script DIR`)
 

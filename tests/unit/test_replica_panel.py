@@ -107,6 +107,43 @@ def test_reports_take_precedence_over_single_report() -> None:
     assert "9.9.9.9" not in out
 
 
+def test_stale_report_is_not_shown_as_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 100_000.0)
+    state = DisplayState()
+    # checked_at is ~5 min old — the job stopped reporting, so its frozen HEALTHY
+    # must not be trusted.
+    state.set_replica_report(
+        ReplicaHealthReport(
+            "m",
+            1,
+            (ReplicaHealth(ModelHealth.HEALTHY, "QmA", 99_700, 0, "10.0.0.1"),),
+            checked_at=99_700,
+        )
+    )
+    out = _render(state)
+    assert "STALE" in out
+    assert "stale (job no longer reporting)" in out
+    assert "HEALTHY" not in out
+    assert "💚" not in out
+
+
+def test_fresh_report_still_shows_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 100_000.0)
+    state = DisplayState()
+    # checked_at is only 10s old — well within the staleness window.
+    state.set_replica_report(
+        ReplicaHealthReport(
+            "m",
+            1,
+            (ReplicaHealth(ModelHealth.HEALTHY, "QmA", 99_990, 0, "10.0.0.1"),),
+            checked_at=99_990,
+        )
+    )
+    out = _render(state)
+    assert "HEALTHY" in out
+    assert "STALE" not in out
+
+
 def test_healthy_replicas_blink_a_green_heart() -> None:
     state = DisplayState()
     state.set_replica_report(

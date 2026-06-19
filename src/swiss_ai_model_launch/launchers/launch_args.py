@@ -59,11 +59,16 @@ class LaunchArgs(BaseModel):
     topology: Topology = Field(default_factory=Topology)
 
     time: str = "02:00:00"
-    # Absolute SLURM --begin time (e.g. "2026-06-19T18:00:00") for a pre-scheduled
-    # consecutive job; None submits for immediate scheduling. previous_job_id is
-    # the predecessor in a consecutive chain, which this job cancels from inside
-    # once all its replicas are healthy (see the in-job replica health checker).
+    # Consecutive-chain scheduling. The head job carries an absolute SLURM
+    # --begin (its anchor); every successor instead carries a SLURM --dependency
+    # of the form "after:<prev>+<minutes>" so it starts a fixed delay after its
+    # predecessor *actually* begins — making the chain robust to queue delay
+    # rather than pinned to wall-clock times guessed at submission. Both are None
+    # for an ordinary single launch. previous_job_id is the predecessor this job
+    # cancels from inside once all its replicas are healthy (see the in-job
+    # replica health checker).
     begin: str | None = None
+    dependency: str | None = None
     previous_job_id: int | None = None
     environment: str
 
@@ -115,6 +120,8 @@ class LaunchArgs(BaseModel):
             args.append(f"--reservation={reservation}")
         if self.begin:
             args.append(f"--begin={self.begin}")
+        if self.dependency:
+            args.append(f"--dependency={self.dependency}")
         return args
 
     def to_job_env(self) -> dict[str, str]:

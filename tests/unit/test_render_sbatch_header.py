@@ -46,3 +46,12 @@ def test_render_sbatch_header_with_begin() -> None:
 
 def test_render_sbatch_header_without_begin() -> None:
     assert "--begin" not in render_sbatch_header(_make_args())
+
+
+def test_render_sbatch_header_with_dependency() -> None:
+    header = render_sbatch_header(_make_args(dependency="after:12345+600"))
+    assert "#SBATCH --dependency=after:12345+600" in header
+
+
+def test_render_sbatch_header_without_dependency() -> None:
+    assert "--dependency" not in render_sbatch_header(_make_args())
