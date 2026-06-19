@@ -31,6 +31,7 @@ def test_to_job_env_keys():
         "METRICS_AGENT_BIN",
         "TELEMETRY_ENDPOINT",
         "SML_TIME",
+        "SML_PREVIOUS_JOB_ID",
     }
     assert set(_make_args().to_job_env().keys()) == expected
 
@@ -74,6 +75,11 @@ def test_to_job_env_use_ocf():
 
 def test_to_job_env_telemetry_endpoint_none():
     assert _make_args(telemetry_endpoint=None).to_job_env()["TELEMETRY_ENDPOINT"] == ""
+
+
+def test_to_job_env_previous_job_id():
+    assert _make_args().to_job_env()["SML_PREVIOUS_JOB_ID"] == ""
+    assert _make_args(previous_job_id=12345).to_job_env()["SML_PREVIOUS_JOB_ID"] == "12345"
 
 
 def test_to_job_env_all_values_are_strings():

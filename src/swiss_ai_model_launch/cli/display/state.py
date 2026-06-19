@@ -1,7 +1,19 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
+
+
+@dataclass
+class ChainJobView:
+    """One job in a consecutive chain, as shown in the TUI's chain panel."""
+
+    job_id: int
+    begin: str | None = None  # absolute begin time (head job's anchor)
+    end: str | None = None  # latest the head can run to (begin + per-job time limit)
+    after: str | None = None  # dependency descriptor for successors, e.g. "after 123 (+11h)"
+    status: JobStatus | None = None
 
 
 class DisplayState:
@@ -13,6 +25,14 @@ class DisplayState:
         self.model_health: ModelHealth = ModelHealth.NOT_DEPLOYED
         self.served_model_name: str | None = None
         self.replica_report: ReplicaHealthReport | None = None
+        # Per-job replica reports for a consecutive chain, keyed by job id and
+        # ordered oldest→newest. Populated for chains so an overlapping handover
+        # shows every running job's replicas at once; empty for a single launch
+        # (which uses replica_report instead).
+        self.replica_reports: list[tuple[int, ReplicaHealthReport]] = []
+        # The consecutive-job chain. Empty/one-element for an ordinary single
+        # launch; the chain panel is only rendered when there's more than one.
+        self.chain: list[ChainJobView] = []
         # Log sources shown as tabs (e.g. "Master", "Replica 0", …, "Router").
         # Each maps to its (stdout, stderr); `active_source` is the tab currently
         # in view, so the monitor only fetches that source's logs.
@@ -49,6 +69,34 @@ class DisplayState:
 
     def set_replica_report(self, report: ReplicaHealthReport) -> None:
         self.replica_report = report
+        self._notify()
+
+    def set_replica_reports(self, reports: list[tuple[int, ReplicaHealthReport]]) -> None:
+        self.replica_reports = reports
+        self._notify()
+
+    def set_chain(self, jobs: list[ChainJobView]) -> None:
+        self.chain = jobs
+        self._notify()
+
+    def set_chain_status(
+        self,
+        job_id: int,
+        status: JobStatus,
+        begin: str | None = None,
+        end: str | None = None,
+    ) -> None:
+        # begin/end carry the backend's real start/end once known. They're only
+        # applied when non-None so a transient fetch failure doesn't wipe a
+        # previously-shown time back to the dependency placeholder.
+        for job in self.chain:
+            if job.job_id == job_id:
+                job.status = status
+                if begin is not None:
+                    job.begin = begin
+                if end is not None:
+                    job.end = end
+                break
         self._notify()
 
     def set_active_source(self, source: str) -> None:

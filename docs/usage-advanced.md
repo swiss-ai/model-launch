@@ -21,7 +21,10 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `02:00:00`)                   |
+| `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                     |
+| `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs |
+| `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)        |
+| `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
 | `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
@@ -52,6 +55,69 @@ sml advanced \
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
+
+## Running past the 12 h cap (`--consecutive`)
+
+SLURM caps a single job at 12 h. `--time` is the **total** time you want the
+model up; when it exceeds the per-job cap (`--max-job-time`, default `12:00:00`),
+pass `--consecutive` to serve it with a pre-scheduled **chain of jobs**:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --time 36:00:00 \
+  --consecutive \
+  --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 --enable-metrics"
+```
+
+How it works:
+
+- **All jobs are submitted up front.** The job count is the minimum whose
+  continuous coverage reaches `--time`, spaced `(--max-job-time − --handover-time)`
+  apart. With the defaults a `36:00:00` request becomes **4 jobs** spaced 9 h apart.
+- **Anchored to actual start, not a guessed clock.** The head job gets a single
+  absolute SLURM `--begin` (≈ now); every successor is submitted with a SLURM
+  `--dependency=after:<prev>+<interval>` so it starts that interval after its
+  predecessor *actually begins running*. If the head (or any job) sits in the
+  queue waiting for resources, the rest of the chain slides with it — the
+  handover overlap stays correct instead of firing against stale wall-clock times.
+- **Handover overlap.** A job starts `--handover-time` (default `03:00:00`)
+  before its predecessor's limit, giving the fresh job time to load weights and
+  become healthy before the old one expires.
+- **Self-cancelling.** Each job is stamped with its predecessor's id and cancels
+  it from inside the job once all of its own replicas are healthy — so the old
+  allocation is released and no resources are wasted. This runs on the batch
+  node, so it works even after you've detached the CLI.
+- **One endpoint.** Every job in the chain shares the same `--served-model-name`,
+  so clients see a single continuous model across handovers.
+- **Exact total.** Every job but the last runs the full `--max-job-time`; the
+  last job's time limit is trimmed so the chain ends exactly at `--time` instead
+  of overshooting by up to a whole job. The `36:00:00` example above runs
+  `12 h + 12 h + 12 h + 9 h`, ending right on 36 h rather than at 39 h.
+
+In the TUI, a **Consecutive Job Chain** panel lists every job with a ▶ on the one
+currently serving, its live status (`PENDING` → `RUNNING` → `CANCELLED` once
+handed over), and its **scheduled start/end** fetched from the scheduler — actual
+once running, the queue's estimate while pending. A job not yet scheduled shows
+its dependency instead (e.g. `15m after 2569107 starts`). During an overlapping
+handover the replica-health panel shows **each running job's** replicas in its
+own labelled section; once a job stops reporting (ended or cancelled) its
+replicas are marked `STALE` rather than left showing a frozen `HEALTHY`.
+
+> If `--time` is within the per-job cap, `--consecutive` is a no-op (single job).
+> For a quick end-to-end test, shrink `--max-job-time` (e.g.
+> `--max-job-time 00:10:00 --handover-time 00:03:00`) so handovers fire in
+> minutes.
+>
+> Dependency anchoring keeps the chain correct under queue delay, but it can't
+> conjure capacity: if a successor still hasn't been allocated by the time its
+> predecessor hits the 12 h wall, the model is briefly down until it starts.
+> Raise `--handover-time` to widen the overlap if your partition is contended.
 
 ## Inspecting what would be submitted (`--output-script DIR`)
 

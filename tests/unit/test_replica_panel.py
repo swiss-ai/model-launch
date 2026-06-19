@@ -55,6 +55,110 @@ def test_panel_lists_each_replica_with_summary(monkeypatch: pytest.MonkeyPatch) 
         assert ago in out
 
 
+def test_panel_shows_all_running_jobs_during_handover() -> None:
+    state = DisplayState()
+    # Overlapping handover: old job fully healthy, new job still spinning up.
+    state.set_replica_reports(
+        [
+            (
+                101,
+                ReplicaHealthReport(
+                    "m",
+                    2,
+                    (
+                        ReplicaHealth(ModelHealth.HEALTHY, "QmA", 1995, 0, "10.0.0.1"),
+                        ReplicaHealth(ModelHealth.HEALTHY, "QmB", 1990, 1, "10.0.0.2"),
+                    ),
+                ),
+            ),
+            (
+                102,
+                ReplicaHealthReport(
+                    "m",
+                    2,
+                    (
+                        ReplicaHealth(ModelHealth.HEALTHY, "QmC", 1996, 0, "10.0.0.3"),
+                        ReplicaHealth(ModelHealth.NOT_DEPLOYED, None, None, 1, "10.0.0.4"),
+                    ),
+                ),
+            ),
+        ]
+    )
+    out = _render(state)
+    # Both jobs are labelled with their id and per-job healthy summary.
+    assert "Job 101 — " in out
+    assert "Job 102 — " in out
+    assert "2/2 healthy" in out  # old job
+    assert "1/2 healthy" in out  # new job still coming up
+    # Replicas from both jobs are shown.
+    for ip in ("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"):
+        assert ip in out
+
+
+def test_clearing_reports_drops_stale_per_job_panels() -> None:
+    state = DisplayState()
+    state.set_replica_reports(
+        [(101, ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "Q", 1, 0, "10.0.0.1"),)))]
+    )
+    assert "Job 101 — " in _render(state)
+    # No RUNNING jobs left -> reports replaced with []; the panel must stop showing
+    # the now-stale per-job section rather than leaving it lingering.
+    state.set_replica_reports([])
+    out = _render(state)
+    assert "Job 101" not in out
+    assert "10.0.0.1" not in out
+    assert "Waiting" in out
+
+
+def test_reports_take_precedence_over_single_report() -> None:
+    state = DisplayState()
+    state.set_replica_report(ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "QmX", 1, 0, "9.9.9.9"),)))
+    state.set_replica_reports(
+        [(101, ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "QmY", 1, 0, "10.0.0.1"),)))]
+    )
+    out = _render(state)
+    assert "Job 101 — " in out
+    assert "10.0.0.1" in out
+    assert "9.9.9.9" not in out
+
+
+def test_stale_report_is_not_shown_as_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 100_000.0)
+    state = DisplayState()
+    # checked_at is ~5 min old — the job stopped reporting, so its frozen HEALTHY
+    # must not be trusted.
+    state.set_replica_report(
+        ReplicaHealthReport(
+            "m",
+            1,
+            (ReplicaHealth(ModelHealth.HEALTHY, "QmA", 99_700, 0, "10.0.0.1"),),
+            checked_at=99_700,
+        )
+    )
+    out = _render(state)
+    assert "STALE" in out
+    assert "stale (job no longer reporting)" in out
+    assert "HEALTHY" not in out
+    assert "💚" not in out
+
+
+def test_fresh_report_still_shows_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 100_000.0)
+    state = DisplayState()
+    # checked_at is only 10s old — well within the staleness window.
+    state.set_replica_report(
+        ReplicaHealthReport(
+            "m",
+            1,
+            (ReplicaHealth(ModelHealth.HEALTHY, "QmA", 99_990, 0, "10.0.0.1"),),
+            checked_at=99_990,
+        )
+    )
+    out = _render(state)
+    assert "HEALTHY" in out
+    assert "STALE" not in out
+
+
 def test_healthy_replicas_blink_a_green_heart() -> None:
     state = DisplayState()
     state.set_replica_report(

@@ -21,14 +21,21 @@ from swiss_ai_model_launch.cli.configuration.models import (
     OptionsDict,
     TextConfiguration,
 )
-from swiss_ai_model_launch.cli.display import DisplayState, LiveDisplay
-from swiss_ai_model_launch.cli.healthcheck import check_model_health
+from swiss_ai_model_launch.cli.display import ChainJobView, DisplayState, LiveDisplay
+from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
-from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT, LaunchArgs
+from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launch_args import (
+    DEFAULT_MAX_JOB_TIME,
+    TELEMETRY_ENDPOINT,
+    LaunchArgs,
+    time_str_to_seconds,
+)
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
+from swiss_ai_model_launch.launchers.launcher import ScheduledJob
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
@@ -194,11 +201,44 @@ def _add_advanced_launch_arguments(
         ),
     )
     advanced_parser.add_argument(
-        "--slurm-time",
+        "--time",
         dest="time",
         default="02:00:00",
         metavar="HH:MM:SS",
-        help="Job time limit (default: 02:00:00).",
+        help=(
+            "Total time the model should stay up (default: 02:00:00). If it "
+            "exceeds the per-job cap (--max-job-time), pass --consecutive to "
+            "serve it with a chain of jobs."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--consecutive",
+        dest="consecutive",
+        action="store_true",
+        help=(
+            "Required when --time exceeds the per-job cap. Pre-schedules a chain "
+            "of jobs (each up to --max-job-time) at absolute begin times so the "
+            "model stays up for the full --time; each job cancels its predecessor "
+            "once its replicas are healthy."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--handover-time",
+        dest="handover_time",
+        default="03:00:00",
+        metavar="HH:MM:SS",
+        help=(
+            "Overlap window for consecutive jobs (default: 03:00:00). Each job "
+            "starts this long before its predecessor's time limit, giving the "
+            "fresh job time to become healthy before the old one expires."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--max-job-time",
+        dest="max_job_time",
+        default=DEFAULT_MAX_JOB_TIME,
+        metavar="HH:MM:SS",
+        help=f"Per-job SLURM time cap for consecutive chains (default: {DEFAULT_MAX_JOB_TIME}).",
     )
     advanced_parser.add_argument(
         "--slurm-reservation",
@@ -556,9 +596,33 @@ def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, st
     return sources
 
 
+def _focus_job(scheduled: list[ScheduledJob], statuses: dict[int, JobStatus]) -> ScheduledJob:
+    """Pick the chain job whose replicas/logs the panels should follow.
+
+    After a handover, the newest RUNNING job is what's actually serving, so it
+    wins. Before anything is running, focus the next job still PENDING so the user
+    watches it come up; once the whole chain is gone, fall back to the last job.
+    Only RUNNING and PENDING jobs are candidates here, so any terminal state
+    (COMPLETED / CANCELLED / FAILED / TIMEOUT, or UNKNOWN once squeue drops the
+    job and sacct has nothing) is simply skipped.
+    """
+    running = [s for s in scheduled if statuses.get(s.job_id) == JobStatus.RUNNING]
+    if running:
+        return running[-1]
+    pending = [s for s in scheduled if statuses.get(s.job_id) == JobStatus.PENDING]
+    if pending:
+        return pending[0]
+    return scheduled[-1]
+
+
+async def _as_single_chain(coro: Coroutine[Any, Any, tuple[int, str]]) -> list[ScheduledJob]:
+    job_id, served = await coro
+    return [ScheduledJob(job_id=job_id, served_model_name=served, begin=None)]
+
+
 async def _run_monitor(
     launcher: Launcher,
-    launch_coro: Coroutine[Any, Any, tuple[int, str]],
+    submit_coro: Coroutine[Any, Any, list[ScheduledJob]],
     cscs_api_key: str,
     *,
     expected_replicas: int,
@@ -571,7 +635,7 @@ async def _run_monitor(
 
     async def _monitor_model_health(served: str) -> None:
         # End-to-end probe through the public gateway. It can block for its full
-        # timeout, so it runs in its own loop — see _monitor_job.
+        # timeout, so it runs in its own loop — see _monitor_jobs.
         ever_healthy = False
         while True:
             await asyncio.sleep(5)
@@ -581,36 +645,67 @@ async def _run_monitor(
             ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
             state.update(model_health=model_health)
 
-    async def _monitor_job(job_id: int, served: str) -> None:
+    async def _monitor_jobs(scheduled: list[ScheduledJob], served: str) -> None:
         # Job status, per-replica health, and logs — independent of the e2e
-        # gateway probe so a slow probe never delays these updates. The model's
-        # own job writes the replica report; we read the latest (None until the
-        # in-job checker first writes it). Only the active tab's logs are fetched,
-        # so log traffic stays bounded regardless of replica count.
+        # gateway probe so a slow probe never delays these updates. For a
+        # consecutive chain we poll every job's status and follow the one that's
+        # currently serving (see _focus_job) for logs, while showing the replicas
+        # of *all* running jobs so an overlapping handover is visible. A single
+        # launch keeps the old unlabelled single-report behaviour. Only the
+        # focused job's active-tab logs are fetched, so log traffic stays bounded.
+        is_chain = len(scheduled) > 1
         while True:
             await asyncio.sleep(5)
-            state.update(job_status=await launcher.get_job_status(job_id))
-            report = await launcher.get_replica_health(job_id, served, expected_replicas)
-            if report is not None:
-                state.set_replica_report(report)
+            statuses: dict[int, JobStatus] = {}
+            for job in scheduled:
+                status = await launcher.get_job_status(job.job_id)
+                statuses[job.job_id] = status
+                # For a chain, also pull the backend's real start/end so the panel
+                # shows actual scheduled times rather than submission-time guesses.
+                begin, end = await launcher.get_job_times(job.job_id) if is_chain else (None, None)
+                state.set_chain_status(job.job_id, status, begin, end)
+            focused = _focus_job(scheduled, statuses)
+            state.update(job_id=focused.job_id, job_status=statuses[focused.job_id])
+            if is_chain:
+                running = [s for s in scheduled if statuses.get(s.job_id) == JobStatus.RUNNING]
+                reports: list[tuple[int, ReplicaHealthReport]] = []
+                for job in running:
+                    report = await launcher.get_replica_health(job.job_id, served, expected_replicas)
+                    if report is not None:
+                        reports.append((job.job_id, report))
+                # Always replace (even with []) so the panel tracks the current
+                # RUNNING set — a finished/cancelled job's replicas stop showing
+                # instead of lingering as stale per-job sections.
+                state.set_replica_reports(reports)
+            else:
+                report = await launcher.get_replica_health(focused.job_id, served, expected_replicas)
+                if report is not None:
+                    state.set_replica_report(report)
             source = state.active_source
             out_file, err_file = source_files[source]
-            out = await launcher.read_job_file(job_id, out_file)
-            err = await launcher.read_job_file(job_id, err_file)
+            out = await launcher.read_job_file(focused.job_id, out_file)
+            err = await launcher.read_job_file(focused.job_id, err_file)
             state.set_source_log(source, out or "", err or "")
 
     async def _monitor() -> None:
-        job_id, served = await launch_coro
+        scheduled = await submit_coro
+        served = scheduled[0].served_model_name
+        # Seed only the dependency hint; the monitor fills begin/end with the
+        # backend's real scheduled times on the first poll (see _monitor_jobs).
+        state.set_chain([ChainJobView(job_id=s.job_id, after=s.after) for s in scheduled])
         state.update(
-            job_id=job_id,
+            job_id=scheduled[0].job_id,
             served_model_name=served,
             model_health=ModelHealth.NOT_DEPLOYED,
         )
-        await asyncio.gather(_monitor_model_health(served), _monitor_job(job_id, served))
+        await asyncio.gather(_monitor_model_health(served), _monitor_jobs(scheduled, served))
 
     kill_job = await LiveDisplay(state).run(_monitor())
-    if kill_job and state.job_id is not None:
-        await launcher.cancel_job(state.job_id)
+    if kill_job:
+        # Kill the whole chain, not just the focused job, so a consecutive launch
+        # leaves nothing scheduled behind.
+        for job in state.chain:
+            await launcher.cancel_job(job.job_id)
 
 
 async def _run_preconfigured(args: argparse.Namespace) -> None:
@@ -626,7 +721,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     if args.tui:
         await _run_monitor(
             launcher,
-            launch_coro,
+            _as_single_chain(launch_coro),
             cscs_api_key,
             expected_replicas=launch_request.replicas,
             use_router=launch_request.use_router,
@@ -717,6 +812,36 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         telemetry_endpoint=TELEMETRY_ENDPOINT,
     )
 
+    # Decide single vs. consecutive chain. --time is the total uptime; a job is
+    # capped at --max-job-time, so anything longer needs --consecutive and is
+    # served by a pre-scheduled chain (each job runs for the cap).
+    total_seconds = time_str_to_seconds(args.time)
+    max_job_seconds = time_str_to_seconds(args.max_job_time)
+    consecutive = getattr(args, "consecutive", False)
+    is_chain = consecutive and total_seconds > max_job_seconds
+    if total_seconds > max_job_seconds and not consecutive:
+        print(
+            f"--time ({args.time}) exceeds the per-job cap (--max-job-time {args.max_job_time}). "
+            f"Pass --consecutive to serve it with a chain of jobs.",
+            file=sys.stderr,
+        )
+        return
+    if consecutive and not is_chain:
+        print(
+            f"--consecutive ignored: --time ({args.time}) fits within one job "
+            f"(--max-job-time {args.max_job_time}); submitting a single job.",
+            file=sys.stderr,
+        )
+    if is_chain:
+        if time_str_to_seconds(args.handover_time) >= max_job_seconds:
+            print(
+                f"--handover-time ({args.handover_time}) must be shorter than --max-job-time ({args.max_job_time}).",
+                file=sys.stderr,
+            )
+            return
+        # Each job in the chain runs for the per-job cap, not the full --time.
+        launch_args = launch_args.model_copy(update={"time": args.max_job_time})
+
     if args.output_script:
         # Write master.sh + per-shape rank scripts to a user-supplied dir.
         # The on-disk shape matches what a live submission would write to
@@ -743,21 +868,38 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             print(f"  {name}", file=sys.stderr)
         return
 
-    launch_coro = launcher.launch_with_args(launch_args)
+    if is_chain:
+        submit_coro: Coroutine[Any, Any, list[ScheduledJob]] = launcher.launch_consecutive_with_args(
+            launch_args,
+            total_time=args.time,
+            handover_time=args.handover_time,
+        )
+    else:
+        submit_coro = _as_single_chain(launcher.launch_with_args(launch_args))
+
     if args.tui:
         await _run_monitor(
             launcher,
-            launch_coro,
+            submit_coro,
             cscs_api_key,
             expected_replicas=launch_args.topology.replicas,
             use_router=launch_args.use_router,
         )
     else:
-        job_id, served = await launch_coro
-        print(f"Job submitted: {job_id}")
-        print(f"Served model name: {served}")
-        print(f"Logs: {launcher.get_log_dir(job_id)}")
-        print(f"Tail: {launcher.get_tail_hint(job_id)}")
+        scheduled = await submit_coro
+        if len(scheduled) > 1:
+            print(f"Submitted a consecutive chain of {len(scheduled)} jobs:")
+            for job in scheduled:
+                when = f"runs {job.begin} → {job.end}" if job.begin else (job.after or "starts on handover")
+                print(f"  Job {job.job_id} {when}")
+            print(f"Served model name: {scheduled[0].served_model_name}")
+            print(f"Logs (first job): {launcher.get_log_dir(scheduled[0].job_id)}")
+        else:
+            job = scheduled[0]
+            print(f"Job submitted: {job.job_id}")
+            print(f"Served model name: {job.served_model_name}")
+            print(f"Logs: {launcher.get_log_dir(job.job_id)}")
+            print(f"Tail: {launcher.get_tail_hint(job.job_id)}")
 
 
 def _run_mcp() -> None:
