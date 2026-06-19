@@ -95,6 +95,10 @@ How it works:
   node, so it works even after you've detached the CLI.
 - **One endpoint.** Every job in the chain shares the same `--served-model-name`,
   so clients see a single continuous model across handovers.
+- **Exact total.** Every job but the last runs the full `--max-job-time`; the
+  last job's time limit is trimmed so the chain ends exactly at `--time` instead
+  of overshooting by up to a whole job. The `36:00:00` example above runs
+  `12 h + 12 h + 12 h + 3 h`, ending right on 36 h rather than at 45 h.
 
 In the TUI, a **Consecutive Job Chain** panel lists every job with a ▶ on the one
 currently serving, its live status (`PENDING` → `RUNNING` → `CANCELLED` once
@@ -106,8 +110,7 @@ own labelled section; once a job stops reporting (ended or cancelled) its
 replicas are marked `STALE` rather than left showing a frozen `HEALTHY`.
 
 > If `--time` is within the per-job cap, `--consecutive` is a no-op (single job).
-> The **last** job runs its full cap, so actual uptime can slightly exceed
-> `--time`. For a quick end-to-end test, shrink `--max-job-time` (e.g.
+> For a quick end-to-end test, shrink `--max-job-time` (e.g.
 > `--max-job-time 00:10:00 --handover-time 00:03:00`) so handovers fire in
 > minutes.
 >

@@ -3,7 +3,11 @@ from datetime import datetime
 import pytest
 
 from swiss_ai_model_launch.launchers.job_status import JobStatus
-from swiss_ai_model_launch.launchers.launch_args import LaunchArgs, plan_consecutive_offsets
+from swiss_ai_model_launch.launchers.launch_args import (
+    LaunchArgs,
+    plan_consecutive_offsets,
+    seconds_to_time_str,
+)
 from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.topology import Topology
 
@@ -53,6 +57,15 @@ def test_chain_covers_requested_total():
 
 def test_zero_handover_uses_full_job_length_as_interval():
     assert plan_consecutive_offsets(24 * HOUR, 12 * HOUR, 0) == [0, 12 * HOUR]
+
+
+def test_seconds_to_time_str():
+    assert seconds_to_time_str(8 * HOUR) == "08:00:00"
+    assert seconds_to_time_str(2 * HOUR + 30 * 60) == "02:30:00"
+    assert seconds_to_time_str(12 * HOUR) == "12:00:00"
+    # Never emits 00:00:00 — SLURM's minimum granularity is one minute.
+    assert seconds_to_time_str(0) == "00:01:00"
+    assert seconds_to_time_str(30) == "00:01:00"
 
 
 def test_handover_at_least_job_length_is_rejected():
@@ -111,10 +124,11 @@ async def test_chain_submits_one_job_for_short_total():
         _make_args(time="12:00:00"), total_time="10:00:00", handover_time="01:00:00", now=base
     )
     assert len(scheduled) == 1
-    # The head job carries an explicit absolute begin/end (anchored to base) and
-    # no dependency.
+    # The sole job is also the last, so it's trimmed to the requested total (10h),
+    # not the 12h cap: begin at base, end 10h later.
     assert scheduled[0].begin == "2026-06-19T08:00:00"
-    assert scheduled[0].end == "2026-06-19T20:00:00"
+    assert scheduled[0].end == "2026-06-19T18:00:00"
+    assert launcher.submitted[0].time == "10:00:00"
     assert launcher.submitted[0].begin == "2026-06-19T08:00:00"
     assert launcher.submitted[0].dependency is None
     assert launcher.submitted[0].previous_job_id is None
@@ -133,20 +147,24 @@ async def test_chain_head_is_anchored_successors_use_dependencies():
     assert [s.job_id for s in scheduled] == [100, 101]
     assert all(s.served_model_name == "vendor/model-abc1" for s in scheduled)
 
-    # Head: absolute begin/end anchor, no dependency.
+    # Head: absolute begin/end anchor, full 12h cap, no dependency.
     assert scheduled[0].begin == "2026-06-19T08:00:00"
     assert scheduled[0].end == "2026-06-19T20:00:00"
     assert scheduled[0].after is None
+    assert launcher.submitted[0].time == "12:00:00"
     assert launcher.submitted[0].begin == "2026-06-19T08:00:00"
     assert launcher.submitted[0].dependency is None
 
     # Successor: no wall-clock time; scheduled by dependency on the head's actual
     # start, a 10h interval (12h cap − 2h handover) later, expressed in minutes.
+    # It's the last job, so trimmed to land on the 20h total: starts at +10h,
+    # runs 10h.
     assert scheduled[1].begin is None
     assert scheduled[1].end is None
     assert scheduled[1].after == "10h after 100 starts"
     assert launcher.submitted[1].begin is None
     assert launcher.submitted[1].dependency == "after:100+600"
+    assert launcher.submitted[1].time == "10:00:00"
 
     # Each job carries its predecessor's id so it can cancel it once healthy.
     assert launcher.submitted[0].previous_job_id is None
@@ -170,11 +188,28 @@ async def test_chain_dependency_delay_uses_whole_minutes():
         assert scheduled[i].after == f"10h30m after {prev_id} starts"
 
 
-async def test_chain_per_job_time_is_unchanged():
+async def test_chain_trims_only_the_last_job_to_hit_total():
     launcher = _FakeLauncher()
-    await launcher.launch_consecutive_with_args(
+    # 30h total, 12h cap, 1h handover -> interval 11h -> 3 jobs at 0/11h/22h.
+    # Earlier jobs run the full cap; the last is trimmed to 30h - 22h = 8h so the
+    # chain ends exactly at the requested total instead of overshooting.
+    scheduled = await launcher.launch_consecutive_with_args(
         _make_args(time="12:00:00", topology=Topology(replicas=2, nodes_per_replica=1)),
         total_time="30:00:00",
         handover_time="01:00:00",
     )
-    assert all(a.time == "12:00:00" for a in launcher.submitted)
+    assert len(scheduled) == 3
+    assert [a.time for a in launcher.submitted] == ["12:00:00", "12:00:00", "08:00:00"]
+
+
+async def test_chain_last_job_trim_never_exceeds_cap():
+    launcher = _FakeLauncher()
+    # An awkward total that isn't a clean multiple of the interval: the trimmed
+    # last job must still be a positive duration no greater than the 12h cap.
+    scheduled = await launcher.launch_consecutive_with_args(
+        _make_args(time="12:00:00"), total_time="13:00:00", handover_time="01:00:00"
+    )
+    last = launcher.submitted[-1].time
+    assert last == "02:00:00"  # 13h total - 11h last-offset
+    assert all(a.time == "12:00:00" for a in launcher.submitted[:-1])
+    assert scheduled  # sanity

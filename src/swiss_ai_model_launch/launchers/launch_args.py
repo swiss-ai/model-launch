@@ -27,6 +27,14 @@ def time_str_to_seconds(t: str) -> int:
     return h * 3600 + m * 60 + s
 
 
+def seconds_to_time_str(seconds: int) -> str:
+    # SLURM's finest time-limit granularity is a minute, so never emit 00:00:00.
+    seconds = max(seconds, 60)
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
 def plan_consecutive_offsets(total_seconds: int, job_seconds: int, handover_seconds: int) -> list[int]:
     """Start offsets (seconds from the chain's base time) for a consecutive chain.
 

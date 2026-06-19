@@ -9,6 +9,7 @@ from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     LaunchArgs,
     plan_consecutive_offsets,
+    seconds_to_time_str,
     time_str_to_seconds,
 )
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
@@ -117,12 +118,9 @@ class Launcher(ABC):
         Returns a ``ScheduledJob`` for every job, in chain order; the served model
         name is shared so the endpoint stays continuous across the handover.
         """
+        total_seconds = time_str_to_seconds(total_time)
         job_seconds = time_str_to_seconds(launch_args.time)
-        offsets = plan_consecutive_offsets(
-            time_str_to_seconds(total_time),
-            job_seconds,
-            time_str_to_seconds(handover_time),
-        )
+        offsets = plan_consecutive_offsets(total_seconds, job_seconds, time_str_to_seconds(handover_time))
         interval_seconds = job_seconds - time_str_to_seconds(handover_time)
         # SLURM dependency delays are expressed in whole minutes; floor keeps the
         # overlap at least the requested handover (a slightly earlier successor).
@@ -132,7 +130,15 @@ class Launcher(ABC):
 
         results: list[ScheduledJob] = []
         previous_job_id: int | None = None
-        for offset in offsets:
+        last_index = len(offsets) - 1
+        for index, offset in enumerate(offsets):
+            # Earlier jobs run the full cap (they hand over to the next). The last
+            # job has no successor, so trim it to land exactly on the requested
+            # total instead of overshooting by up to a whole job. By construction
+            # (see plan_consecutive_offsets) this remainder is always ≤ the cap.
+            this_job_seconds = total_seconds - offset if index == last_index else job_seconds
+            job_time = seconds_to_time_str(this_job_seconds)
+
             begin: str | None
             end: str | None
             after: str | None
@@ -140,15 +146,17 @@ class Launcher(ABC):
                 # Head: a single absolute anchor (≈ now). SLURM starts a begin time
                 # in the recent past immediately, so it still launches right away.
                 begin = (base + timedelta(seconds=offset)).strftime(_BEGIN_TIME_FORMAT)
-                end = (base + timedelta(seconds=offset + job_seconds)).strftime(_BEGIN_TIME_FORMAT)
-                job_args = prepared.model_copy(update={"begin": begin, "previous_job_id": None})
+                end = (base + timedelta(seconds=offset + this_job_seconds)).strftime(_BEGIN_TIME_FORMAT)
+                job_args = prepared.model_copy(update={"time": job_time, "begin": begin, "previous_job_id": None})
                 after = None
             else:
                 # Successor: anchored to the predecessor's real start via dependency.
                 begin = end = None
                 after = f"{_format_duration(interval_seconds)} after {previous_job_id} starts"
                 dependency = f"after:{previous_job_id}+{delay_minutes}"
-                job_args = prepared.model_copy(update={"dependency": dependency, "previous_job_id": previous_job_id})
+                job_args = prepared.model_copy(
+                    update={"time": job_time, "dependency": dependency, "previous_job_id": previous_job_id}
+                )
             job_id = await self._submit_one(job_args)
             results.append(
                 ScheduledJob(
