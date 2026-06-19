@@ -51,7 +51,7 @@ class Launcher(ABC):
         return f"~/.sml/logs/{job_id}"
 
     @abstractmethod
-    def get_log_dir(self, job_id: int) -> str: ...
+    def get_tail_hint(self, job_id: int) -> str: ...
 
     @abstractmethod
     async def read_job_file(self, job_id: int, filename: str) -> str | None:

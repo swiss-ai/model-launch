@@ -254,6 +254,9 @@ class UnsupportedLauncher(Launcher):
     def get_tail_hint(self, job_id: int) -> str:
         return ""
 
+    async def read_job_file(self, job_id: int, filename: str) -> str | None:
+        return None
+
 
 async def test_submit_cluster_loadtest_rejects_unsupported_launcher(
     tmp_path: Path,
