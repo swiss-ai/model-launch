@@ -17,10 +17,12 @@ download) never observes a half-written file. Loops every ``SML_HEALTH_INTERVAL`
 seconds.
 
 Stdlib only — runs under whatever ``python3`` the node provides, without the SML
-package installed.
+package installed. HPC batch hosts can ship a Python as old as 3.6, so this file
+must stay 3.6-compatible: NO ``from __future__ import annotations`` (3.7+), NO
+PEP 604 ``X | Y`` unions or builtin-generic subscripts (``list[str]``) in
+evaluated positions, and NO ``subprocess.run(capture_output=/text=)`` (3.7+).
+Use ``typing`` aliases and ``stdout=/stderr=PIPE`` + ``universal_newlines`` instead.
 """
-
-from __future__ import annotations
 
 import json
 import os
@@ -29,7 +31,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 # Peer ids are stable, so stop retrying resolution after a few attempts to avoid
 # launching a job step every cycle when /v1/self is unreachable.
@@ -37,7 +39,7 @@ _MAX_PEER_ATTEMPTS = 5
 _SRUN_TIMEOUT_SECONDS = 30.0
 
 
-def _http_get(url: str, timeout: float) -> tuple[int, bytes] | None:
+def _http_get(url: str, timeout: float) -> Optional[Tuple[int, bytes]]:
     request = urllib.request.Request(url, method="GET")  # noqa: S310 - fixed internal http endpoint
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
@@ -66,7 +68,7 @@ def _self_fetch_code(ocf_port: int) -> str:
     )
 
 
-def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> str | None:
+def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> Optional[str]:
     """Fetch a node's own OpenTela peer id by querying ``/v1/self`` on that node.
 
     ``/v1/self`` only answers to localhost, so we run a one-off ``srun --overlap``
@@ -86,7 +88,13 @@ def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> str | None:
         _self_fetch_code(ocf_port),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)  # noqa: S603
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=timeout,
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     peer_id = result.stdout.strip()
@@ -94,17 +102,17 @@ def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> str | None:
 
 
 def build_report(
-    replica_ips: list[str],
-    replica_hosts: list[str],
+    replica_ips: List[str],
+    replica_hosts: List[str],
     nodes_per_replica: int,
     framework_port: int,
     ocf_port: int,
     timeout: float,
-    peer_ids: dict[int, str],
-    peer_attempts: dict[int, int],
-    last_seen: dict[int, int],
+    peer_ids: Dict[int, str],
+    peer_attempts: Dict[int, int],
+    last_seen: Dict[int, int],
     now: int,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """Probe every replica once and assemble the report dict.
 
     The cache dicts are mutated in place across cycles: ``peer_ids`` is resolved
@@ -113,7 +121,7 @@ def build_report(
     replica that has never been healthy reads as ``NOT_DEPLOYED`` (still starting)
     rather than a failure.
     """
-    replicas: list[dict[str, Any]] = []
+    replicas: List[Dict[str, Any]] = []
     for index, node_ip in enumerate(replica_ips):
         host = replica_hosts[index] if index < len(replica_hosts) else ""
         health = check_health(node_ip, framework_port, timeout)
@@ -138,7 +146,7 @@ def build_report(
     return {"checked_at": now, "replicas": replicas}
 
 
-def write_report_atomically(report: dict[str, Any], report_path: str) -> None:
+def write_report_atomically(report: Dict[str, Any], report_path: str) -> None:
     directory = os.path.dirname(report_path)
     if directory:
         os.makedirs(directory, exist_ok=True)
@@ -158,9 +166,9 @@ def main() -> int:
     replica_ips = os.environ.get("SML_HEALTH_REPLICA_IPS", "").split()
     replica_hosts = os.environ.get("SML_HEALTH_REPLICA_HOSTS", "").split()
 
-    peer_ids: dict[int, str] = {}
-    peer_attempts: dict[int, int] = {}
-    last_seen: dict[int, int] = {}
+    peer_ids: Dict[int, str] = {}
+    peer_attempts: Dict[int, int] = {}
+    last_seen: Dict[int, int] = {}
     while True:
         # Never let a transient failure (e.g. a momentary write error) kill the
         # checker — log it and keep going so the report self-heals next cycle.

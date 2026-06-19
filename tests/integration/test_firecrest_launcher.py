@@ -11,9 +11,12 @@ from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from tests.integration.utils import wait_for_all_replicas_healthy, wait_for_job_running, wait_for_model_healthy
 
-_LAUNCH_TIMEOUT = 240
-_HEALTH_TIMEOUT = 240
-_REPLICA_TIMEOUT = 60
+# Timeouts in minutes. Overridable via env so a failing run can be made to time
+# out quickly for debugging (e.g. SML_TEST_REPLICA_TIMEOUT=5) without changing
+# the committed defaults.
+_LAUNCH_TIMEOUT = int(os.environ.get("SML_TEST_LAUNCH_TIMEOUT") or "60")
+_HEALTH_TIMEOUT = int(os.environ.get("SML_TEST_HEALTH_TIMEOUT") or "60")
+_REPLICA_TIMEOUT = int(os.environ.get("SML_TEST_REPLICA_TIMEOUT") or "60")
 
 _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")

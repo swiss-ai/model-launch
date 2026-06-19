@@ -1,9 +1,33 @@
+import ast
+import importlib.resources
 import json
 import subprocess
 import urllib.error
 import urllib.request
 
 from swiss_ai_model_launch.assets import replica_health_checker as checker
+
+
+def test_checker_source_is_python36_compatible() -> None:
+    """The in-job checker runs under the batch node's own python3, which on some
+    HPC hosts is as old as 3.6. Guard (via AST, so the warning docstring's prose
+    doesn't trip it) against reintroducing 3.7+ constructs that silently kill the
+    checker (a SyntaxError/TypeError → no report → CLI timeout).
+    """
+    source = importlib.resources.files("swiss_ai_model_launch.assets").joinpath("replica_health_checker.py").read_text()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        # `from __future__ import annotations` is 3.7+ (the original breakage).
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            assert all(alias.name != "annotations" for alias in node.names)
+        # `subprocess.run(capture_output=/text=)` are 3.7+ kwargs.
+        if isinstance(node, ast.Call):
+            kwargs = {kw.arg for kw in node.keywords}
+            assert "capture_output" not in kwargs
+            assert "text" not in kwargs
+        # PEP 604 `X | Y` union annotations are 3.10+; use typing.Optional/Union.
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            raise AssertionError("PEP 604 union (X | Y) is not 3.6-compatible; use typing.Optional/Union")
 
 
 class _CtxResp:
