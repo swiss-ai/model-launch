@@ -92,7 +92,7 @@ Rule of thumb:
 
 ## Step 5 — sanity-check before submitting
 
-- Time limit (`--slurm-time`) covers warm-up + your workload + a margin. Cold start of a multi-node deployment can take sometimes up to 40 minutes (e.g. Kimi-k2.5 1T params).
+- Time limit (`--time`) covers warm-up + your workload + a margin. Cold start of a multi-node deployment can take sometimes up to 40 minutes (e.g. Kimi-k2.5 1T params). For a `--time` longer than a single job's 12 h cap, use [`--consecutive`](usage-advanced.md#running-past-the-12-h-cap---consecutive).
 - Partition matches the GPU layout you're asking for.
 - KV cache leaves room for your max sequence length × max batch.
 

@@ -2,10 +2,9 @@
 
 ## I want to keep a model running 24/7 — can SML do that?
 
-No. SML submits SLURM jobs, which are bounded by the partition's time limit. For an always-on serving deployment, the right home is Kubernetes — get in touch with the SwissAI infrastructure team to be onboarded.
+Not truly always-on. SML submits SLURM jobs, which are bounded by the partition's time limit. For an indefinitely-running serving deployment, the right home is Kubernetes — get in touch with the SwissAI infrastructure team to be onboarded.
 
-If your need is "running for several hours unattended", that's fine — pick the time limit accordingly with `--time` (interactive `sml`) or `--slurm-time` (`sml advanced`).
-There is an [open issue](https://github.com/swiss-ai/model-launch/issues/63) to allow sml to keep starting a job continuously.
+If your need is "running for a bounded but long time unattended", set `--time` to the total uptime you want. Within a single job's cap that's one job; beyond it, `sml advanced --consecutive` chains jobs back-to-back (with a healthy-handover overlap) so the model stays up for the full `--time`. See [Advanced Usage](usage-advanced.md#running-past-the-12-h-cap---consecutive).
 
 ## Should I use FirecREST or SLURM?
 

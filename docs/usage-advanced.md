@@ -21,7 +21,10 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
 | `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
 | `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--slurm-time`              |                         | Job time limit `HH:MM:SS` (default: `02:00:00`)                   |
+| `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                     |
+| `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs |
+| `--handover-time`           |                         | Overlap before the previous job ends (default: `01:00:00`)        |
+| `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
 | `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
 | `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
 | `--router-args`             |                         | Arguments forwarded to the router                                 |
@@ -52,6 +55,51 @@ sml advanced \
 > **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
+
+## Running past the 12 h cap (`--consecutive`)
+
+SLURM caps a single job at 12 h. `--time` is the **total** time you want the
+model up; when it exceeds the per-job cap (`--max-job-time`, default `12:00:00`),
+pass `--consecutive` to serve it with a pre-scheduled **chain of jobs**:
+
+```bash
+sml advanced \
+  --firecrest-system clariden \
+  --partition normal \
+  --serving-framework sglang \
+  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --time 36:00:00 \
+  --consecutive \
+  --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --host 0.0.0.0 --enable-metrics"
+```
+
+How it works:
+
+- **All jobs are submitted up front** at absolute SLURM `--begin` times, spaced
+  `(--max-job-time − --handover-time)` apart. The job count is the minimum whose
+  continuous coverage reaches `--time`. With the defaults a `36:00:00` request
+  becomes **4 jobs** spaced 11 h apart.
+- **Handover overlap.** A job starts `--handover-time` (default `01:00:00`)
+  before its predecessor's limit, giving the fresh job time to load weights and
+  become healthy before the old one expires.
+- **Self-cancelling.** Each job is stamped with its predecessor's id and cancels
+  it from inside the job once all of its own replicas are healthy — so the old
+  allocation is released and no resources are wasted. This runs on the batch
+  node, so it works even after you've detached the CLI.
+- **One endpoint.** Every job in the chain shares the same `--served-model-name`,
+  so clients see a single continuous model across handovers.
+
+In the TUI, a **Consecutive Job Chain** panel lists every job with its
+begin/end times and live status, and during an overlapping handover the replica
+panel shows each running job's replicas in its own labelled section.
+
+> If `--time` is within the per-job cap, `--consecutive` is a no-op (single job).
+> The **last** job runs its full cap, so actual uptime can slightly exceed
+> `--time`. For a quick end-to-end test, shrink `--max-job-time` (e.g.
+> `--max-job-time 00:10:00 --handover-time 00:03:00`) so handovers fire in
+> minutes.
 
 ## Inspecting what would be submitted (`--output-script DIR`)
 
