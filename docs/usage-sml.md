@@ -62,6 +62,20 @@ sml \
 
 After submission, the TUI shows job state and live logs. When the model is healthy, it's reachable at the served-model URL.
 
+### Opening a terminal on a replica's node
+
+The **Replica Health** panel has a **Terminal** column. Once a replica reports its
+node, click **⏵ open** on its row to drop into an interactive shell *on that node*,
+inside the running job (`srun --overlap … --pty bash` — so you see the job's GPUs and
+environment). The TUI suspends while the shell is open and resumes when you exit it.
+
+- **SLURM launcher:** works out of the box (you're already on the cluster).
+- **FirecREST launcher:** SML reaches the node over SSH, using the login host
+  advertised by the selected FirecREST system. If that host isn't reachable under
+  that name, set your own alias with `cluster_ssh_host` during `sml init` (or the
+  `SML_CLUSTER_SSH_HOST` environment variable). When no SSH host is available, the
+  button copies the exact command to run after you SSH in yourself.
+
 ## What if my model isn't in the catalog?
 
 Use [`sml advanced`](usage-advanced.md) to point at any model path on the cluster filesystem (or huggingface handle).

@@ -10,7 +10,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -63,6 +63,7 @@ class FirecRESTLauncher(Launcher):
         partition: str,
         reservation: str | None = None,
         telemetry_endpoint: str | None = None,
+        ssh_host: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -73,6 +74,10 @@ class FirecRESTLauncher(Launcher):
             telemetry_endpoint=telemetry_endpoint,
         )
         self.client = client
+        # SSH alias/host used to reach the cluster's login node so the TUI can open
+        # a shell on a replica's compute node (FirecREST itself offers no PTY).
+        # None disables the terminal button (it falls back to copying the command).
+        self.ssh_host = ssh_host
 
     @classmethod
     async def from_client(
@@ -83,6 +88,7 @@ class FirecRESTLauncher(Launcher):
         reservation: str | None = None,
         account: str | None = None,
         telemetry_endpoint: str | None = None,
+        ssh_host: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
@@ -93,6 +99,7 @@ class FirecRESTLauncher(Launcher):
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
+            ssh_host=ssh_host,
         )
 
     def _get_user_dir(self) -> str:
@@ -304,6 +311,24 @@ class FirecRESTLauncher(Launcher):
 
     def get_tail_hint(self, job_id: int) -> str:
         return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
+
+    def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
+        # FirecREST runs off-cluster (a REST gateway, no PTY), so reach the node by
+        # SSHing into the cluster login host and `srun`-ing from there. `ssh -t`
+        # forces a remote terminal so the interactive `srun --pty` shell works.
+        remote = self._display(self._srun_terminal_argv(job_id, node_host))
+        if not self.ssh_host:
+            return TerminalCommand(
+                argv=[],
+                display=remote,
+                available=False,
+                reason=(
+                    "No cluster SSH host is configured. Set `cluster_ssh_host` via `sml init` "
+                    "(or SML_CLUSTER_SSH_HOST), or SSH into the cluster and run the copied command."
+                ),
+            )
+        argv = ["ssh", "-t", self.ssh_host, remote]
+        return TerminalCommand(argv=argv, display=self._display(argv))
 
     async def cancel_job(self, job_id: int) -> None:
         try:

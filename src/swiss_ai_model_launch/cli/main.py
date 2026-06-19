@@ -398,6 +398,20 @@ async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
     print("SML is configured and ready to use! Please restart the program.")
 
 
+def _optional_init_value(config: InitConfig, name: str) -> str | None:
+    """Read an optional init-config value, tolerating older configs that lack it.
+
+    Newly-added settings (e.g. ``cluster_ssh_host``) won't be present in configs
+    written before they existed, so ``get_value`` raises ``KeyError`` — treat that,
+    and an empty string, as "unset".
+    """
+    try:
+        value = config.get_value(name)
+    except KeyError:
+        return None
+    return value or None
+
+
 def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFirecrest:
     return f7t.v2.AsyncFirecrest(
         firecrest_url=config.get_non_none_value("firecrest_url"),
@@ -415,9 +429,16 @@ async def _get_firecrest_launcher_with_client(
     telemetry_endpoint: str | None = None,
     args: argparse.Namespace | None = None,
     non_interactive: bool = False,
+    ssh_host_override: str | None = None,
 ) -> FirecRESTLauncher:
+    systems = await client.systems()
+    # Each system advertises its login SSH host; cache the mapping so we can both
+    # present the systems to choose from and resolve the chosen one's host for the
+    # TUI node-terminal button (used as the default when no override is set).
+    ssh_hosts = {s["name"]: (s.get("ssh") or {}).get("host") for s in systems}
+
     async def _get_systems() -> dict[str, tuple[str, str]]:
-        return {sys["name"]: (sys["name"], sys["ssh"]["host"]) for sys in await client.systems()}
+        return {s["name"]: (s["name"], ssh_hosts.get(s["name"]) or "") for s in systems}
 
     firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
     await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
@@ -450,6 +471,7 @@ async def _get_firecrest_launcher_with_client(
         reservation=reservation,
         account=account,
         telemetry_endpoint=telemetry_endpoint,
+        ssh_host=ssh_host_override or ssh_hosts.get(system_name),
     )
 
 
@@ -573,6 +595,10 @@ async def _create_launcher(
 
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
+        # SSH host for the TUI's node-terminal button: an explicit override
+        # (env or init config) wins; otherwise it's auto-derived from the
+        # selected FirecREST system inside the helper below.
+        ssh_host_override = os.environ.get("SML_CLUSTER_SSH_HOST") or _optional_init_value(config, "cluster_ssh_host")
         return cast(
             Launcher,
             await _get_firecrest_launcher_with_client(
@@ -580,6 +606,7 @@ async def _create_launcher(
                 telemetry_endpoint=TELEMETRY_ENDPOINT,
                 args=args,
                 non_interactive=non_interactive,
+                ssh_host_override=ssh_host_override,
             ),
         )
     elif launcher_type == "slurm":
@@ -644,6 +671,8 @@ async def _run_monitor(
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
     state = DisplayState([label for label, _, _ in sources])
     state.update(cluster=launcher.system_name, partition=launcher.partition)
+    # Let the TUI's per-replica Terminal button open a shell on the node.
+    state.open_terminal = launcher.terminal_command
 
     async def _monitor_model_health(served: str) -> None:
         # End-to-end probe through the public gateway. It can block for its full

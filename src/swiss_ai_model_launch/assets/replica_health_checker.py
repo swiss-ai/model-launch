@@ -169,6 +169,10 @@ def build_report(
             {
                 "node_rank": index * nodes_per_replica,
                 "node_ip": node_ip,
+                # The replica head's SLURM node name (e.g. "nid001234"). The CLI
+                # uses it to open an interactive shell on the node via
+                # `srun --overlap --nodelist=<host> --pty bash`.
+                "node_host": host or None,
                 "peer_id": peer_ids.get(index),
                 "health": health,
                 "last_seen": last_seen.get(index),

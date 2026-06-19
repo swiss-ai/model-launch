@@ -1,5 +1,7 @@
+import contextlib
 import os
 import re
+import subprocess
 import time
 from collections.abc import Coroutine
 from datetime import datetime
@@ -9,9 +11,11 @@ import rich
 from rich import box
 from rich.console import Group, RenderableType
 from rich.segment import Segments
+from rich.style import Style
 from rich.table import Table
+from rich.text import Text
 from rich.traceback import Traceback
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, TabbedContent, TabPane, TextArea
 from textual.worker import Worker, WorkerState
@@ -19,6 +23,7 @@ from textual.worker import Worker, WorkerState
 from swiss_ai_model_launch.cli.display.state import DisplayState
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
+from swiss_ai_model_launch.launchers.launcher import TerminalCommand
 
 _JOB_STATUS_STYLE: dict[JobStatus, str] = {
     JobStatus.PENDING: "[yellow]PENDING[/yellow]",
@@ -141,8 +146,31 @@ def _render_chain_panel(state: DisplayState) -> RenderableType:
     return table
 
 
+# Node names are simple tokens (e.g. "nid001234", "clariden-ln001"); restricting
+# to them keeps the host safe to embed verbatim in the click-action string below.
+_NODE_HOST_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _terminal_cell(job_id: int | None, node_host: str | None, stale: bool) -> RenderableType:
+    """A clickable "open a shell on this node" affordance, or a dim placeholder.
+
+    Offered only when the node's host name and the job id are known and the report
+    is fresh — a stale job is gone, so ``srun`` could not attach anyway. The click
+    runs the app's ``open_terminal`` action (see ``_SMLApp.action_open_terminal``),
+    which suspends the TUI and drops into a shell on the node.
+    """
+    if job_id is None or not node_host or stale or not _NODE_HOST_RE.match(node_host):
+        return Text("—", style="dim", justify="center")
+    action = f"app.open_terminal('{job_id}', '{node_host}')"
+    style = Style.from_meta({"@click": action}) + Style(color="cyan", underline=True)
+    return Text("⏵ open", style=style, justify="center")
+
+
 def _render_one_replica_report(
-    report: ReplicaHealthReport, blink_on: bool, job_id: int | None = None
+    report: ReplicaHealthReport,
+    blink_on: bool,
+    job_id: int | None = None,
+    terminal_job_id: int | None = None,
 ) -> RenderableType:
     label = f"Job {job_id} — " if job_id is not None else ""
     if report.error is not None:
@@ -154,18 +182,31 @@ def _render_one_replica_report(
     stale = report.checked_at is not None and int(time.time()) - report.checked_at > _REPLICA_REPORT_STALE_AFTER_SECONDS
     name = f"Job {job_id}" if job_id is not None else "Replica Health"
     title = f"{name} — [red]stale (job no longer reporting)[/red]" if stale else _replica_summary(report, job_id)
+    # The terminal button targets a specific job id; for a chain that's this
+    # report's own job, for a single launch it's the (separately passed) live job.
+    tjob = job_id if job_id is not None else terminal_job_id
     table = Table(box=box.SIMPLE_HEAD, expand=True, title=title, title_justify="left")
     table.add_column("Node", justify="right", style="dim", width=4)
+    table.add_column("Node Name")
     table.add_column("Node IP")
     table.add_column("Health", justify="right", width=16)
     table.add_column("Last Heartbeat", justify="right")
+    table.add_column("Terminal", justify="center", width=8)
     for replica in report.replicas:
         health = "[dim]STALE[/dim]" if stale else _model_health_label(replica.health, blink_on)
+        # node_host / node_ip come from the job's health report (untrusted, e.g. a
+        # FirecREST download). Render them as literal Text so a crafted value can't
+        # inject Rich console markup — notably a `[@click=…]` action span that would
+        # otherwise become a clickable shortcut to arbitrary app actions.
+        node_name = Text(replica.node_host) if replica.node_host else "[dim]—[/dim]"
+        node_ip = Text(replica.node_ip) if replica.node_ip else "[dim]—[/dim]"
         table.add_row(
             str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
-            replica.node_ip or "[dim]—[/dim]",
+            node_name,
+            node_ip,
             health,
             _format_heartbeat(replica.last_seen),
+            _terminal_cell(tjob, replica.node_host, stale),
         )
     if report.checked_at is not None:
         table.caption = f"checked at {datetime.fromtimestamp(report.checked_at).strftime('%H:%M:%S')}"
@@ -182,7 +223,9 @@ def _render_replica_panel(state: DisplayState, blink_on: bool = False) -> Render
         )
     if state.replica_report is None:
         return "[bold]Replica Health[/bold]\n[dim]Waiting for the job's first health report…[/dim]"
-    return _render_one_replica_report(state.replica_report, blink_on)
+    # Single launch: the report is unlabelled (no "Job N" title), but the terminal
+    # button still needs the live job id to target.
+    return _render_one_replica_report(state.replica_report, blink_on, terminal_job_id=state.job_id)
 
 
 class _SMLApp(App[bool]):
@@ -279,6 +322,64 @@ class _SMLApp(App[bool]):
 
     def action_quit_kill(self) -> None:
         self.exit(True)
+
+    def action_open_terminal(self, job_id: str, node_host: str) -> None:
+        """Open an interactive shell on a replica's node (the Terminal column click).
+
+        Builds the launcher-specific command, then suspends the TUI and runs it so
+        the user lands in a shell on the node; the app resumes when the shell exits.
+        If the launcher can't open one (e.g. FirecREST with no SSH host), the
+        command is copied to the clipboard with an explanation instead.
+        """
+        factory = self._state.open_terminal
+        if factory is None:
+            self.notify("Opening a node terminal isn't available here.", severity="warning")
+            return
+        try:
+            command = factory(int(job_id), node_host)
+        except Exception as exc:  # a malformed action must never crash the app
+            self.notify(f"Couldn't build the terminal command: {exc}", severity="error")
+            return
+        if not command.available or not command.argv:
+            self._offer_terminal_command(command)
+            return
+        self._open_terminal(command)
+
+    def _offer_terminal_command(self, command: TerminalCommand) -> None:
+        """Fallback when we can't launch directly: copy the command and explain."""
+        if command.display:
+            # Clipboard is best-effort (e.g. a terminal with no OSC-52 support).
+            with contextlib.suppress(Exception):
+                self.copy_to_clipboard(command.display)
+        reason = command.reason or "Can't open a terminal here."
+        suffix = f"\nCommand copied to clipboard:\n{command.display}" if command.display else ""
+        self.notify(reason + suffix, severity="warning", timeout=10)
+
+    def _open_terminal(self, command: TerminalCommand) -> None:
+        # Deliberately synchronous: the child shell owns the real TTY while it runs,
+        # so we must NOT let Textual's render loop keep painting underneath it. A
+        # blocking subprocess.run on the message-pump (the documented `with
+        # self.suspend(): …` pattern) guarantees that — the monitor worker simply
+        # pauses (the display is suspended anyway) and resumes when the shell exits.
+        try:
+            with self.suspend():
+                print(f"\n$ {command.display}\n", flush=True)
+                try:
+                    subprocess.run(command.argv)  # noqa: S603 - argv built from launcher + validated host
+                except FileNotFoundError:
+                    print(f"Command not found: {command.argv[0]!r}", flush=True)
+                    input("Press Enter to return to SML… ")
+        except SuspendNotSupported:
+            self._offer_terminal_command(
+                TerminalCommand(
+                    argv=command.argv,
+                    display=command.display,
+                    available=False,
+                    reason="This terminal can't be suspended to open a shell.",
+                )
+            )
+        except Exception as exc:  # keep the TUI alive if the session blows up
+            self.notify(f"Terminal session error: {exc}", severity="error")
 
     def _fatal_error(self) -> None:
         show_locals = os.environ.get("SML_DEBUG", "").lower() in ("1", "true", "yes")

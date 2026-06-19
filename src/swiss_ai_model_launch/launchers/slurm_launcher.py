@@ -8,7 +8,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -271,6 +271,12 @@ class SlurmLauncher(Launcher):
 
     def get_tail_hint(self, job_id: int) -> str:
         return f"tail -f ~/.sml/logs/{job_id}/log.out"
+
+    def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
+        # SLURM launches assume we're already on the cluster (an `srun` away from
+        # the compute nodes), so attach a shell directly — no SSH hop needed.
+        argv = self._srun_terminal_argv(job_id, node_host)
+        return TerminalCommand(argv=argv, display=self._display(argv))
 
     async def cancel_job(self, job_id: int) -> None:
         proc = await asyncio.create_subprocess_exec(
