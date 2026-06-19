@@ -13,7 +13,6 @@ sml advanced \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_mixthink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it \
-    --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
     --trust-remote-code \
@@ -32,7 +31,6 @@ sml advanced \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_mixthink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it-THINK \
-    --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
     --trust-remote-code \
@@ -54,7 +52,6 @@ sml advanced \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_nothink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_nothink_1606_480it \
-    --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
     --trust-remote-code \
