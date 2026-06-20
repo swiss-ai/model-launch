@@ -29,7 +29,7 @@ Add an entry to `claude_desktop_config.json` (typically `~/Library/Application S
       "command": "fastmcp",
       "args": ["run", "swiss_ai_model_launch.mcp:mcp"],
       "env": {
-        "SML_FIRECREST_SYSTEM": "clariden",
+        "SML_SYSTEM": "clariden",
         "SML_PARTITION": "normal"
       }
     }

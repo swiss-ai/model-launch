@@ -4,7 +4,7 @@
 
 Not truly always-on. SML submits SLURM jobs, which are bounded by the partition's time limit. For an indefinitely-running serving deployment, the right home is Kubernetes — get in touch with the SwissAI infrastructure team to be onboarded.
 
-If your need is "running for a bounded but long time unattended", set `--time` to the total uptime you want. Within a single job's cap that's one job; beyond it, `sml advanced --consecutive` chains jobs back-to-back (with a healthy-handover overlap) so the model stays up for the full `--time`. See [Advanced Usage](usage-advanced.md#running-past-the-12-h-cap---consecutive).
+If your need is "running for a bounded but long time unattended", set `--time` to the total uptime you want. Within a single job's cap that's one job; beyond it, `sml advanced --consecutive` chains jobs back-to-back (with a healthy-handover overlap) so the model stays up for the full `--time`. See [Advanced Usage](usage-advanced.md#running-past-the-12-h-cap-consecutive).
 
 ## Should I use FirecREST or SLURM?
 
@@ -38,7 +38,7 @@ Yes — use [`sml advanced`](usage-advanced.md) and pass the model's path on the
 
 Pass `--disable-ocf` to `sml advanced`. By default each replica registers itself on the OpenTela p2p mesh — that registration is what the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) routes through. Disabling it means the replica never joins the mesh, so the model is only reachable from inside the cluster. See [When to disable OCF](usage-advanced.md#when-to-disable-ocf).
 
-> "OCF" and "OpenTela" are the same thing — `OCF` is the on-disk binary name; `OpenTela` is the project. The flag is named `--disable-ocf` for historical reasons.
+> "OCF" and "OpenTela" are the same thing — `OCF` is the legacy name (the binary ships on-disk as `otela-<arch>`); `OpenTela` is the project. The flag is named `--disable-ocf` for historical reasons.
 
 ## How do I see metrics?
 

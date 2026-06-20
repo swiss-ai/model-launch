@@ -12,7 +12,7 @@ After [initialization](initialization.md):
 sml
 ```
 
-You'll be prompted for: target system, partition, model, framework, replica count, time limit. SML submits the job and the TUI takes over.
+You'll be prompted for: target system (FirecREST only), partition, SLURM reservation (optional, blank to skip), SLURM account (optional, blank for your default group), model, framework, replica count, routing strategy (only when replica count > 1), and time limit. SML submits the job and the TUI takes over.
 
 ## Skipping the prompts
 
@@ -34,7 +34,7 @@ CLI flags take precedence over environment variables.
 
 > The guided `sml` flow submits a single job, so `--time` must fit within the
 > 12 h SLURM cap. To keep a model up longer, use
-> [`sml advanced --consecutive`](usage-advanced.md#running-past-the-12-h-cap---consecutive).
+> [`sml advanced --consecutive`](usage-advanced.md#running-past-the-12-h-cap-consecutive).
 
 ### Tip: env vars for things that rarely change
 

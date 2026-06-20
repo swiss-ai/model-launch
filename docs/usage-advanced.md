@@ -10,31 +10,31 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 
 ## Arguments
 
-| Argument                    | Environment Variable    | Description                                                       |
-| --------------------------- | ----------------------- | ----------------------------------------------------------------- |
-| `--firecrest-system`        | `SML_FIRECREST_SYSTEM`  | Target HPC system                                                 |
-| `--partition`               | `SML_PARTITION`         | SLURM partition                                                   |
-| `--slurm-account`           | `SML_ACCOUNT`           | SLURM account used for job submission                             |
-| `--slurm-reservation`       | `SML_RESERVATION`       | SLURM reservation (optional)                                      |
-| `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
-| `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
-| `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
-| `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                     |
-| `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs |
-| `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)        |
-| `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
-| `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--router`                  |                         | Routing: `OCF` (default) or `SGL` (in-job router, replicas > 1)   |
-| `--router-args`             |                         | Arguments forwarded to the router (`--router SGL`)                |
-| `--disable-ocf`             |                         | Disable OCF wrapper                                               |
-| `--otela-bootstrap-addr`    |                         | Override the OCF/OpenTela bootstrap peer (full multiaddr)         |
-| `--dev`                     |                         | Shorthand for the dev OCF/OpenTela bootstrap peer                 |
-| `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
-| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
-| `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
-| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
+| Argument                    | Environment Variable   | Description                                                                                                                    |
+| --------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `--firecrest-system`        | `SML_FIRECREST_SYSTEM` | Target HPC system                                                                                                              |
+| `--partition`               | `SML_PARTITION`        | SLURM partition                                                                                                                |
+| `--slurm-account`           | `SML_ACCOUNT`          | SLURM account used for job submission                                                                                          |
+| `--slurm-reservation`       | `SML_RESERVATION`      | SLURM reservation (optional)                                                                                                   |
+| `--serving-framework`       |                        | Inference framework (`sglang`, `vllm`) — **required**                                                                          |
+| `--slurm-environment`       |                        | Local path to the environment `.toml` file — **required**                                                                      |
+| `--framework-args`          |                        | Arguments forwarded to the inference framework                                                                                 |
+| `--slurm-replicas`          |                        | Number of replicas (default: `1`)                                                                                              |
+| `--slurm-nodes-per-replica` |                        | Nodes per replica (default: `1`)                                                                                               |
+| `--time`                    |                        | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                  |
+| `--consecutive`             |                        | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
+| `--handover-time`           |                        | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
+| `--max-job-time`            |                        | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
+| `--served-model-name`       |                        | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. |
+| `--router`                  |                        | Routing: `OCF` (default) or `SGL` (in-job router, replicas > 1)                                                                |
+| `--router-args`             |                        | Arguments forwarded to the router (`--router SGL`)                                                                             |
+| `--disable-ocf`             |                        | Disable OCF wrapper                                                                                                            |
+| `--otela-bootstrap-addr`    |                        | Override the OCF/OpenTela bootstrap peer (full multiaddr)                                                                      |
+| `--dev`                     |                        | Shorthand for the dev OCF/OpenTela bootstrap peer                                                                              |
+| `--disable-metrics`         |                        | Disable vmagent metrics push                                                                                                   |
+| `--disable-dcgm-exporter`   |                        | Disable DCGM GPU metrics exporter                                                                                              |
+| `--pre-launch-cmds`         |                        | Shell commands to run before the framework starts                                                                              |
+| `--output-script DIR`       |                        | Render master.sh + rank scripts into DIR and exit (no submit)                                                                  |
 
 > Total nodes is `--slurm-replicas × --slurm-nodes-per-replica`. The framework HTTP port is **8080**.
 
@@ -164,7 +164,7 @@ After a real (non-`--output-script`) submission, the same rank scripts also land
 
 ## When to disable OCF
 
-> "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-ocf` for historical reasons.
+> "OCF" and "OpenTela" refer to the same thing — `OCF` is the legacy name for the [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary (shipped on-disk as `otela-<arch>`, referenced via `OCF_BIN`). The flag is `--disable-ocf` for historical reasons.
 
 By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf) for the longer story.
 
@@ -207,7 +207,7 @@ The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry pay
 
 ## Notes on flag style
 
-- `sml advanced` takes system and partition as **arguments**, not env vars. This keeps each script reproducible without depending on shell state. (The interactive `sml` flow is different — see the [env-var tip](usage-sml.md#tip-env-vars-for-things-that-rarely-change) there.)
+- For reproducibility we recommend passing system and partition as explicit **arguments** in `sml advanced` scripts rather than relying on shell state, though `SML_FIRECREST_SYSTEM` and `SML_PARTITION` are still honoured if the corresponding flag is omitted. (The interactive `sml` flow leans on these env vars more — see the [env-var tip](usage-sml.md#tip-env-vars-for-things-that-rarely-change) there.)
 - `--framework-args` is a single quoted string forwarded verbatim to the framework. Keep it explicit; SML doesn't massage it.
 
 ## Next

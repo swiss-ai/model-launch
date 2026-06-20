@@ -46,13 +46,13 @@ flowchart LR
                                           │  └──► OpenTela p2p mesh ◄── serving-api
                                           │                              (public gateway)
                                           │
-                                          └──► telemetry endpoint ──► Grafana
+                                          └──► metrics backend ──► Grafana
 ```
 
 Two independent planes leave the job:
 
 - **Request plane** (right): each replica registers itself on the **OpenTela p2p mesh** at startup. The serving-api gateway resolves model names through OpenTela and forwards requests to a registered peer. Skip the registration with `--disable-ocf` (see below).
-- **Metrics plane** (bottom): DCGM and vmagent scrape per-GPU and per-process metrics and push them to the telemetry endpoint, which Grafana reads from. Separate system; not OpenTela.
+- **Metrics plane** (bottom): DCGM and vmagent scrape per-GPU and per-process metrics and ship them via remote-write to the metrics backend (a Prometheus-compatible endpoint, `prometheus-dev.swissai.svc.cscs.ch/api/v1/write`), which Grafana reads from. This is distinct from the launch-telemetry endpoint (`sml-dev.swissai.svc.cscs.ch/launches`), which only receives a one-time launch-metadata POST and carries no metrics. Separate system; not OpenTela.
 
 ## Repos in the serving stack
 
@@ -69,7 +69,7 @@ SML is one piece of a larger system. The siblings:
 3. SLURM allocates nodes; the job script starts the inference framework on each replica.
 4. Each replica registers itself on the OpenTela p2p mesh under the served model name (unless `--disable-ocf` was passed).
 5. (Optional) `--router SGL` puts a framework router (e.g. sglang-router) in front of the replicas inside the job (the default `--router OCF` lets OpenTela balance across the replica peers instead). The in-job router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
-6. DCGM exporter and vmagent start in sidecar fashion on each replica node, pushing metrics to the telemetry endpoint.
+6. DCGM exporter and vmagent start in sidecar fashion on each replica node, remote-writing metrics to the Prometheus-compatible metrics backend (distinct from the launch-telemetry endpoint).
 7. A user request hits serving-api → serving-api uses OpenTela to look up the model name and pick a registered peer → the request flows through the OpenTela mesh to that peer, where the peer's local OpenTela layer hands it off to the framework process.
 
 ## Disabling OpenTela registration: `--disable-ocf`
@@ -81,7 +81,7 @@ By default each replica joins the OpenTela mesh at startup. Pass `--disable-ocf`
 
 Use `--disable-ocf` for private models, raw-throughput benchmarks (no OpenTela hop), or when you've stood up your own routing in front of the replicas. See [usage-advanced.md](usage-advanced.md#when-to-disable-ocf).
 
-> The flag is named `--disable-ocf` for historical reasons — `OCF` is the on-disk binary name from the OpenTela project. Treat the two as one thing.
+> The flag is named `--disable-ocf` for historical reasons — `OCF` is the legacy name for the OpenTela client binary (now shipped on-disk as `otela-<arch>` and referenced via the `OCF_BIN` env var). Treat OCF and OpenTela as one thing.
 
 ## Where SML's responsibility ends
 

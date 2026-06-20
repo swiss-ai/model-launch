@@ -1,6 +1,6 @@
 # Glossary
 
-One-line definitions for terms that show up in SML and the surrounding serving stack. Pages elsewhere link directly to the anchors here (e.g. `glossary.md#opentela`).
+One-line definitions for terms that show up in SML and the surrounding serving stack. Pages elsewhere link directly to the anchors here (e.g. `glossary.md#ocf-opentela`).
 
 ## Beverin
 
@@ -42,7 +42,7 @@ How SML submits jobs: `firecrest` (REST API, works from a laptop) or `slurm` (di
 
 The same thing — the [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
 
-`OCF` is the on-disk binary name; `OpenTela` is the project. The CLI flag `--disable-ocf` is named for the binary for historical reasons — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf).
+`OCF` is the legacy name (the binary ships on-disk as `otela-<arch>`); `OpenTela` is the project. The CLI flag `--disable-ocf` is named for the binary for historical reasons — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf).
 
 ## Partition
 
@@ -62,7 +62,7 @@ A framework-side load balancer (e.g. `sglang-router`) inserted in front of N rep
 
 ## Served-model name
 
-The name a client uses to request the model from the public gateway (e.g. `swiss-ai/Apertus-8B-Instruct-2509-myusername`). Set via `--served-model-name`. Auto-generated if omitted; the `-<user>` suffix avoids collisions with shared deployments.
+The name a client uses to request the model from the public gateway (e.g. `swiss-ai/Apertus-8B-Instruct-2509-Qxkt`). Set via `--served-model-name`. Auto-generated if omitted by appending a short random suffix (4 letters) to the model id, which avoids collisions with shared deployments.
 
 ## serving-api
 
@@ -74,7 +74,7 @@ The job scheduler used on most CSCS systems. SML serializes its launch into an `
 
 ## sml
 
-This CLI. Three subcommands: `init` (one-time credential setup), and two ways to launch — interactive (`sml`) or fully-flagged (`sml advanced`). See [Using SML](usage-sml.md).
+This CLI. Subcommands: `init` (one-time credential setup), `preconfigured` (guided/interactive launch — the default when you run `sml` with no subcommand), `advanced` (fully-flagged launch), plus `loadtest` and `mcp`. See [Using SML](usage-sml.md).
 
 ## sml advanced
 

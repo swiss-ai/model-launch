@@ -12,7 +12,7 @@ Default k6 container:
 /capstor/store/cscs/swissai/infra01/container-images/ci/k6.sqsh
 ```
 
-The image is built from `grafana/k6:1.7.1`.
+The image is built from `grafana/k6:2.0.0-rc1`.
 
 SML stages these files into the loadtest job directory:
 
@@ -63,9 +63,9 @@ sml loadtest run \
   --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json
 ```
 
-`--loadtest-model` is the value sent in the OpenAI-compatible request body. If you pass `--served-model-name`, SML uses that as the default model value.
+`--loadtest-model` is the value sent in the OpenAI-compatible request body and the name that is health-checked.
 
-By default, SML waits for `--served-model-name` to become healthy before starting k6. Use `--no-wait-until-healthy` to skip this check.
+By default, SML waits for the model named by `--loadtest-model` to become healthy before starting k6 (the check is skipped if `--loadtest-model` is not given). Use `--no-wait-until-healthy` to skip this check.
 
 ## Launch Then Loadtest
 
@@ -96,7 +96,7 @@ Use `sml loadtest advanced` to launch a model and then run k6 against it.
 sml loadtest advanced \
   --firecrest-system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --slurm-nodes-per-replica 1 \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \

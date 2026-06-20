@@ -23,7 +23,7 @@ A **replica** is one independent inference engine instance — one framework pro
 
 - A SLURM job is `replicas × nodes_per_replica` nodes.
 - A replica spans a contiguous set of nodes (`nodes_per_replica`) and is wrapped in OCF on its head node.
-- The in-job framework router (sglang-router today, enabled via `--use-router`) load-balances **across replicas within a single job**, not within them. This is distinct from OpenTela, which is the cross-job p2p mesh that routes between independent jobs/peers; the framework router shapes traffic *inside* one job, OpenTela picks *which* job a request lands on.
+- The in-job framework router (sglang-router today, enabled via `--router SGL`; OCF mesh routing is the default) load-balances **across replicas within a single job**, not within them. This is distinct from OpenTela, which is the cross-job p2p mesh that routes between independent jobs/peers; the framework router shapes traffic *inside* one job, OpenTela picks *which* job a request lands on.
 - Internal sharding (TP/PP/DP/EP) is the user's concern, configured via free-form `framework_args`. SML does not infer or inject parallelism flags.
 
 ## Consequences
@@ -44,13 +44,13 @@ A **replica** is one independent inference engine instance — one framework pro
   
   This is real complexity bringing back exactly the kind of multi-source-of-truth port management we just collapsed. The optimisation it unlocks (DP fanout on a single host) is mostly already handled by sglang's internal scheduler with `--dp-size N`. We defer this until there's concrete demand.
 
-- **`use_router=True` with `replicas=1`.** Validates as an error: there's nothing to load-balance across. (sglang's internal DP gives one HTTP endpoint regardless of how many DP workers it runs.)
+- **`--router SGL` with `replicas=1`.** Silently degrades to no router (served directly), since there's nothing to load-balance across; in interactive mode SGL isn't offered as an option for a single replica. (sglang's internal DP gives one HTTP endpoint regardless of how many DP workers it runs.)
 
 ## Alternatives considered
 
 1. **Expose TP/PP/DP/EP as topology fields.** Rejected: parallelism choices are hardware/model-specific, easy to misconfigure into OOM, and frameworks evolve their own flags. SML staying out of this lets users follow framework docs without translation.
 
-2. **Allow `replicas=1` with `use_router=True` as a no-op or stable-URL pattern.** Rejected: router with one backend is pure overhead with no load-balancing value, and silently no-op'ing surprises users.
+2. **Allow `replicas=1` with `use_router=True` as a no-op or stable-URL pattern.** This is what currently ships: `--router SGL` with a single replica is silently ignored (no router is launched and no error/warning is raised — see `_fronted_by_router`, which requires `replicas > 1`), so the job serves the single replica directly. A router with one backend is pure overhead with no load-balancing value; treating it as a no-op avoids failing an otherwise-valid launch, at the cost of silently ignoring the `--router SGL` the user passed.
 
 3. **Process-per-node as a first-class topology dimension.** Deferred (see "deliberately not supported" above).
 

@@ -43,18 +43,35 @@ The FirecREST fields are only required when `--launcher firecrest`. `SML_CSCS_AP
 
 ## Config file shape
 
-`~/.sml/config.yml` after a successful init looks roughly like:
+The config is stored as a nested structure (a chain of configuration nodes), not a flat list of keys. Secrets are **not** written to the file in plaintext — they live in your OS keyring under the service name `swiss_ai_model_launch`, and the YAML holds a `__keyring__` placeholder instead.
+
+`~/.sml/config.yml` after a successful `firecrest` init looks roughly like:
 
 ```yaml
-launcher: firecrest
-firecrest_url: https://api.cscs.ch/...
-firecrest_token_uri: https://auth.cscs.ch/...
-firecrest_client_id: <secret>
-firecrest_client_secret: <secret>
-cscs_api_key: <secret>
+name: init_config
+type: chain
+chain:
+  - name: launcher_configuration
+    type: branch
+    head_configuration:
+      name: launcher
+      type: options
+      value: firecrest
+    branches:
+      firecrest:
+        name: firecrest_launcher_configuration
+        type: chain
+        chain:
+          - {name: firecrest_url, type: text, value: https://api.cscs.ch/ml/firecrest/v2}
+          - {name: firecrest_token_uri, type: text, value: https://auth.cscs.ch/...token}
+          - {name: firecrest_client_id, type: password, value: __keyring__}
+          - {name: firecrest_client_secret, type: password, value: __keyring__}
+          - {name: cluster_ssh_host, type: text, value: null}
+      slurm: null
+  - {name: cscs_api_key, type: password, value: __keyring__}
 ```
 
-Treat this file as a secret. Don't commit it.
+The `value: __keyring__` entries are placeholders; the actual secrets live in your OS keyring, not in this file. Treat both the file and your keyring as sensitive. Don't commit the file.
 
 ## Next
 
