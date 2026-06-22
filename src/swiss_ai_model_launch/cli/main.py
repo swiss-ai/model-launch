@@ -31,7 +31,7 @@ from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     DEFAULT_MAX_JOB_TIME,
     ROUTER_OPENTELA,
-    ROUTER_SGL,
+    ROUTER_SGLANG,
     TELEMETRY_ENDPOINT,
     LaunchArgs,
     RouterMode,
@@ -45,6 +45,10 @@ from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_hea
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
+
+# Shared so the OpenTela router description isn't duplicated across the static
+# parser config and the interactive option factories.
+_OPENTELA_ROUTER_DESC = "OpenTela load-balances across the replica peers on the mesh"
 
 
 def _make_firecrest_launcher_config(
@@ -121,8 +125,8 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
-        ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
+        ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
+        ROUTER_SGLANG: ("SGLANG", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
     }
     return ChainConfiguration(
         name="launcher_request_configuration",
@@ -147,7 +151,7 @@ def _make_launch_request_config(
             ),
             OptionsConfiguration(
                 name="router",
-                prompt="Routing strategy across replicas (OPENTELA = OpenTela mesh, SGL = in-job SGLang router).",
+                prompt="Routing strategy across replicas (OPENTELA = OpenTela mesh, SGLANG = in-job SGLang router).",
                 options_factory=router_factory,
                 options=None if router_factory else _router_options,
             ),
@@ -259,13 +263,13 @@ def _add_advanced_launch_arguments(
     advanced_parser.add_argument(
         "--router",
         dest="router",
-        choices=[ROUTER_OPENTELA, ROUTER_SGL],
+        choices=[ROUTER_OPENTELA, ROUTER_SGLANG],
         type=str.upper,
         default=ROUTER_OPENTELA,
         help=(
             "Routing strategy across replicas. "
             f"'{ROUTER_OPENTELA}' (default): OpenTela load-balances across the replica peers "
-            f"on the mesh. '{ROUTER_SGL}': an in-job SGLang router fronts the replicas and "
+            f"on the mesh. '{ROUTER_SGLANG}': an in-job SGLang router fronts the replicas and "
             "becomes the served endpoint (needs replicas > 1)."
         ),
     )
@@ -530,11 +534,11 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
     # balance across; with a single replica only mesh-level OpenTela routing applies.
     if replicas is not None and int(replicas) > 1:
         return {
-            ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
-            ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas"),
+            ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
+            ROUTER_SGLANG: ("SGLANG", "In-job SGLang router fronts the replicas"),
         }
     return {
-        ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
+        ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
     }
 
 
@@ -630,7 +634,7 @@ def _log_sources(expected_replicas: int, router: RouterMode) -> list[tuple[str, 
     """
     sources = [("Master", "log.out", "log.err")]
     sources += [(f"Replica {r}", f"replica_{r}.out", f"replica_{r}.err") for r in range(expected_replicas)]
-    if router == ROUTER_SGL and expected_replicas > 1:
+    if router == ROUTER_SGLANG and expected_replicas > 1:
         sources.append(("Router", "router.out", "router.err"))
     return sources
 

@@ -4,7 +4,7 @@ sml advanced \
   --partition normal \
   --slurm-replicas 2 \
   --slurm-nodes-per-replica 4 \
-  --router SGL \
+  --router SGLANG \
   --serving-framework sglang \
   --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 \

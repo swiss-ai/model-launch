@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
-    ROUTER_SGL,
+    ROUTER_SGLANG,
     LaunchArgs,
     time_str_to_seconds,
 )
@@ -127,7 +127,7 @@ def _fronted_by_router(launch_args: LaunchArgs) -> bool:
     # A router only fronts the replicas when explicitly requested AND there is
     # more than one replica to balance across (mirrors the gate in
     # render_rank_scripts / _render_router_launch).
-    return launch_args.router == ROUTER_SGL and launch_args.topology.replicas > 1
+    return launch_args.router == ROUTER_SGLANG and launch_args.topology.replicas > 1
 
 
 def _opentela_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
@@ -366,9 +366,9 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     if not launch_args.telemetry_endpoint:
         return ""
     topology = launch_args.topology
-    # The telemetry backend's schema predates the OpenTela/SGL router model and still
+    # The telemetry backend's schema predates the OpenTela/SGLANG router model and still
     # keys on a boolean; derive it from the router mode rather than send a new field.
-    use_router = "true" if launch_args.router == ROUTER_SGL else "false"
+    use_router = "true" if launch_args.router == ROUTER_SGLANG else "false"
     use_opentela = "false" if launch_args.disable_opentela else "true"
     # When a router fronts the replicas it is the OpenTela `llm` front door, so
     # the servable endpoint is advertised on the router port (the heads go

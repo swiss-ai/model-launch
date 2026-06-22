@@ -18,7 +18,7 @@ See [How to size a model](sizing.md). The short answer is "enough VRAM to fit we
 
 Yes — by default OpenTela does random assignment among peers. There is a PR in progress which can change this to different assignment modes: <https://github.com/swiss-ai/OpenTela/pull/4>
 
-In SML, you can pass `--router SGL` to put an in-job SGLang router in front of N replicas. With the default `--router OPENTELA`, you get N independent endpoints and OpenTela load-balances across them on the mesh; this works both with and without OpenTela. OpenTela gives you external access via <https://serving.swissai.svc.cscs.ch> and the API. Without OpenTela (using `--disable-opentela`), the model will not appear there and must be accessed directly from the cluster.
+In SML, you can pass `--router SGLANG` to put an in-job SGLang router in front of N replicas. With the default `--router OPENTELA`, you get N independent endpoints and OpenTela load-balances across them on the mesh; this works both with and without OpenTela. OpenTela gives you external access via <https://serving.swissai.svc.cscs.ch> and the API. Without OpenTela (using `--disable-opentela`), the model will not appear there and must be accessed directly from the cluster.
 
 ## My job is stuck in `PENDING`
 

@@ -21,7 +21,7 @@ from textual.widgets import Footer, Header, Label, TabbedContent, TabPane, TextA
 from textual.worker import Worker, WorkerState
 
 from swiss_ai_model_launch.cli.display.state import DisplayState
-from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
+from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launcher import TerminalCommand
 
@@ -166,6 +166,30 @@ def _terminal_cell(job_id: int | None, node_host: str | None, stale: bool) -> Re
     return Text("⏵ open", style=style, justify="center")
 
 
+def _render_replica_row(
+    replica: ReplicaHealth,
+    *,
+    stale: bool,
+    blink_on: bool,
+    terminal_job_id: int | None,
+) -> tuple[RenderableType, ...]:
+    health = "[dim]STALE[/dim]" if stale else _model_health_label(replica.health, blink_on)
+    # node_host / node_ip come from the job's health report (untrusted, e.g. a
+    # FirecREST download). Render them as literal Text so a crafted value can't
+    # inject Rich console markup — notably a `[@click=…]` action span that would
+    # otherwise become a clickable shortcut to arbitrary app actions.
+    node_name = Text(replica.node_host) if replica.node_host else "[dim]—[/dim]"
+    node_ip = Text(replica.node_ip) if replica.node_ip else "[dim]—[/dim]"
+    return (
+        str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
+        node_name,
+        node_ip,
+        health,
+        _format_heartbeat(replica.last_seen),
+        _terminal_cell(terminal_job_id, replica.node_host, stale),
+    )
+
+
 def _render_one_replica_report(
     report: ReplicaHealthReport,
     blink_on: bool,
@@ -193,21 +217,7 @@ def _render_one_replica_report(
     table.add_column("Last Heartbeat", justify="right")
     table.add_column("Terminal", justify="center", width=8)
     for replica in report.replicas:
-        health = "[dim]STALE[/dim]" if stale else _model_health_label(replica.health, blink_on)
-        # node_host / node_ip come from the job's health report (untrusted, e.g. a
-        # FirecREST download). Render them as literal Text so a crafted value can't
-        # inject Rich console markup — notably a `[@click=…]` action span that would
-        # otherwise become a clickable shortcut to arbitrary app actions.
-        node_name = Text(replica.node_host) if replica.node_host else "[dim]—[/dim]"
-        node_ip = Text(replica.node_ip) if replica.node_ip else "[dim]—[/dim]"
-        table.add_row(
-            str(replica.node_rank) if replica.node_rank is not None else "[dim]—[/dim]",
-            node_name,
-            node_ip,
-            health,
-            _format_heartbeat(replica.last_seen),
-            _terminal_cell(tjob, replica.node_host, stale),
-        )
+        table.add_row(*_render_replica_row(replica, stale=stale, blink_on=blink_on, terminal_job_id=tjob))
     if report.checked_at is not None:
         table.caption = f"checked at {datetime.fromtimestamp(report.checked_at).strftime('%H:%M:%S')}"
         table.caption_justify = "right"

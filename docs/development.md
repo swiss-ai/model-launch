@@ -98,7 +98,7 @@ A single `master.sh` (visible via `--output-script` — see [usage](usage-advanc
 6. **Per-rank `srun` calls** — one block per (replica, rank). Each binds the rank dir into the pyxis container via `--container-mounts="$RANKS_DIR:$RANKS_DIR"` and invokes `bash $RANKS_DIR/<role>.sh`
 7. **vmagent** (optional) — metrics scraper on the batch node
 8. **Replica health checker** — background loop on the batch node (`_render_health_checker`) that lays down `$RANKS_DIR/replica_health_checker.py`, probes each replica's framework `/health`, and writes an atomic JSON report (`logs/${SLURM_JOB_ID}/replica_health.json`) the CLI reads. Always rendered; disowned and killed by the EXIT trap.
-9. **Router** (optional) — `sglang_router` on `nodes[0]` when `replicas > 1 && --router SGL`
+9. **Router** (optional) — `sglang_router` on `nodes[0]` when `replicas > 1 && --router SGLANG`
 10. **Footer** — connect/cancel hints, `wait`, "Master finished"
 
 ### Where to make changes

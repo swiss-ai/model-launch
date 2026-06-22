@@ -55,7 +55,7 @@ Four flavors of parallelism show up when serving large models:
 | **TP** (tensor parallelism)   | A single matmul, sharded across GPUs within a layer               | Framework flag (sglang `--tp-size`, vLLM `--tensor-parallel-size`) inside `--framework-args`. Stays inside one replica.           |
 | **PP** (pipeline parallelism) | Layers, sharded across GPUs (or nodes) end-to-end                 | Framework flag (e.g. `--pp-size`) inside `--framework-args`. Spans nodes within one replica when `--slurm-nodes-per-replica > 1`. |
 | **EP** (expert parallelism)   | MoE experts, sharded across GPUs — only meaningful for MoE models | Framework flag (e.g. vLLM/sglang `--ep-size` or `--enable-expert-parallel`) inside `--framework-args`. Stays inside one replica.  |
-| **DP** (data parallelism)     | Independent copies serving different requests in parallel         | **`--slurm-replicas N`** — N copies of the model, optionally fronted by `--router SGL`.                                           |
+| **DP** (data parallelism)     | Independent copies serving different requests in parallel         | **`--slurm-replicas N`** — N copies of the model, optionally fronted by `--router SGLANG`.                                        |
 
 In short: **a "replica" in SML is a DP unit.** TP, PP, and EP are framework-internal — they affect how one replica is laid out across its allocated GPUs/nodes. DP is just "how many replicas".
 
@@ -80,7 +80,7 @@ DP across replicas still applies the same way for throughput: more concurrent re
 
 These two flags set very different things:
 
-- **`--slurm-replicas N`** — N independent copies of the model. Use for **throughput**: more concurrent requests, optionally fronted by `--router SGL` for load balancing.
+- **`--slurm-replicas N`** — N independent copies of the model. Use for **throughput**: more concurrent requests, optionally fronted by `--router SGLANG` for load balancing.
 - **`--slurm-nodes-per-replica K`** — each replica spans K nodes. Use when **one replica doesn't fit on a single node** (large models, long context, more KV cache).
 
 Total nodes = `replicas × nodes-per-replica`.
@@ -105,7 +105,7 @@ Use this when **a single user is waiting for a response** — chat, interactive 
 | Model size | The smallest model that meets your quality bar. A well-tuned 8B is faster than a clumsily-tuned 70B. |
 | Precision | FP8 or INT4 if accuracy holds. Less VRAM read per token = faster. |
 | Replicas | **1.** More replicas help throughput, not single-request latency. |
-| Router | **OpenTela** (default, `--router OPENTELA`). The SGLang router (`--router SGL`) adds a hop. |
+| Router | **OpenTela** (default, `--router OPENTELA`). The SGLang router (`--router SGLANG`) adds a hop. |
 | Framework batching | Keep `--max-num-seqs` low (e.g. 8) so requests don't queue behind a giant batch. |
 | Context length | Cap context length (`--max-model-len` for vLLM, `--context-length` for sglang) to what you actually need. Smaller KV cache = faster prefill. |
 | TP | Just enough to fit the model. Past that, TP communication starts costing more than it saves. |
@@ -120,7 +120,7 @@ Use this when **you have a lot of work to push through** — batch eval, dataset
 | Knob | Recommended for high throughput |
 | --- | --- |
 | Replicas | **More.** Bump `--slurm-replicas` until you hit a partition or budget cap. DP scales linearly. |
-| Router | **SGL** (`--router SGL`) for an in-job router across replicas; the default `--router OPENTELA` spreads load across replicas at the OpenTela mesh instead. |
+| Router | **SGLANG** (`--router SGLANG`) for an in-job router across replicas; the default `--router OPENTELA` spreads load across replicas at the OpenTela mesh instead. |
 | Framework batching | Crank `--max-num-seqs` (e.g. 256+) so the framework can group requests into fat batches. |
 | KV cache headroom | Leave more VRAM for the cache. Bigger cache = more concurrent sequences = more batching opportunity. |
 | Precision | FP8 if quality allows — smaller weights leave more room for KV cache and increase batch size. |

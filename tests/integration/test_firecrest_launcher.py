@@ -59,7 +59,7 @@ _STD_LAUNCH_REQUESTS = [
             ModelCatalogEntry.model_validate(entry),
             replicas=replicas,
             time="04:00:00",
-            router="SGL" if use_router else "OPENTELA",
+            router="SGLANG" if use_router else "OPENTELA",
         ),
         id=f"{entry['model']}/{entry['framework']}/{config_id}",
         marks=[pytest.mark.std],

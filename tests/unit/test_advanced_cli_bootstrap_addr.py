@@ -45,16 +45,16 @@ def test_advanced_router_defaults_to_opentela():
     assert la.router == "OPENTELA"
 
 
-def test_advanced_router_sgl_enables_router():
-    args = _minimal_advanced_args("--router", "SGL")
+def test_advanced_router_sglang_enables_router():
+    args = _minimal_advanced_args("--router", "SGLANG")
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "SGL"
+    assert la.router == "SGLANG"
 
 
 def test_advanced_router_is_case_insensitive():
-    args = _minimal_advanced_args("--router", "sgl")
+    args = _minimal_advanced_args("--router", "sglang")
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "SGL"
+    assert la.router == "SGLANG"
 
 
 def test_advanced_explicit_addr_overrides_dev():

@@ -18,17 +18,17 @@ You'll be prompted for: target system (FirecREST only), partition, SLURM reserva
 
 You can pre-fill any prompt with a CLI flag or environment variable. Whatever you don't supply, SML asks for.
 
-| Argument             | Environment Variable     | Description                                            |
-| -------------------- | ------------------------ | ------------------------------------------------------ |
-| `--firecrest-system` | `SML_FIRECREST_SYSTEM`   | Target system (required if launcher is `firecrest`)    |
-| `--partition`        | `SML_PARTITION`          | SLURM partition                                        |
-| `--reservation`      | `SML_RESERVATION`        | SLURM reservation (optional)                           |
-| `--slurm-account`    | `SML_ACCOUNT`            | SLURM account used for job submission (optional)       |
-| `--model`            |                          | Model to launch (`<vendor>/<model>`)                   |
-| `--framework`        |                          | Inference framework                                    |
-| `--replicas`         |                          | Number of replicas                                     |
-| `--router`           |                          | Routing strategy across replicas (`OPENTELA` / `SGL`)  |
-| `--time`             |                          | Job time limit (`HH:MM:SS`)                            |
+| Argument             | Environment Variable   | Description                                              |
+| -------------------- | ---------------------- | -------------------------------------------------------- |
+| `--firecrest-system` | `SML_FIRECREST_SYSTEM` | Target system (required if launcher is `firecrest`)      |
+| `--partition`        | `SML_PARTITION`        | SLURM partition                                          |
+| `--reservation`      | `SML_RESERVATION`      | SLURM reservation (optional)                             |
+| `--slurm-account`    | `SML_ACCOUNT`          | SLURM account used for job submission (optional)         |
+| `--model`            |                        | Model to launch (`<vendor>/<model>`)                     |
+| `--framework`        |                        | Inference framework                                      |
+| `--replicas`         |                        | Number of replicas                                       |
+| `--router`           |                        | Routing strategy across replicas (`OPENTELA` / `SGLANG`) |
+| `--time`             |                        | Job time limit (`HH:MM:SS`)                              |
 
 CLI flags take precedence over environment variables.
 

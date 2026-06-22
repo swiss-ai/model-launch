@@ -251,9 +251,9 @@ async def launch_preconfigured_model(
     replicas: Annotated[int, "Number of independent inference engine instances to launch."] = 1,
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
     router: Annotated[
-        Literal["OPENTELA", "SGL"],
+        Literal["OPENTELA", "SGLANG"],
         "Routing strategy across replicas. 'OPENTELA' (default): OpenTela load-balances across "
-        "the replica peers on the mesh. 'SGL': an in-job SGLang router fronts the replicas "
+        "the replica peers on the mesh. 'SGLANG': an in-job SGLang router fronts the replicas "
         "and becomes the served endpoint (needs replicas > 1).",
     ] = "OPENTELA",
 ) -> str:

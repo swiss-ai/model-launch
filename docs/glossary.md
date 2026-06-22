@@ -58,7 +58,7 @@ A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the
 
 ## Router
 
-A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router SGL` (the default `--router OPENTELA` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router SGLANG` (the default `--router OPENTELA` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 
 ## Served-model name
 
