@@ -26,11 +26,11 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
+from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     DEFAULT_MAX_JOB_TIME,
-    ROUTER_OCF,
+    ROUTER_OPENTELA,
     ROUTER_SGL,
     TELEMETRY_ENDPOINT,
     LaunchArgs,
@@ -121,7 +121,7 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
+        ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
         ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
     }
     return ChainConfiguration(
@@ -147,7 +147,7 @@ def _make_launch_request_config(
             ),
             OptionsConfiguration(
                 name="router",
-                prompt="Routing strategy across replicas (OCF = OpenTela mesh, SGL = in-job SGLang router).",
+                prompt="Routing strategy across replicas (OPENTELA = OpenTela mesh, SGL = in-job SGLang router).",
                 options_factory=router_factory,
                 options=None if router_factory else _router_options,
             ),
@@ -259,12 +259,12 @@ def _add_advanced_launch_arguments(
     advanced_parser.add_argument(
         "--router",
         dest="router",
-        choices=[ROUTER_OCF, ROUTER_SGL],
+        choices=[ROUTER_OPENTELA, ROUTER_SGL],
         type=str.upper,
-        default=ROUTER_OCF,
+        default=ROUTER_OPENTELA,
         help=(
             "Routing strategy across replicas. "
-            f"'{ROUTER_OCF}' (default): OpenTela load-balances across the replica peers "
+            f"'{ROUTER_OPENTELA}' (default): OpenTela load-balances across the replica peers "
             f"on the mesh. '{ROUTER_SGL}': an in-job SGLang router fronts the replicas and "
             "becomes the served endpoint (needs replicas > 1)."
         ),
@@ -277,10 +277,10 @@ def _add_advanced_launch_arguments(
         help="Arguments forwarded to the router.",
     )
     advanced_parser.add_argument(
-        "--disable-ocf",
-        dest="disable_ocf",
+        "--disable-opentela",
+        dest="disable_opentela",
         action="store_true",
-        help="Disable OCF.",
+        help="Disable OpenTela.",
     )
     advanced_parser.add_argument(
         "--otela-bootstrap-addr",
@@ -288,7 +288,7 @@ def _add_advanced_launch_arguments(
         default=None,
         metavar="MULTIADDR",
         help=(
-            "Override the OCF bootstrap multiaddr "
+            "Override the OpenTela bootstrap multiaddr "
             "(e.g. /ip4/<host>/tcp/<port>/p2p/<peer-id>). "
             "Takes precedence over --dev. Defaults to the prod peer."
         ),
@@ -297,7 +297,7 @@ def _add_advanced_launch_arguments(
         "--dev",
         dest="dev",
         action="store_true",
-        help=("Shorthand for the dev OCF bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
+        help=("Shorthand for the dev OpenTela bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -527,14 +527,14 @@ async def _get_slurm_launcher(
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
     replicas = get_value("replicas")
     # The in-job SGLang router only makes sense with more than one replica to
-    # balance across; with a single replica only mesh-level OCF routing applies.
+    # balance across; with a single replica only mesh-level OpenTela routing applies.
     if replicas is not None and int(replicas) > 1:
         return {
-            ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
+            ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
             ROUTER_SGL: ("SGL", "In-job SGLang router fronts the replicas"),
         }
     return {
-        ROUTER_OCF: ("OCF", "OpenTela load-balances across the replica peers on the mesh"),
+        ROUTER_OPENTELA: ("OPENTELA", "OpenTela load-balances across the replica peers on the mesh"),
     }
 
 
@@ -665,7 +665,7 @@ async def _run_monitor(
     cscs_api_key: str,
     *,
     expected_replicas: int,
-    router: RouterMode = ROUTER_OCF,
+    router: RouterMode = ROUTER_OPENTELA,
 ) -> None:
     sources = _log_sources(expected_replicas, router)
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
@@ -799,18 +799,18 @@ def build_launch_args_from_advanced(
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
-    ocf_bootstrap_addr: str | None
+    opentela_bootstrap_addr: str | None
     if getattr(args, "otela_bootstrap_addr", None):
-        ocf_bootstrap_addr = args.otela_bootstrap_addr
+        opentela_bootstrap_addr = args.otela_bootstrap_addr
         if getattr(args, "dev", False):
             print(
                 "warning: --dev ignored because --otela-bootstrap-addr was given.",
                 file=sys.stderr,
             )
     elif getattr(args, "dev", False):
-        ocf_bootstrap_addr = OCF_BOOTSTRAP_ADDR_DEV
+        opentela_bootstrap_addr = OPENTELA_BOOTSTRAP_ADDR_DEV
     else:
-        ocf_bootstrap_addr = None
+        opentela_bootstrap_addr = None
 
     return LaunchArgs(
         job_name=job_name,
@@ -828,8 +828,8 @@ def build_launch_args_from_advanced(
         pre_launch_cmds=args.pre_launch_cmds,
         router=args.router,
         router_args=args.router_args,
-        disable_ocf=args.disable_ocf,
-        ocf_bootstrap_addr=ocf_bootstrap_addr,
+        disable_opentela=args.disable_opentela,
+        opentela_bootstrap_addr=opentela_bootstrap_addr,
         dev=getattr(args, "dev", False),
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,

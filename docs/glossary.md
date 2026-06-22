@@ -1,6 +1,6 @@
 # Glossary
 
-One-line definitions for terms that show up in SML and the surrounding serving stack. Pages elsewhere link directly to the anchors here (e.g. `glossary.md#ocf-opentela`).
+One-line definitions for terms that show up in SML and the surrounding serving stack. Pages elsewhere link directly to the anchors here (e.g. `glossary.md#opentela`).
 
 ## Beverin
 
@@ -38,11 +38,11 @@ How SML submits jobs: `firecrest` (REST API, works from a laptop) or `slurm` (di
 
 [Model Context Protocol](https://modelcontextprotocol.io/) — a standard for letting an LLM client (Claude Desktop, Cursor, …) call external tools. SML ships an MCP server so a client can list, launch, monitor, and cancel SML jobs as native tools. See [MCP Server](mcp.md).
 
-## OCF (OpenTela)
+## OpenTela
 
-The same thing — the [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
+The [p2p service mesh](https://github.com/swiss-ai/opentela) that connects models regardless of where they live (SLURM job, k8s pod, anywhere). Each replica registers itself on the mesh at startup; the public gateway resolves model names through OpenTela and routes to a registered peer. Default load-balancing across peers is random assignment.
 
-`OCF` is the legacy name (the binary ships on-disk as `otela-<arch>`); `OpenTela` is the project. The CLI flag `--disable-ocf` is named for the binary for historical reasons — pass it to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf).
+The on-disk binary ships as `otela-<arch>`. Pass the CLI flag `--disable-opentela` to skip mesh registration so the model is reachable only inside the cluster. See [Architecture](architecture.md#disabling-opentela-registration-disable-opentela).
 
 ## Partition
 
@@ -58,7 +58,7 @@ A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the
 
 ## Router
 
-A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router SGL` (the default `--router OCF` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OCF/OpenTela](#ocf-opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router SGL` (the default `--router OPENTELA` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 
 ## Served-model name
 
@@ -66,7 +66,7 @@ The name a client uses to request the model from the public gateway (e.g. `swiss
 
 ## serving-api
 
-[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#ocf-opentela) and forwards requests to a registered peer.
+[swiss-ai/serving-api](https://github.com/swiss-ai/serving-api) — the public-facing inference gateway at <https://serving.swissai.svc.cscs.ch/>. Resolves model names against [OpenTela](#opentela) and forwards requests to a registered peer.
 
 ## SLURM
 

@@ -92,7 +92,7 @@ A single `master.sh` (visible via `--output-script` — see [usage](usage-advanc
 
 1. **Self-extracting rank scripts** — single-quoted `cat`-heredocs that lay down `head.sh`, optionally `follower.sh`, optionally `router.sh` under `$HOME/.sml/job-${SLURM_JOB_ID}/`
 2. **Telemetry** POST (optional — skipped when telemetry is disabled)
-3. **Arch detection** — sets `OCF_BIN`, `SP_NCCL_SO_PATH`, `metrics_agent_bin` per `aarch64` / `x86_64`
+3. **Arch detection** — sets `OPENTELA_BIN`, `SP_NCCL_SO_PATH`, `metrics_agent_bin` per `aarch64` / `x86_64`
 4. **Node mapping** — `mapfile -t nodes < <(scontrol show hostnames ...)`
 5. **Per-replica head IP discovery** — one `hostname -i` srun per replica
 6. **Per-rank `srun` calls** — one block per (replica, rank). Each binds the rank dir into the pyxis container via `--container-mounts="$RANKS_DIR:$RANKS_DIR"` and invokes `bash $RANKS_DIR/<role>.sh`
@@ -108,7 +108,7 @@ A single `master.sh` (visible via `--output-script` — see [usage](usage-advanc
 | What runs **inside** the container per rank | `_render_sglang_head`, `_render_sglang_follower`, `_render_vllm_head`, `_render_vllm_follower` |
 | Framework env exports (NCCL flags, `no_proxy`, JIT DeepGEMM toggle, …) | `Sglang.env_exports` / `Vllm.env_exports` |
 | Add a new inference framework | Subclass `Framework`, register in `_FRAMEWORKS`, write per-shape renderers |
-| The OCF wrap | `_ocf_wrap` |
+| The OpenTela wrap | `_opentela_wrap` |
 | The router rank script | `_render_router` |
 | Arch detection / node mapping / vmagent / footer | The matching `_render_<section>` functions |
 | What gets bind-mounted into the container per srun | The `--container-mounts` line in `_render_replica_launches` / `_render_router_launch` |
@@ -125,7 +125,7 @@ sml advanced ... --output-script /tmp/after     # new behaviour
 diff -r /tmp/before /tmp/after                  # per-file diff across master + ranks
 ```
 
-For full coverage, the test matrix at `tests/unit/test_rendered_scripts_lint.py` renders 64 configurations (framework × replicas × nodes_per_replica × use_router × disable_ocf × telemetry) and runs `bash -n` + `shellcheck` against each. If your change leaves any of those broken, the test will catch it before submit time:
+For full coverage, the test matrix at `tests/unit/test_rendered_scripts_lint.py` renders 64 configurations (framework × replicas × nodes_per_replica × use_router × disable_opentela × telemetry) and runs `bash -n` + `shellcheck` against each. If your change leaves any of those broken, the test will catch it before submit time:
 
 ```bash
 uv run pytest tests/unit/test_rendered_scripts_lint.py -q

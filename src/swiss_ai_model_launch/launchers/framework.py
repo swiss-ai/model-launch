@@ -13,16 +13,16 @@ from swiss_ai_model_launch.launchers.launch_args import (
 )
 
 SGLANG_ROUTER_PORT = 30000
-# Default (prod) OCF bootstrap address. The dev datacenter peer differs only
-# in the IP. Override per-launch via LaunchArgs.ocf_bootstrap_addr (CLI:
+# Default (prod) OpenTela bootstrap address. The dev datacenter peer differs only
+# in the IP. Override per-launch via LaunchArgs.opentela_bootstrap_addr (CLI:
 # `--otela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
-OCF_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
-OCF_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+OPENTELA_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+OPENTELA_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 RAY_PORT = 6379
 NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
 
-_METRICS_CONFIG_DIR = "/capstor/store/cscs/swissai/infra01/ocf-share"
+_METRICS_CONFIG_DIR = "/capstor/store/cscs/swissai/infra01/opentela-share"
 _VMAGENT_SCRAPE_CONFIG = f"{_METRICS_CONFIG_DIR}/vmagent-scrape.yaml"
 _VMAGENT_SCRAPE_CONFIG_NO_DCGM = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-no-dcgm.yaml"
 _VMAGENT_SCRAPE_CONFIG_DCGM_ONLY = f"{_METRICS_CONFIG_DIR}/vmagent-scrape-dcgm-only.yaml"
@@ -30,10 +30,10 @@ _DCGM_EXPORTER_PORT = 9400
 _DCGM_COUNTERS = f"{_METRICS_CONFIG_DIR}/default-counters.csv"
 
 # In-job replica health checker (its source is embedded into master.sh and run on
-# the batch node). OCF serves its HTTP API (incl. /v1/self) on port 8092.
+# the batch node). OpenTela serves its HTTP API (incl. /v1/self) on port 8092.
 _HEALTH_CHECKER_TEXT = files("swiss_ai_model_launch.assets").joinpath("replica_health_checker.py").read_text()
 _HEALTH_CHECKER_HEREDOC = "__SML_HEALTH_CHECKER_EOF__"
-_OCF_HTTP_PORT = 8092
+_OPENTELA_HTTP_PORT = 8092
 _HEALTH_INTERVAL_SECONDS = 30
 _HEALTH_TIMEOUT_SECONDS = 10
 
@@ -83,7 +83,7 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
     return f"--port {FRAMEWORK_PORT} {launch_args.framework_args}".strip()
 
 
-def _ocf_labels(launch_args: LaunchArgs) -> str:
+def _opentela_labels(launch_args: LaunchArgs) -> str:
     # Users often write framework_args with bash line-continuations + indented
     # follow-on lines, which collapse to runs of whitespace inside the quoted
     # string. Normalise here so the on-mesh label is the canonical single-space
@@ -107,18 +107,18 @@ def _ocf_labels(launch_args: LaunchArgs) -> str:
     )
 
 
-def _resolve_ocf_bootstrap_addr(launch_args: LaunchArgs) -> str:
-    return launch_args.ocf_bootstrap_addr or OCF_BOOTSTRAP_ADDR
+def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
+    return launch_args.opentela_bootstrap_addr or OPENTELA_BOOTSTRAP_ADDR
 
 
-def _ocf_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
-    bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
+def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
+    bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"$OCF_BIN start \\\n"
+        f"$OPENTELA_BIN start \\\n"
         f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
-        f"{_ocf_labels(launch_args)}"
+        f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
 
@@ -130,23 +130,23 @@ def _fronted_by_router(launch_args: LaunchArgs) -> bool:
     return launch_args.router == ROUTER_SGL and launch_args.topology.replicas > 1
 
 
-def _ocf_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
+def _opentela_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
     # A replica head normally advertises the servable `llm` endpoint on the mesh.
     # When a router fronts the replicas, the router is the single OpenTela `llm`
     # front door (see _render_router) and the heads join metrics-only — so
     # OpenTela routes external traffic to the router rather than bypassing it
     # straight to a replica, while per-replica metrics/topology stay visible.
     if _fronted_by_router(launch_args):
-        return _ocf_wrap_metrics_only(inner_cmd, launch_args)
-    return _ocf_wrap(inner_cmd, launch_args)
+        return _opentela_wrap_metrics_only(inner_cmd, launch_args)
+    return _opentela_wrap(inner_cmd, launch_args)
 
 
-def _ocf_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
-    bootstrap_addr = _resolve_ocf_bootstrap_addr(launch_args)
+def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
+    bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"$OCF_BIN start \\\n"
+        f"$OPENTELA_BIN start \\\n"
         f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
-        f"{_ocf_labels(launch_args)}"
+        f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
 
@@ -177,7 +177,7 @@ def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
     args = _compose_framework_args(launch_args)
     npr = launch_args.topology.nodes_per_replica
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
-    use_ocf = not launch_args.disable_ocf
+    use_opentela = not launch_args.disable_opentela
 
     if npr == 1:
         # Singular: one rank per replica, the head IS the only rank.
@@ -195,11 +195,11 @@ def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
             f"    {args}"
         )
 
-    if use_ocf:
-        # OCF spawns the launch as a subprocess so it can be advertised on
+    if use_opentela:
+        # OpenTela spawns the launch as a subprocess so it can be advertised on
         # the OpenTela network at $service.port (metrics-only when a router
-        # fronts the replicas — see _ocf_wrap_head).
-        launch = _ocf_wrap_head(cmd, launch_args)
+        # fronts the replicas — see _opentela_wrap_head).
+        launch = _opentela_wrap_head(cmd, launch_args)
     else:
         launch = cmd
     return f"{pre}\n\n{body_args}\n{launch}\n"
@@ -209,10 +209,10 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
     args = _compose_framework_args(launch_args)
     npr = launch_args.topology.nodes_per_replica
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
-    use_ocf = not launch_args.disable_ocf
+    use_opentela = not launch_args.disable_opentela
     # node_rank is $1 (small int) and replica_head_ip is $2 (IPv4 from master).
     # Both are word-split-safe and intentionally left unquoted here so the same
-    # cmd string works both directly (disable_ocf path) and inside the OCF
+    # cmd string works both directly (disable_opentela path) and inside the OpenTela
     # --subprocess "..." wrap without nested-quote shellcheck warnings.
     cmd = (
         f"{framework.entrypoint} \\\n"
@@ -221,10 +221,10 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
         f"    --node-rank $node_rank \\\n"
         f"    {args}"
     )
-    if use_ocf:
+    if use_opentela:
         # Followers join DNT in metrics-only mode so the full multi-node
         # topology of a replica is visible (grouped by worker_group_id).
-        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+        launch = _opentela_wrap_metrics_only(cmd, launch_args)
     else:
         launch = cmd
     return f'{pre}\n\nnode_rank="$1"\nreplica_head_ip="$2"\n\n{launch}\n'
@@ -234,22 +234,22 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
     args = _compose_framework_args(launch_args)
     npr = launch_args.topology.nodes_per_replica
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
-    use_ocf = not launch_args.disable_ocf
+    use_opentela = not launch_args.disable_opentela
 
     if npr == 1:
         # Singular: just run the API server directly, no Ray bootstrap.
         body_args = '# shellcheck disable=SC2034\nreplica_head_ip="$1"\n'
         cmd = f"{framework.entrypoint} {args}"
-        if use_ocf:
-            launch = _ocf_wrap_head(cmd, launch_args)
+        if use_opentela:
+            launch = _opentela_wrap_head(cmd, launch_args)
         else:
             launch = cmd
         return f"{pre}\n\n{body_args}\n{launch}\n"
 
     # Multi-node head: stage the Ray bootstrap + API server invocation as a
     # script on /tmp (single-quoted heredoc keeps $-constructs literal in
-    # the file), then either run it directly or via OCF's --subprocess.
-    # On-disk staging dodges OCF's subprocess re-evaluation.
+    # the file), then either run it directly or via OpenTela's --subprocess.
+    # On-disk staging dodges OpenTela's subprocess re-evaluation.
     expected_gpus = npr * NUM_GPUS_PER_NODE
     body_args = (
         "# shellcheck disable=SC2034  # unused on the head but kept for signature symmetry\n"
@@ -273,11 +273,11 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
         f"{framework.entrypoint} --distributed-executor-backend ray {args}\n"
         f"__SML_RAY_HEAD_EOF__"
     )
-    if use_ocf:
+    if use_opentela:
         # No nested double-quotes inside the --subprocess arg — the path
         # has no spaces (it's our own /tmp/sml-... naming) and the dq
         # surrounding ``--subprocess "..."`` already provides the quoting.
-        launch = _ocf_wrap_head("bash $ray_head_script", launch_args)
+        launch = _opentela_wrap_head("bash $ray_head_script", launch_args)
     else:
         launch = 'bash "$ray_head_script"'
     return f"{pre}\n\n{body_args}\n{head_script_body}\n\n{launch}\n"
@@ -285,15 +285,15 @@ def _render_vllm_head(launch_args: LaunchArgs, framework: Framework) -> str:
 
 def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
-    use_ocf = not launch_args.disable_ocf
+    use_opentela = not launch_args.disable_opentela
     # replica_head_ip is $2 (IPv4 from master), word-split-safe, left unquoted
-    # so the cmd is reusable inside the OCF --subprocess "..." wrap without
+    # so the cmd is reusable inside the OpenTela --subprocess "..." wrap without
     # nested-quote shellcheck warnings.
     cmd = f"ray start --address=$replica_head_ip:{RAY_PORT} --num-gpus={NUM_GPUS_PER_NODE} --block"
-    if use_ocf:
+    if use_opentela:
         # Followers join DNT in metrics-only mode so the full multi-node
         # topology of a replica is visible (grouped by worker_group_id).
-        launch = _ocf_wrap_metrics_only(cmd, launch_args)
+        launch = _opentela_wrap_metrics_only(cmd, launch_args)
     else:
         launch = cmd
     return (
@@ -308,29 +308,29 @@ def _render_vllm_follower(launch_args: LaunchArgs, framework: Framework) -> str:
 
 def _render_router(launch_args: LaunchArgs) -> str:
     router_args = launch_args.router_args
-    use_ocf = not launch_args.disable_ocf
-    # The router launch command, shared by the bare and OCF-wrapped paths.
+    use_opentela = not launch_args.disable_opentela
+    # The router launch command, shared by the bare and OpenTela-wrapped paths.
     # $worker_urls stays unquoted: in the bare path the router shell word-splits
-    # it into one --worker-urls value per replica; in the OCF path it is expanded
-    # inside --subprocess "..." and OCF re-splits the subprocess string.
+    # it into one --worker-urls value per replica; in the OpenTela path it is expanded
+    # inside --subprocess "..." and OpenTela re-splits the subprocess string.
     launch_cmd = (
         f"python3 -m sglang_router.launch_router \\\n"
         f"    --host 0.0.0.0 \\\n"
         f"    --port {SGLANG_ROUTER_PORT} \\\n"
         f"    --worker-urls $worker_urls" + (f" \\\n    {router_args}" if router_args else "")
     )
-    if use_ocf:
+    if use_opentela:
         # The router is the servable front door for the job, so it advertises the
         # `llm` service on the mesh (on the router port). The replica heads go
-        # metrics-only (see _ocf_wrap_head) so OpenTela routes through the router
+        # metrics-only (see _opentela_wrap_head) so OpenTela routes through the router
         # instead of bypassing it straight to a replica.
-        launch = _ocf_wrap(launch_cmd, launch_args, SGLANG_ROUTER_PORT)
+        launch = _opentela_wrap(launch_cmd, launch_args, SGLANG_ROUTER_PORT)
     else:
         launch = launch_cmd
     return (
         "#!/bin/bash\n"
         # SC2086: intentional word-splitting of $worker_urls into one
-        # --worker-urls value per replica. SC2046: the OCF wrap's
+        # --worker-urls value per replica. SC2046: the OpenTela wrap's
         # --label started_at/expires_at=$(date ...) are single tokens by
         # construction (same as the head/follower rank scripts).
         "# shellcheck disable=SC2046,SC2086\n"
@@ -366,16 +366,18 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     if not launch_args.telemetry_endpoint:
         return ""
     topology = launch_args.topology
-    # The telemetry backend's schema predates the OCF/SGL router model and still
+    # The telemetry backend's schema predates the OpenTela/SGL router model and still
     # keys on a boolean; derive it from the router mode rather than send a new field.
     use_router = "true" if launch_args.router == ROUTER_SGL else "false"
-    use_ocf = "false" if launch_args.disable_ocf else "true"
+    use_opentela = "false" if launch_args.disable_opentela else "true"
     # When a router fronts the replicas it is the OpenTela `llm` front door, so
     # the servable endpoint is advertised on the router port (the heads go
     # metrics-only). Otherwise each head advertises `llm` on the framework port.
-    ocf_service_port = SGLANG_ROUTER_PORT if _fronted_by_router(launch_args) else FRAMEWORK_PORT
+    opentela_service_port = SGLANG_ROUTER_PORT if _fronted_by_router(launch_args) else FRAMEWORK_PORT
     fa = _compose_framework_args(launch_args)
     sml_version = importlib.metadata.version("swiss-ai-model-launch")
+    # The four telemetry keys below keep their original pre-rebrand spelling to match
+    # the external ingestion schema and must not be renamed.
     payload = (
         "{"
         '"user": "\'"${SLURM_JOB_USER}"\'", '
@@ -398,10 +400,10 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
         f'"router_environment": "{launch_args.environment}", '
         f'"router_port": {SGLANG_ROUTER_PORT}, '
         f'"router_args": "{launch_args.router_args}", '
-        f'"ocf_enabled": {use_ocf}, '
-        f'"ocf_bootstrap_addr": "{_resolve_ocf_bootstrap_addr(launch_args)}", '
+        f'"ocf_enabled": {use_opentela}, '
+        f'"ocf_bootstrap_addr": "{_resolve_opentela_bootstrap_addr(launch_args)}", '
         '"ocf_service_name": "llm", '
-        f'"ocf_service_port": {ocf_service_port}, '
+        f'"ocf_service_port": {opentela_service_port}, '
         f'"model_launch_version": "{sml_version}"'
         "}"
     )
@@ -423,19 +425,19 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
     # downstream consumes them — otherwise shellcheck flags SC2034 (unused var).
     needs_metrics_bin = not launch_args.disable_metrics
     needs_dcgm_bin = _dcgm_enabled(launch_args)
-    # /ocfbin/{prod,dev}/otela-<arch> are stable symlinks maintained by
+    # /opentelabin/{prod,dev}/otela-<arch> are stable symlinks maintained by
     # OpenTela's release / deploy-dev workflows; they point at versioned
     # files in the same directory. --dev (LaunchArgs.dev) flips the channel.
-    ocf_bin_channel = "dev" if launch_args.dev else "prod"
+    opentela_bin_channel = "dev" if launch_args.dev else "prod"
     arm_lines = [
         '    echo "Running on ARM64 (aarch64)"',
         "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/",
-        f"    export OCF_BIN=/ocfbin/{ocf_bin_channel}/otela-arm64",
+        f"    export OPENTELA_BIN=/opentelabin/{opentela_bin_channel}/otela-arm64",
     ]
     x86_lines = [
         '    echo "Running on x86_64"',
         "    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/",
-        f"    export OCF_BIN=/ocfbin/{ocf_bin_channel}/otela-amd64",
+        f"    export OPENTELA_BIN=/opentelabin/{opentela_bin_channel}/otela-amd64",
     ]
     if needs_metrics_bin:
         arm_lines.append(f'    metrics_agent_bin="{base}-arm64"')
@@ -662,7 +664,7 @@ def _render_health_checker(launch_args: LaunchArgs) -> str:
         "if command -v python3 >/dev/null 2>&1; then\n"
         f'    SML_HEALTH_REPORT_PATH="{report_path}" \\\n'
         f"        SML_HEALTH_FRAMEWORK_PORT={FRAMEWORK_PORT} \\\n"
-        f"        SML_HEALTH_OCF_PORT={_OCF_HTTP_PORT} \\\n"
+        f"        SML_HEALTH_OPENTELA_PORT={_OPENTELA_HTTP_PORT} \\\n"
         f"        SML_HEALTH_INTERVAL={_HEALTH_INTERVAL_SECONDS} \\\n"
         f"        SML_HEALTH_TIMEOUT={_HEALTH_TIMEOUT_SECONDS} \\\n"
         f"        SML_HEALTH_NODES_PER_REPLICA={npr} \\\n"

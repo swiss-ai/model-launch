@@ -27,7 +27,7 @@ You can pre-fill any prompt with a CLI flag or environment variable. Whatever yo
 | `--model`            |                          | Model to launch (`<vendor>/<model>`)                   |
 | `--framework`        |                          | Inference framework                                    |
 | `--replicas`         |                          | Number of replicas                                     |
-| `--router`           |                          | Routing strategy across replicas (`OCF` / `SGL`)       |
+| `--router`           |                          | Routing strategy across replicas (`OPENTELA` / `SGL`)  |
 | `--time`             |                          | Job time limit (`HH:MM:SS`)                            |
 
 CLI flags take precedence over environment variables.

@@ -26,11 +26,11 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--handover-time`           |                        | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
 | `--max-job-time`            |                        | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
 | `--served-model-name`       |                        | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. |
-| `--router`                  |                        | Routing: `OCF` (default) or `SGL` (in-job router, replicas > 1)                                                                |
+| `--router`                  |                        | Routing: `OPENTELA` (default) or `SGL` (in-job router, replicas > 1)                                                           |
 | `--router-args`             |                        | Arguments forwarded to the router (`--router SGL`)                                                                             |
-| `--disable-ocf`             |                        | Disable OCF wrapper                                                                                                            |
-| `--otela-bootstrap-addr`    |                        | Override the OCF/OpenTela bootstrap peer (full multiaddr)                                                                      |
-| `--dev`                     |                        | Shorthand for the dev OCF/OpenTela bootstrap peer                                                                              |
+| `--disable-opentela`        |                        | Disable OpenTela wrapper                                                                                                       |
+| `--otela-bootstrap-addr`    |                        | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
+| `--dev`                     |                        | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
 | `--disable-metrics`         |                        | Disable vmagent metrics push                                                                                                   |
 | `--disable-dcgm-exporter`   |                        | Disable DCGM GPU metrics exporter                                                                                              |
 | `--pre-launch-cmds`         |                        | Shell commands to run before the framework starts                                                                              |
@@ -162,13 +162,13 @@ After a real (non-`--output-script`) submission, the same rank scripts also land
 
 > **`master.sh` is self-contained.** Rank scripts are embedded as `cat`-heredocs and extracted at job start to `$HOME/.sml/job-${SLURM_JOB_ID}/` — shared FS, so every compute node `srun` reaches can read them. The sibling `head.sh` / `follower.sh` / `router.sh` from `--output-script` are inspection-only and never read at runtime; to hand-tune, edit the heredoc bodies inside `master.sh`.
 
-## When to disable OCF
+## When to disable OpenTela
 
-> "OCF" and "OpenTela" refer to the same thing — `OCF` is the legacy name for the [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary (shipped on-disk as `otela-<arch>`, referenced via `OCF_BIN`). The flag is `--disable-ocf` for historical reasons.
+> The [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary ships on-disk as `otela-<arch>` and is referenced via `OPENTELA_BIN`.
 
-By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf) for the longer story.
+By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-opentela) for the longer story.
 
-Pass `--disable-ocf` when:
+Pass `--disable-opentela` when:
 
 - **You're benchmarking max throughput.** OpenTela adds a hop on the request path; disabling it gives you the framework's raw numbers. See [Benchmarking](benchmarking.md).
 - **You want the model kept private.** With OpenTela disabled, the replica never registers with the mesh — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
@@ -176,12 +176,12 @@ Pass `--disable-ocf` when:
 
 If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
 
-## Pointing at a different OCF bootstrap peer
+## Pointing at a different OpenTela bootstrap peer
 
 The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
 
 - `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
-- `--otela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OCF instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
+- `--otela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OpenTela instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
 
 Example:
 

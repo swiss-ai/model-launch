@@ -3,7 +3,7 @@ from swiss_ai_model_launch.cli.main import (
     build_launch_args_from_advanced,
 )
 from swiss_ai_model_launch.launchers import FirecRESTLauncher
-from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV
+from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV
 
 
 def _minimal_advanced_args(*extra: str):
@@ -28,21 +28,21 @@ def _minimal_advanced_args(*extra: str):
 def test_advanced_default_leaves_bootstrap_addr_unset():
     args = _minimal_advanced_args()
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.ocf_bootstrap_addr is None
+    assert la.opentela_bootstrap_addr is None
 
 
 def test_advanced_dev_flag_selects_dev_bootstrap_addr():
     args = _minimal_advanced_args("--dev")
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.ocf_bootstrap_addr == OCF_BOOTSTRAP_ADDR_DEV
+    assert la.opentela_bootstrap_addr == OPENTELA_BOOTSTRAP_ADDR_DEV
 
 
-def test_advanced_router_defaults_to_ocf():
-    # Default routing strategy is OCF (mesh load-balancing) -> no SGLang router.
+def test_advanced_router_defaults_to_opentela():
+    # Default routing strategy is OpenTela (mesh load-balancing) -> no SGLang router.
     args = _minimal_advanced_args()
-    assert args.router == "OCF"
+    assert args.router == "OPENTELA"
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "OCF"
+    assert la.router == "OPENTELA"
 
 
 def test_advanced_router_sgl_enables_router():
@@ -61,7 +61,7 @@ def test_advanced_explicit_addr_overrides_dev():
     custom = "/ip4/10.0.0.42/tcp/43905/p2p/QmCustomPeerXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     args = _minimal_advanced_args("--dev", "--otela-bootstrap-addr", custom)
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.ocf_bootstrap_addr == custom
+    assert la.opentela_bootstrap_addr == custom
 
 
 def test_advanced_slurm_account_is_parsed():
@@ -87,7 +87,7 @@ def test_preconfigured_slurm_account_is_parsed():
             "--replicas",
             "1",
             "--router",
-            "OCF",
+            "OPENTELA",
             "--time",
             "02:00:00",
         ]

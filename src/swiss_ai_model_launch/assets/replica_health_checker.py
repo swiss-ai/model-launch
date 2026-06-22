@@ -90,21 +90,22 @@ def check_health(node_ip: str, framework_port: int, timeout: float) -> str:
     return "HEALTHY" if 200 <= status < 300 else "NOT_RESPONDING"
 
 
-def _self_fetch_code(ocf_port: int) -> str:
+def _self_fetch_code(opentela_port: int) -> str:
     # Executed on the target node: /v1/self is localhost-only and returns the
     # node's own Peer record, whose "id" is the libp2p peer id.
     return (
         "import json, urllib.request; "
-        f"print(json.load(urllib.request.urlopen('http://localhost:{ocf_port}/v1/self', timeout=5)).get('id') or '')"
+        f"print(json.load(urllib.request.urlopen('http://localhost:{opentela_port}"
+        "/v1/self', timeout=5)).get('id') or '')"
     )
 
 
-def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> Optional[str]:
+def resolve_peer_id(host: str, opentela_port: int, timeout: float) -> Optional[str]:
     """Fetch a node's own OpenTela peer id by querying ``/v1/self`` on that node.
 
     ``/v1/self`` only answers to localhost, so we run a one-off ``srun --overlap``
     step on the node itself (sharing the live allocation). Returns ``None`` on any
-    failure (no host, srun unavailable, timeout, OCF not up).
+    failure (no host, srun unavailable, timeout, OpenTela not up).
     """
     if not host:
         return None
@@ -116,7 +117,7 @@ def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> Optional[str]:
         f"--nodelist={host}",
         "python3",
         "-c",
-        _self_fetch_code(ocf_port),
+        _self_fetch_code(opentela_port),
     ]
     try:
         result = subprocess.run(  # noqa: S603
@@ -137,7 +138,7 @@ def build_report(
     replica_hosts: List[str],
     nodes_per_replica: int,
     framework_port: int,
-    ocf_port: int,
+    opentela_port: int,
     timeout: float,
     peer_ids: Dict[int, str],
     peer_attempts: Dict[int, int],
@@ -160,7 +161,7 @@ def build_report(
             last_seen[index] = now
             if index not in peer_ids and peer_attempts.get(index, 0) < _MAX_PEER_ATTEMPTS:
                 peer_attempts[index] = peer_attempts.get(index, 0) + 1
-                resolved = resolve_peer_id(host, ocf_port, _SRUN_TIMEOUT_SECONDS)
+                resolved = resolve_peer_id(host, opentela_port, _SRUN_TIMEOUT_SECONDS)
                 if resolved:
                     peer_ids[index] = resolved
         elif index not in last_seen:
@@ -208,7 +209,7 @@ def write_report_atomically(report: Dict[str, Any], report_path: str) -> None:
 def main() -> int:
     report_path = os.environ["SML_HEALTH_REPORT_PATH"]
     framework_port = int(os.environ.get("SML_HEALTH_FRAMEWORK_PORT") or "8080")
-    ocf_port = int(os.environ.get("SML_HEALTH_OCF_PORT") or "8092")
+    opentela_port = int(os.environ.get("SML_HEALTH_OPENTELA_PORT") or "8092")
     interval = float(os.environ.get("SML_HEALTH_INTERVAL") or "30")
     timeout = float(os.environ.get("SML_HEALTH_TIMEOUT") or "10")
     nodes_per_replica = int(os.environ.get("SML_HEALTH_NODES_PER_REPLICA") or "1")
@@ -231,7 +232,7 @@ def main() -> int:
                 replica_hosts,
                 nodes_per_replica,
                 framework_port,
-                ocf_port,
+                opentela_port,
                 timeout,
                 peer_ids,
                 peer_attempts,

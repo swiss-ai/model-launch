@@ -32,8 +32,8 @@ def test_router_only_when_multi_replica_and_sgl():
     # No router when single replica
     args = _make_args(router="SGL", topology=Topology(replicas=1, nodes_per_replica=4))
     assert "router.sh" not in render_rank_scripts(args)
-    # No router when multi-replica but router="OCF"
-    args = _make_args(router="OCF", topology=Topology(replicas=2, nodes_per_replica=4))
+    # No router when multi-replica but router="OPENTELA"
+    args = _make_args(router="OPENTELA", topology=Topology(replicas=2, nodes_per_replica=4))
     assert "router.sh" not in render_rank_scripts(args)
     # Router when both
     args = _make_args(router="SGL", topology=Topology(replicas=2, nodes_per_replica=4))

@@ -105,11 +105,11 @@ Use this when **a single user is waiting for a response** — chat, interactive 
 | Model size | The smallest model that meets your quality bar. A well-tuned 8B is faster than a clumsily-tuned 70B. |
 | Precision | FP8 or INT4 if accuracy holds. Less VRAM read per token = faster. |
 | Replicas | **1.** More replicas help throughput, not single-request latency. |
-| Router | **OCF** (default, `--router OCF`). The SGLang router (`--router SGL`) adds a hop. |
+| Router | **OpenTela** (default, `--router OPENTELA`). The SGLang router (`--router SGL`) adds a hop. |
 | Framework batching | Keep `--max-num-seqs` low (e.g. 8) so requests don't queue behind a giant batch. |
 | Context length | Cap context length (`--max-model-len` for vLLM, `--context-length` for sglang) to what you actually need. Smaller KV cache = faster prefill. |
 | TP | Just enough to fit the model. Past that, TP communication starts costing more than it saves. |
-| OCF | If you're driving load directly from another job on the cluster, `--disable-ocf` removes the mesh hop. For end-user traffic via the public gateway, keep it on. |
+| OpenTela | If you're driving load directly from another job on the cluster, `--disable-opentela` removes the mesh hop. For end-user traffic via the public gateway, keep it on. |
 
 Measure TTFT and P50/P99 at concurrency = 1 and concurrency = your realistic ceiling — they will tell different stories. See [Benchmarking](benchmarking.md).
 
@@ -120,14 +120,14 @@ Use this when **you have a lot of work to push through** — batch eval, dataset
 | Knob | Recommended for high throughput |
 | --- | --- |
 | Replicas | **More.** Bump `--slurm-replicas` until you hit a partition or budget cap. DP scales linearly. |
-| Router | **SGL** (`--router SGL`) for an in-job router across replicas; the default `--router OCF` spreads load across replicas at the OpenTela mesh instead. |
+| Router | **SGL** (`--router SGL`) for an in-job router across replicas; the default `--router OPENTELA` spreads load across replicas at the OpenTela mesh instead. |
 | Framework batching | Crank `--max-num-seqs` (e.g. 256+) so the framework can group requests into fat batches. |
 | KV cache headroom | Leave more VRAM for the cache. Bigger cache = more concurrent sequences = more batching opportunity. |
 | Precision | FP8 if quality allows — smaller weights leave more room for KV cache and increase batch size. |
 | Context length | Cap context length (`--max-model-len` for vLLM, `--context-length` for sglang) to the longest request you'll actually send. Wasted KV cache = lost batch slots. |
 | Concurrency at the client | Don't ramp slower than the server can absorb — keep ≥ `replicas × max-num-seqs` requests in flight. |
 
-If you're benchmarking, **disable OCF** to take the mesh hop out of the measurement (see [When to disable OCF](usage-advanced.md#when-to-disable-ocf)).
+If you're benchmarking, **disable OpenTela** to take the mesh hop out of the measurement (see [When to disable OpenTela](usage-advanced.md#when-to-disable-opentela)).
 
 ## When in doubt
 

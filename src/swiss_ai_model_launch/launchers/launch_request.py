@@ -2,7 +2,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel
 
-from swiss_ai_model_launch.launchers.launch_args import ROUTER_OCF, RouterMode
+from swiss_ai_model_launch.launchers.launch_args import ROUTER_OPENTELA, RouterMode
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
 
@@ -16,7 +16,7 @@ class LaunchRequest(BaseModel):
     served_model_name: str | None = None
     framework_args: str | None = None
     pre_launch_cmds: str | None = None
-    router: RouterMode = ROUTER_OCF
+    router: RouterMode = ROUTER_OPENTELA
     model_path: str | None = None
 
     @classmethod
@@ -27,7 +27,7 @@ class LaunchRequest(BaseModel):
         replicas: int,
         time: str,
         served_model_name: str | None = None,
-        router: RouterMode = ROUTER_OCF,
+        router: RouterMode = ROUTER_OPENTELA,
     ) -> Self:
         return cls(
             model=entry.model,

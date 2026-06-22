@@ -7,15 +7,15 @@ from pydantic import BaseModel, Field, model_validator
 
 from swiss_ai_model_launch.launchers.topology import Topology
 
-# Routing strategy across replicas. OCF (default): OpenTela load-balances across
+# Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
 # the replica peers on the mesh. SGL: an in-job SGLang router fronts the replicas
 # and becomes the served endpoint.
-RouterMode = Literal["OCF", "SGL"]
-ROUTER_OCF: RouterMode = "OCF"
+RouterMode = Literal["OPENTELA", "SGL"]
+ROUTER_OPENTELA: RouterMode = "OPENTELA"
 ROUTER_SGL: RouterMode = "SGL"
 
 # The framework's HTTP server port is hardcoded across the system: it's
-# auto-injected as ``--port`` into framework_args, used as OCF's
+# auto-injected as ``--port`` into framework_args, used as OpenTela's
 # ``--service.port``, and embedded in the router's worker URLs. Exposing
 # it as a knob just creates ways for the three to drift.
 FRAMEWORK_PORT = 8080
@@ -91,15 +91,15 @@ class LaunchArgs(BaseModel):
     framework: str
     framework_args: str = ""
     pre_launch_cmds: str = ""
-    router: RouterMode = ROUTER_OCF
+    router: RouterMode = ROUTER_OPENTELA
     router_args: str = ""
-    disable_ocf: bool = False
-    ocf_bootstrap_addr: str | None = None
+    disable_opentela: bool = False
+    opentela_bootstrap_addr: str | None = None
     dev: bool = False
     telemetry_endpoint: str | None = None
     metrics_remote_write_url: str = "https://prometheus-dev.swissai.svc.cscs.ch/api/v1/write"
-    metrics_agent_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/vmagent"
-    dcgm_exporter_binary: str = "/capstor/store/cscs/swissai/infra01/ocf-share/dcgm-exporter"
+    metrics_agent_binary: str = "/capstor/store/cscs/swissai/infra01/opentela-share/vmagent"
+    dcgm_exporter_binary: str = "/capstor/store/cscs/swissai/infra01/opentela-share/dcgm-exporter"
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
 
@@ -111,7 +111,7 @@ class LaunchArgs(BaseModel):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "
                 f"to {FRAMEWORK_PORT} and auto-injected. Setting it manually risks desyncing "
-                f"the framework, OCF, and the router.",
+                f"the framework, OpenTela, and the router.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -152,7 +152,7 @@ class LaunchArgs(BaseModel):
             "ROUTER": self.router,
             "ROUTER_ENVIRONMENT": self.environment,
             "ROUTER_ARGS": self.router_args,
-            "USE_OCF": "false" if self.disable_ocf else "true",
+            "USE_OPENTELA": "false" if self.disable_opentela else "true",
             "SERVED_MODEL_NAME": self.served_model_name,
             "METRICS_REMOTE_WRITE_URL": self.metrics_remote_write_url or "",
             "METRICS_AGENT_BIN": self.metrics_agent_binary,

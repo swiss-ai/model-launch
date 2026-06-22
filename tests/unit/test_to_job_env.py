@@ -25,7 +25,7 @@ def test_to_job_env_keys():
         "ROUTER",
         "ROUTER_ENVIRONMENT",
         "ROUTER_ARGS",
-        "USE_OCF",
+        "USE_OPENTELA",
         "SERVED_MODEL_NAME",
         "METRICS_REMOTE_WRITE_URL",
         "METRICS_AGENT_BIN",
@@ -64,13 +64,13 @@ def test_to_job_env_injects_port_with_no_user_args():
 
 
 def test_to_job_env_router():
-    assert _make_args(router="OCF").to_job_env()["ROUTER"] == "OCF"
+    assert _make_args(router="OPENTELA").to_job_env()["ROUTER"] == "OPENTELA"
     assert _make_args(router="SGL").to_job_env()["ROUTER"] == "SGL"
 
 
-def test_to_job_env_use_ocf():
-    assert _make_args(disable_ocf=False).to_job_env()["USE_OCF"] == "true"
-    assert _make_args(disable_ocf=True).to_job_env()["USE_OCF"] == "false"
+def test_to_job_env_use_opentela():
+    assert _make_args(disable_opentela=False).to_job_env()["USE_OPENTELA"] == "true"
+    assert _make_args(disable_opentela=True).to_job_env()["USE_OPENTELA"] == "false"
 
 
 def test_to_job_env_telemetry_endpoint_none():

@@ -22,8 +22,8 @@ We could expose any of these as orchestration concepts, or none. We chose to exp
 A **replica** is one independent inference engine instance — one framework process exposing one HTTP endpoint at port 8080. It is the unit of orchestration:
 
 - A SLURM job is `replicas × nodes_per_replica` nodes.
-- A replica spans a contiguous set of nodes (`nodes_per_replica`) and is wrapped in OCF on its head node.
-- The in-job framework router (sglang-router today, enabled via `--router SGL`; OCF mesh routing is the default) load-balances **across replicas within a single job**, not within them. This is distinct from OpenTela, which is the cross-job p2p mesh that routes between independent jobs/peers; the framework router shapes traffic *inside* one job, OpenTela picks *which* job a request lands on.
+- A replica spans a contiguous set of nodes (`nodes_per_replica`) and is wrapped in OpenTela on its head node.
+- The in-job framework router (sglang-router today, enabled via `--router SGL`; OpenTela mesh routing is the default) load-balances **across replicas within a single job**, not within them. This is distinct from OpenTela, which is the cross-job p2p mesh that routes between independent jobs/peers; the framework router shapes traffic *inside* one job, OpenTela picks *which* job a request lands on.
 - Internal sharding (TP/PP/DP/EP) is the user's concern, configured via free-form `framework_args`. SML does not infer or inject parallelism flags.
 
 ## Consequences
@@ -35,10 +35,10 @@ A **replica** is one independent inference engine instance — one framework pro
 
 ### Deliberately not supported
 
-- **Multiple framework processes on a single node.** A user might want to run 4×TP=1 sglang processes on a 4-GPU node and load-balance across them (via the router or OCF, both of which have the plumbing). To support this we would need:
+- **Multiple framework processes on a single node.** A user might want to run 4×TP=1 sglang processes on a 4-GPU node and load-balance across them (via the router or OpenTela, both of which have the plumbing). To support this we would need:
   - A new topology dimension (`processes_per_node` or similar).
   - Per-process port allocation, undoing the hardcoded `FRAMEWORK_PORT=8080` (see ADR-0002 if/when written).
-  - Per-process OCF port allocation (8092/8093/43905 currently collide between OCF instances on a host).
+  - Per-process OpenTela port allocation (8092/8093/43905 currently collide between OpenTela instances on a host).
   - GPU pinning via `CUDA_VISIBLE_DEVICES`.
   - User-level mental model: replicas-per-node vs replicas-per-job.
   

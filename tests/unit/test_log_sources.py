@@ -6,7 +6,7 @@ def _labels(sources: list[tuple[str, str, str]]) -> list[str]:
 
 
 def test_single_replica_no_router() -> None:
-    assert _labels(_log_sources(1, router="OCF")) == ["Master", "Replica 0"]
+    assert _labels(_log_sources(1, router="OPENTELA")) == ["Master", "Replica 0"]
 
 
 def test_multi_replica_with_router() -> None:
@@ -19,7 +19,7 @@ def test_multi_replica_with_router() -> None:
 
 
 def test_multi_replica_no_router() -> None:
-    assert "Router" not in _labels(_log_sources(2, router="OCF"))
+    assert "Router" not in _labels(_log_sources(2, router="OPENTELA"))
 
 
 def test_router_requires_multiple_replicas() -> None:

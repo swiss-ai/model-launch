@@ -31,36 +31,36 @@ _MATRIX_CONFIGS = [
         replicas,
         npr,
         use_router,
-        disable_ocf,
+        disable_opentela,
         telemetry,
         id=f"{fw}-r{replicas}-n{npr}-{'router' if use_router else 'norouter'}-"
-        f"{'noocf' if disable_ocf else 'ocf'}-"
+        f"{'noopentela' if disable_opentela else 'opentela'}-"
         f"{'tele' if telemetry else 'notele'}",
     )
     for fw in ("sglang", "vllm")
     for replicas in (1, 2)
     for npr in (1, 4)
     for use_router in (False, True)
-    for disable_ocf in (False, True)
+    for disable_opentela in (False, True)
     for telemetry in (False, True)
 ]
 
 
-@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_ocf,telemetry", _MATRIX_CONFIGS)
+@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry", _MATRIX_CONFIGS)
 def test_rendered_scripts_pass_bash_n(
     tmp_path: Path,
     framework: str,
     replicas: int,
     npr: int,
     use_router: bool,
-    disable_ocf: bool,
+    disable_opentela: bool,
     telemetry: bool,
 ):
     args = _make_args(
         framework=framework,
         topology=Topology(replicas=replicas, nodes_per_replica=npr),
-        router="SGL" if use_router else "OCF",
-        disable_ocf=disable_ocf,
+        router="SGL" if use_router else "OPENTELA",
+        disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )
     master_path = tmp_path / "master.sh"
@@ -75,21 +75,21 @@ def test_rendered_scripts_pass_bash_n(
 
 
 @pytest.mark.skipif(not _HAS_SHELLCHECK, reason="shellcheck not installed")
-@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_ocf,telemetry", _MATRIX_CONFIGS)
+@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry", _MATRIX_CONFIGS)
 def test_rendered_scripts_pass_shellcheck(
     tmp_path: Path,
     framework: str,
     replicas: int,
     npr: int,
     use_router: bool,
-    disable_ocf: bool,
+    disable_opentela: bool,
     telemetry: bool,
 ):
     args = _make_args(
         framework=framework,
         topology=Topology(replicas=replicas, nodes_per_replica=npr),
-        router="SGL" if use_router else "OCF",
-        disable_ocf=disable_ocf,
+        router="SGL" if use_router else "OPENTELA",
+        disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )
     master_path = tmp_path / "master.sh"

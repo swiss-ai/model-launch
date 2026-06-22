@@ -51,7 +51,7 @@ flowchart LR
 
 Two independent planes leave the job:
 
-- **Request plane** (right): each replica registers itself on the **OpenTela p2p mesh** at startup. The serving-api gateway resolves model names through OpenTela and forwards requests to a registered peer. Skip the registration with `--disable-ocf` (see below).
+- **Request plane** (right): each replica registers itself on the **OpenTela p2p mesh** at startup. The serving-api gateway resolves model names through OpenTela and forwards requests to a registered peer. Skip the registration with `--disable-opentela` (see below).
 - **Metrics plane** (bottom): DCGM and vmagent scrape per-GPU and per-process metrics and ship them via remote-write to the metrics backend (a Prometheus-compatible endpoint, `prometheus-dev.swissai.svc.cscs.ch/api/v1/write`), which Grafana reads from. This is distinct from the launch-telemetry endpoint (`sml-dev.swissai.svc.cscs.ch/launches`), which only receives a one-time launch-metadata POST and carries no metrics. Separate system; not OpenTela.
 
 ## Repos in the serving stack
@@ -67,21 +67,21 @@ SML is one piece of a larger system. The siblings:
 1. User runs `sml advanced ...` (or interactive `sml`).
 2. SML serializes launch args, builds an `sbatch` script, submits via FirecREST or directly via SLURM.
 3. SLURM allocates nodes; the job script starts the inference framework on each replica.
-4. Each replica registers itself on the OpenTela p2p mesh under the served model name (unless `--disable-ocf` was passed).
-5. (Optional) `--router SGL` puts a framework router (e.g. sglang-router) in front of the replicas inside the job (the default `--router OCF` lets OpenTela balance across the replica peers instead). The in-job router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+4. Each replica registers itself on the OpenTela p2p mesh under the served model name (unless `--disable-opentela` was passed).
+5. (Optional) `--router SGL` puts a framework router (e.g. sglang-router) in front of the replicas inside the job (the default `--router OPENTELA` lets OpenTela balance across the replica peers instead). The in-job router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 6. DCGM exporter and vmagent start in sidecar fashion on each replica node, remote-writing metrics to the Prometheus-compatible metrics backend (distinct from the launch-telemetry endpoint).
 7. A user request hits serving-api → serving-api uses OpenTela to look up the model name and pick a registered peer → the request flows through the OpenTela mesh to that peer, where the peer's local OpenTela layer hands it off to the framework process.
 
-## Disabling OpenTela registration: `--disable-ocf`
+## Disabling OpenTela registration: `--disable-opentela`
 
-By default each replica joins the OpenTela mesh at startup. Pass `--disable-ocf` to skip the registration. The framework still runs and serves on its replica port inside the cluster, but it never joins the mesh — so:
+By default each replica joins the OpenTela mesh at startup. Pass `--disable-opentela` to skip the registration. The framework still runs and serves on its replica port inside the cluster, but it never joins the mesh — so:
 
 - It is **not reachable through [serving-api](https://github.com/swiss-ai/serving-api)** at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/).
 - It is only reachable directly via host:port from another job on the same cluster.
 
-Use `--disable-ocf` for private models, raw-throughput benchmarks (no OpenTela hop), or when you've stood up your own routing in front of the replicas. See [usage-advanced.md](usage-advanced.md#when-to-disable-ocf).
+Use `--disable-opentela` for private models, raw-throughput benchmarks (no OpenTela hop), or when you've stood up your own routing in front of the replicas. See [usage-advanced.md](usage-advanced.md#when-to-disable-opentela).
 
-> The flag is named `--disable-ocf` for historical reasons — `OCF` is the legacy name for the OpenTela client binary (now shipped on-disk as `otela-<arch>` and referenced via the `OCF_BIN` env var). Treat OCF and OpenTela as one thing.
+> The OpenTela client binary ships on-disk as `otela-<arch>` and is referenced via the `OPENTELA_BIN` env var.
 
 ## Where SML's responsibility ends
 
