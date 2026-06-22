@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import getpass
 import grp
 import os
@@ -16,7 +17,7 @@ from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLa
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt
 
 _POLL_INTERVAL_SECONDS = 10
 _TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
@@ -137,13 +138,13 @@ if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest
         client = (
             _launcher.client if isinstance(_launcher, FirecRESTLauncher) else _build_firecrest_client(InitConfig.load())
         )
-        systems = await client.systems()
+        systems = await call_with_firecrest_retry(lambda: client.systems())
         result = []
         for system in systems:
             system_name = system["name"]
             partitions, reservations = await asyncio.gather(
-                client.partitions(system_name),
-                client.reservations(system_name),
+                call_with_firecrest_retry(functools.partial(client.partitions, system_name)),
+                call_with_firecrest_retry(functools.partial(client.reservations, system_name)),
             )
             result.append(
                 {

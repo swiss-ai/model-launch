@@ -41,7 +41,7 @@ from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import ScheduledJob
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
-from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
@@ -435,7 +435,7 @@ async def _get_firecrest_launcher_with_client(
     non_interactive: bool = False,
     ssh_host_override: str | None = None,
 ) -> FirecRESTLauncher:
-    systems = await client.systems()
+    systems = await call_with_firecrest_retry(lambda: client.systems())
     # Each system advertises its login SSH host; cache the mapping so we can both
     # present the systems to choose from and resolve the chosen one's host for the
     # TUI node-terminal button (used as the default when no override is set).
@@ -449,7 +449,8 @@ async def _get_firecrest_launcher_with_client(
     system_name = firecrest_config.get_non_none_value("system")
 
     async def _get_partitions() -> dict[str, tuple[str, str]]:
-        return {part["name"]: (part["name"], part["name"]) for part in await client.partitions(system_name)}
+        partitions = await call_with_firecrest_retry(lambda: client.partitions(system_name))
+        return {part["name"]: (part["name"], part["name"]) for part in partitions}
 
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
