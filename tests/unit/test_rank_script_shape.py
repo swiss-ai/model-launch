@@ -30,11 +30,11 @@ def test_sglang_multi_node_has_head_and_follower():
 
 def test_router_only_when_multi_replica_and_sglang():
     # No router when single replica
-    args = _make_args(router="SGLANG", topology=Topology(replicas=1, nodes_per_replica=4))
+    args = _make_args(router="sglang", topology=Topology(replicas=1, nodes_per_replica=4))
     assert "router.sh" not in render_rank_scripts(args)
-    # No router when multi-replica but router="OPENTELA"
-    args = _make_args(router="OPENTELA", topology=Topology(replicas=2, nodes_per_replica=4))
+    # No router when multi-replica but router="opentela"
+    args = _make_args(router="opentela", topology=Topology(replicas=2, nodes_per_replica=4))
     assert "router.sh" not in render_rank_scripts(args)
     # Router when both
-    args = _make_args(router="SGLANG", topology=Topology(replicas=2, nodes_per_replica=4))
+    args = _make_args(router="sglang", topology=Topology(replicas=2, nodes_per_replica=4))
     assert "router.sh" in render_rank_scripts(args)

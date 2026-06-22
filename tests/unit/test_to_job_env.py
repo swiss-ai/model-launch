@@ -64,8 +64,8 @@ def test_to_job_env_injects_port_with_no_user_args():
 
 
 def test_to_job_env_router():
-    assert _make_args(router="OPENTELA").to_job_env()["ROUTER"] == "OPENTELA"
-    assert _make_args(router="SGLANG").to_job_env()["ROUTER"] == "SGLANG"
+    assert _make_args(router="opentela").to_job_env()["ROUTER"] == "opentela"
+    assert _make_args(router="sglang").to_job_env()["ROUTER"] == "sglang"
 
 
 def test_to_job_env_use_opentela():

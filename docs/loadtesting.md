@@ -55,7 +55,7 @@ Use `sml loadtest run` when the model is already running, or when you want to te
 
 ```bash
 sml loadtest run \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --loadtest-server-url https://your.endpoint.example \
   --loadtest-model your-model-name \
@@ -73,7 +73,7 @@ Use `sml loadtest preconfigured` for a guided model launch followed by a cluster
 
 ```bash
 sml loadtest preconfigured \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json \
   --cancel-after-loadtest
@@ -83,7 +83,7 @@ The guided command prompts for the model launch configuration. If `--loadtest-sc
 
 ```bash
 sml loadtest preconfigured \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --loadtest-scenario open_loop \
   --loadtest-prompts-file /capstor/store/cscs/swissai/infra01/loadtest/prompts.json \
@@ -94,11 +94,11 @@ Use `sml loadtest advanced` to launch a model and then run k6 against it.
 
 ```bash
 sml loadtest advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --slurm-nodes-per-replica 1 \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --nodes-per-replica 1 \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 \

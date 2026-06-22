@@ -28,12 +28,12 @@ SERVED_2="swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX}"
 
 # Job 1: TP=4
 OUT_1=$(sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model-path $MODEL \
     --served-model-name $SERVED_1 \
     --host 0.0.0.0 --port 8080 \
@@ -44,12 +44,12 @@ JOB_1=$(echo "$OUT_1" | grep "Job submitted:" | awk '{print $3}')
 
 # Job 2: TP=1, DP=4
 OUT_2=$(sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model-path $MODEL \
     --served-model-name $SERVED_2 \
     --host 0.0.0.0 --port 8080 \
@@ -68,7 +68,7 @@ until curl -fsS \
 done
 
 sml loadtest run \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --loadtest-server-url "$LOADTEST_SERVER_URL" \
   --loadtest-model "$SERVED_1" \
@@ -88,7 +88,7 @@ until curl -fsS \
 done
 
 sml loadtest run \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --loadtest-server-url "$LOADTEST_SERVER_URL" \
   --loadtest-model "$SERVED_2" \

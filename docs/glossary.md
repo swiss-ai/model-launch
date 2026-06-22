@@ -28,7 +28,7 @@ A [REST API](https://eth-cscs.github.io/firecrest/) in front of SLURM, maintaine
 
 ## Framework
 
-The inference engine that actually serves the model: [sglang](https://github.com/sgl-project/sglang) or [vLLM](https://github.com/vllm-project/vllm). Selected via `--serving-framework` in `sml advanced`. SML brings the framework up; the framework owns the request/response loop.
+The inference engine that actually serves the model: [sglang](https://github.com/sgl-project/sglang) or [vLLM](https://github.com/vllm-project/vllm). Selected via `--framework` in `sml advanced`. SML brings the framework up; the framework owns the request/response loop.
 
 ## Launcher
 
@@ -50,15 +50,15 @@ A SLURM concept — a named subset of cluster nodes with its own queue, time lim
 
 ## Replica
 
-One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-why-dp-is-replicas) unit). Set via `--slurm-replicas`. More replicas = more throughput. Distinct from `--slurm-nodes-per-replica`, which sets how many nodes one replica spans.
+One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-why-dp-is-replicas) unit). Set via `--replicas`. More replicas = more throughput. Distinct from `--nodes-per-replica`, which sets how many nodes one replica spans.
 
 ## Reservation
 
-A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the normal queue. Set via `--slurm-reservation` (advanced) or `--reservation` (interactive). Optional.
+A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the normal queue. Set via `--reservation` (advanced) or `--reservation` (interactive). Optional.
 
 ## Router
 
-A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router SGLANG` (the default `--router OPENTELA` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
+A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router sglang` (the default `--router opentela` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
 
 ## Served-model name
 
@@ -82,7 +82,7 @@ The all-flags entry point — point at any model, pass any framework args. Use f
 
 ## System
 
-The CSCS cluster a job targets — `clariden`, `beverin`, `bristen`, etc. Set via `--firecrest-system` or the `SML_FIRECREST_SYSTEM` env var.
+The CSCS cluster a job targets — `clariden`, `beverin`, `bristen`, etc. Set via `--system` or the `SML_SYSTEM` env var.
 
 ## TUI
 

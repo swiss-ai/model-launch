@@ -59,7 +59,7 @@ _STD_LAUNCH_REQUESTS = [
             ModelCatalogEntry.model_validate(entry),
             replicas=replicas,
             time="04:00:00",
-            router="SGLANG" if use_router else "OPENTELA",
+            router="sglang" if use_router else "opentela",
         ),
         id=f"{entry['model']}/{entry['framework']}/{config_id}",
         marks=[pytest.mark.std],
@@ -74,7 +74,7 @@ _REQUIRED_ENV_VARS = [
     "SML_CSCS_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
-    "SML_FIRECREST_SYSTEM",
+    "SML_SYSTEM",
     "SML_FIRECREST_TOKEN_URI",
     "SML_FIRECREST_URL",
     "SML_PARTITION",
@@ -107,7 +107,7 @@ async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
     try:
         yield await FirecRESTLauncher.from_client(
             client=client,
-            system_name=env["SML_FIRECREST_SYSTEM"],
+            system_name=env["SML_SYSTEM"],
             partition=env["SML_PARTITION"],
             reservation=env["SML_RESERVATION"] or None,
         )

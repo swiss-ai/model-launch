@@ -196,9 +196,9 @@ async def test_run_loadtest_for_submitted_job_cancels_after_loadtest(
         [
             "loadtest",
             "advanced",
-            "--serving-framework",
+            "--framework",
             "sglang",
-            "--slurm-environment",
+            "--environment",
             "/path/to/env.toml",
             "--no-wait-until-healthy",
             "--cancel-after-loadtest",

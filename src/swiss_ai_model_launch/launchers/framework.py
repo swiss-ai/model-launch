@@ -15,7 +15,7 @@ from swiss_ai_model_launch.launchers.launch_args import (
 SGLANG_ROUTER_PORT = 30000
 # Default (prod) OpenTela bootstrap address. The dev datacenter peer differs only
 # in the IP. Override per-launch via LaunchArgs.opentela_bootstrap_addr (CLI:
-# `--otela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
+# `--opentela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
 OPENTELA_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 OPENTELA_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 RAY_PORT = 6379
@@ -366,7 +366,7 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     if not launch_args.telemetry_endpoint:
         return ""
     topology = launch_args.topology
-    # The telemetry backend's schema predates the OpenTela/SGLANG router model and still
+    # The telemetry backend's schema predates the OpenTela/sglang router model and still
     # keys on a boolean; derive it from the router mode rather than send a new field.
     use_router = "true" if launch_args.router == ROUTER_SGLANG else "false"
     use_opentela = "false" if launch_args.disable_opentela else "true"

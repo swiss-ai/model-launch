@@ -10,13 +10,13 @@ def _minimal_advanced_args(*extra: str):
     parser = _build_parser()
     tokens = [
         "advanced",
-        "--firecrest-system",
+        "--system",
         "clariden",
         "--partition",
         "normal",
-        "--serving-framework",
+        "--framework",
         "sglang",
-        "--slurm-environment",
+        "--environment",
         "/path/to/env.toml",
         "--framework-args",
         "--served-model-name vendor/model-abc",
@@ -40,45 +40,45 @@ def test_advanced_dev_flag_selects_dev_bootstrap_addr():
 def test_advanced_router_defaults_to_opentela():
     # Default routing strategy is OpenTela (mesh load-balancing) -> no SGLang router.
     args = _minimal_advanced_args()
-    assert args.router == "OPENTELA"
+    assert args.router == "opentela"
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "OPENTELA"
+    assert la.router == "opentela"
 
 
 def test_advanced_router_sglang_enables_router():
-    args = _minimal_advanced_args("--router", "SGLANG")
+    args = _minimal_advanced_args("--router", "sglang")
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "SGLANG"
+    assert la.router == "sglang"
 
 
 def test_advanced_router_is_case_insensitive():
-    args = _minimal_advanced_args("--router", "sglang")
+    args = _minimal_advanced_args("--router", "SgLaNg")
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
-    assert la.router == "SGLANG"
+    assert la.router == "sglang"
 
 
 def test_advanced_explicit_addr_overrides_dev():
     custom = "/ip4/10.0.0.42/tcp/43905/p2p/QmCustomPeerXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    args = _minimal_advanced_args("--dev", "--otela-bootstrap-addr", custom)
+    args = _minimal_advanced_args("--dev", "--opentela-bootstrap-addr", custom)
     la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
     assert la.opentela_bootstrap_addr == custom
 
 
-def test_advanced_slurm_account_is_parsed():
-    args = _minimal_advanced_args("--slurm-account", "proj99")
-    assert args.slurm_account == "proj99"
+def test_advanced_account_is_parsed():
+    args = _minimal_advanced_args("--account", "proj99")
+    assert args.account == "proj99"
 
 
-def test_preconfigured_slurm_account_is_parsed():
+def test_preconfigured_account_is_parsed():
     parser = _build_parser()
     args = parser.parse_args(
         [
             "preconfigured",
-            "--firecrest-system",
+            "--system",
             "clariden",
             "--partition",
             "normal",
-            "--slurm-account",
+            "--account",
             "proj99",
             "--model",
             "vendor/model-abc",
@@ -87,12 +87,12 @@ def test_preconfigured_slurm_account_is_parsed():
             "--replicas",
             "1",
             "--router",
-            "OPENTELA",
+            "opentela",
             "--time",
             "02:00:00",
         ]
     )
-    assert args.slurm_account == "proj99"
+    assert args.account == "proj99"
 
 
 async def test_firecrest_from_client_uses_account():

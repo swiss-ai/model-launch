@@ -59,7 +59,7 @@ def test_rendered_scripts_pass_bash_n(
     args = _make_args(
         framework=framework,
         topology=Topology(replicas=replicas, nodes_per_replica=npr),
-        router="SGLANG" if use_router else "OPENTELA",
+        router="sglang" if use_router else "opentela",
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )
@@ -88,7 +88,7 @@ def test_rendered_scripts_pass_shellcheck(
     args = _make_args(
         framework=framework,
         topology=Topology(replicas=replicas, nodes_per_replica=npr),
-        router="SGLANG" if use_router else "OPENTELA",
+        router="sglang" if use_router else "opentela",
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
     )

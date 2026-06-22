@@ -145,14 +145,14 @@ async def main(image_name: str, arch: str) -> int:
 
     # Per-arch: different cluster reached via a different FireCREST endpoint.
     firecrest_url = _arch_env("SML_FIRECREST_URL", arch)
-    system_name = _arch_env("SML_FIRECREST_SYSTEM", arch)
+    system_name = _arch_env("SML_SYSTEM", arch)
     partition = _arch_env("SML_PARTITION", arch)
     reservation = _arch_env("SML_RESERVATION", arch)
     missing = [
         name
         for name, val in (
             ("SML_FIRECREST_URL", firecrest_url),
-            ("SML_FIRECREST_SYSTEM", system_name),
+            ("SML_SYSTEM", system_name),
             ("SML_PARTITION", partition),
         )
         if not val

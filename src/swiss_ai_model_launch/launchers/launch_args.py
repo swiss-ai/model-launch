@@ -8,11 +8,11 @@ from pydantic import BaseModel, Field, model_validator
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
-# the replica peers on the mesh. SGLANG: an in-job SGLang router fronts the replicas
+# the replica peers on the mesh. sglang: an in-job SGLang router fronts the replicas
 # and becomes the served endpoint.
-RouterMode = Literal["OPENTELA", "SGLANG"]
-ROUTER_OPENTELA: RouterMode = "OPENTELA"
-ROUTER_SGLANG: RouterMode = "SGLANG"
+RouterMode = Literal["opentela", "sglang"]
+ROUTER_OPENTELA: RouterMode = "opentela"
+ROUTER_SGLANG: RouterMode = "sglang"
 
 # The framework's HTTP server port is hardcoded across the system: it's
 # auto-injected as ``--port`` into framework_args, used as OpenTela's

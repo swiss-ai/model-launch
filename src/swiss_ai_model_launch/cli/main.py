@@ -59,11 +59,11 @@ def _make_firecrest_launcher_config(
         name="firecrest_launcher_configuration",
         chain=[
             OptionsConfiguration(
-                name="firecrest_system",
+                name="system",
                 prompt="Choose the target system to launch the model on.",
                 options_factory=systems_factory,
                 options=None if systems_factory else _empty,
-                env_var="SML_FIRECREST_SYSTEM",
+                env_var="SML_SYSTEM",
             ),
         ],
     )
@@ -105,7 +105,7 @@ def _make_slurm_account_config() -> ChainConfiguration:
         name="slurm_account_configuration",
         chain=[
             TextConfiguration(
-                name="slurm_account",
+                name="account",
                 prompt="SLURM account (optional, leave blank to use your default group).",
                 env_var="SML_ACCOUNT",
             ),
@@ -125,8 +125,8 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
-        ROUTER_SGLANG: ("SGLANG", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
+        ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
+        ROUTER_SGLANG: ("sglang", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
     }
     return ChainConfiguration(
         name="launcher_request_configuration",
@@ -151,7 +151,7 @@ def _make_launch_request_config(
             ),
             OptionsConfiguration(
                 name="router",
-                prompt="Routing strategy across replicas (OPENTELA = OpenTela mesh, SGLANG = in-job SGLang router).",
+                prompt="Routing strategy across replicas (opentela = OpenTela mesh, sglang = in-job SGLang router).",
                 options_factory=router_factory,
                 options=None if router_factory else _router_options,
             ),
@@ -171,13 +171,13 @@ def _add_advanced_launch_arguments(
     tui_default: bool | None,
 ) -> None:
     advanced_parser.add_argument(
-        "--serving-framework",
+        "--framework",
         dest="framework",
         required=True,
         help="Inference framework to use (e.g. sglang, vllm).",
     )
     advanced_parser.add_argument(
-        "--slurm-environment",
+        "--environment",
         dest="slurm_environment",
         required=True,
         metavar="PATH",
@@ -191,14 +191,14 @@ def _add_advanced_launch_arguments(
         help="Arguments forwarded to the inference framework.",
     )
     advanced_parser.add_argument(
-        "--slurm-replicas",
+        "--replicas",
         dest="replicas",
         type=int,
         default=1,
         help="Number of independent inference engine instances (default: 1).",
     )
     advanced_parser.add_argument(
-        "--slurm-nodes-per-replica",
+        "--nodes-per-replica",
         dest="nodes_per_replica",
         type=int,
         default=1,
@@ -248,7 +248,7 @@ def _add_advanced_launch_arguments(
         help=f"Per-job SLURM time cap for consecutive chains (default: {DEFAULT_MAX_JOB_TIME}).",
     )
     advanced_parser.add_argument(
-        "--slurm-reservation",
+        "--reservation",
         dest="reservation",
         default=os.environ.get("SML_RESERVATION"),
         metavar="RESERVATION",
@@ -264,7 +264,7 @@ def _add_advanced_launch_arguments(
         "--router",
         dest="router",
         choices=[ROUTER_OPENTELA, ROUTER_SGLANG],
-        type=str.upper,
+        type=str.lower,
         default=ROUTER_OPENTELA,
         help=(
             "Routing strategy across replicas. "
@@ -287,8 +287,8 @@ def _add_advanced_launch_arguments(
         help="Disable OpenTela.",
     )
     advanced_parser.add_argument(
-        "--otela-bootstrap-addr",
-        dest="otela_bootstrap_addr",
+        "--opentela-bootstrap-addr",
+        dest="opentela_bootstrap_addr",
         default=None,
         metavar="MULTIADDR",
         help=(
@@ -301,7 +301,7 @@ def _add_advanced_launch_arguments(
         "--dev",
         dest="dev",
         action="store_true",
-        help=("Shorthand for the dev OpenTela bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
+        help=("Shorthand for the dev OpenTela bootstrap peer. Ignored if --opentela-bootstrap-addr is also set."),
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -446,7 +446,7 @@ async def _get_firecrest_launcher_with_client(
 
     firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
     await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
-    system_name = firecrest_config.get_non_none_value("firecrest_system")
+    system_name = firecrest_config.get_non_none_value("system")
 
     async def _get_partitions() -> dict[str, tuple[str, str]]:
         return {part["name"]: (part["name"], part["name"]) for part in await client.partitions(system_name)}
@@ -458,7 +458,7 @@ async def _get_firecrest_launcher_with_client(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
-        account = (getattr(args, "slurm_account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
+        account = (getattr(args, "account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -466,7 +466,7 @@ async def _get_firecrest_launcher_with_client(
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
-        account = slurm_account_config.get_value("slurm_account") or None
+        account = slurm_account_config.get_value("account") or None
 
     return await FirecRESTLauncher.from_client(
         client=client,
@@ -505,7 +505,7 @@ async def _get_slurm_launcher(
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
         account = (
-            (getattr(args, "slurm_account", None) if args else None)
+            (getattr(args, "account", None) if args else None)
             or os.environ.get("SML_ACCOUNT")
             or grp.getgrgid(os.getgid()).gr_name
         )
@@ -516,7 +516,7 @@ async def _get_slurm_launcher(
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
-        account = slurm_account_config.get_value("slurm_account") or grp.getgrgid(os.getgid()).gr_name
+        account = slurm_account_config.get_value("account") or grp.getgrgid(os.getgid()).gr_name
 
     return SlurmLauncher(
         system_name="local",
@@ -534,11 +534,11 @@ async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str
     # balance across; with a single replica only mesh-level OpenTela routing applies.
     if replicas is not None and int(replicas) > 1:
         return {
-            ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
-            ROUTER_SGLANG: ("SGLANG", "In-job SGLang router fronts the replicas"),
+            ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
+            ROUTER_SGLANG: ("sglang", "In-job SGLang router fronts the replicas"),
         }
     return {
-        ROUTER_OPENTELA: ("OPENTELA", _OPENTELA_ROUTER_DESC),
+        ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
     }
 
 
@@ -594,8 +594,8 @@ async def _create_launcher(
 ) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
 
-    if launcher_type == "slurm" and getattr(args, "firecrest_system", None):
-        _logger.warning("--firecrest-system is ignored when using the SLURM launcher")
+    if launcher_type == "slurm" and getattr(args, "system", None):
+        _logger.warning("--system is ignored when using the SLURM launcher")
 
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
@@ -804,11 +804,11 @@ def build_launch_args_from_advanced(
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
     opentela_bootstrap_addr: str | None
-    if getattr(args, "otela_bootstrap_addr", None):
-        opentela_bootstrap_addr = args.otela_bootstrap_addr
+    if getattr(args, "opentela_bootstrap_addr", None):
+        opentela_bootstrap_addr = args.opentela_bootstrap_addr
         if getattr(args, "dev", False):
             print(
-                "warning: --dev ignored because --otela-bootstrap-addr was given.",
+                "warning: --dev ignored because --opentela-bootstrap-addr was given.",
                 file=sys.stderr,
             )
     elif getattr(args, "dev", False):
