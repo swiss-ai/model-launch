@@ -52,17 +52,15 @@ _OPENTELA_ROUTER_DESC = "OpenTela load-balances across the replica peers on the 
 
 
 def _make_firecrest_launcher_config(
-    systems_factory: _OptionsFactory = None,
+    systems_options: OptionsDict | None = None,
 ) -> ChainConfiguration:
-    _empty: OptionsDict = {}
     return ChainConfiguration(
         name="firecrest_launcher_configuration",
         chain=[
             OptionsConfiguration(
                 name="system",
                 prompt="Choose the target system to launch the model on.",
-                options_factory=systems_factory,
-                options=None if systems_factory else _empty,
+                options=systems_options if systems_options is not None else {},
                 env_var="SML_SYSTEM",
             ),
         ],
@@ -441,10 +439,8 @@ async def _get_firecrest_launcher_with_client(
     # TUI node-terminal button (used as the default when no override is set).
     ssh_hosts = {s["name"]: (s.get("ssh") or {}).get("host") for s in systems}
 
-    async def _get_systems() -> dict[str, tuple[str, str]]:
-        return {s["name"]: (s["name"], ssh_hosts.get(s["name"]) or "") for s in systems}
-
-    firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
+    systems_options: OptionsDict = {s["name"]: (s["name"], ssh_hosts.get(s["name"]) or "") for s in systems}
+    firecrest_config = _make_firecrest_launcher_config(systems_options=systems_options)
     await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
     system_name = firecrest_config.get_non_none_value("system")
 
