@@ -38,7 +38,6 @@ line_length = 120
 [tool.ruff]
 src = ["src"]
 line-length = 120
-exclude = ["legacy"] # TODO
 
 [tool.ruff.lint]
 select = [

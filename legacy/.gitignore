@@ -1,9 +1,0 @@
-.DS_Store
-*__pycache__/
-logs/
-*.log
-.env
-.vscode/
-.venv/
-.idea/
-core_nid*

@@ -1,7 +1,7 @@
-image = "/capstor/store/cscs/swissai/infra01/container-images/apertus-vllm-13.0-prod.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_apertus_1.5-arm64.sqsh"
 
 mounts = [
-  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
   "/capstor",
   "/iopsstor",
   "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",

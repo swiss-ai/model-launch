@@ -26,37 +26,42 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.framework import OCF_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
+from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     DEFAULT_MAX_JOB_TIME,
+    ROUTER_OPENTELA,
+    ROUTER_SGLANG,
     TELEMETRY_ENDPOINT,
     LaunchArgs,
+    RouterMode,
     time_str_to_seconds,
 )
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import ScheduledJob
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
-from swiss_ai_model_launch.launchers.utils import create_salt, render_sbatch_header
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 
+# Shared so the OpenTela router description isn't duplicated across the static
+# parser config and the interactive option factories.
+_OPENTELA_ROUTER_DESC = "OpenTela load-balances across the replica peers on the mesh"
+
 
 def _make_firecrest_launcher_config(
-    systems_factory: _OptionsFactory = None,
+    systems_options: OptionsDict | None = None,
 ) -> ChainConfiguration:
-    _empty: OptionsDict = {}
     return ChainConfiguration(
         name="firecrest_launcher_configuration",
         chain=[
             OptionsConfiguration(
-                name="firecrest_system",
+                name="system",
                 prompt="Choose the target system to launch the model on.",
-                options_factory=systems_factory,
-                options=None if systems_factory else _empty,
-                env_var="SML_FIRECREST_SYSTEM",
+                options=systems_options if systems_options is not None else {},
+                env_var="SML_SYSTEM",
             ),
         ],
     )
@@ -98,7 +103,7 @@ def _make_slurm_account_config() -> ChainConfiguration:
         name="slurm_account_configuration",
         chain=[
             TextConfiguration(
-                name="slurm_account",
+                name="account",
                 prompt="SLURM account (optional, leave blank to use your default group).",
                 env_var="SML_ACCOUNT",
             ),
@@ -109,7 +114,7 @@ def _make_slurm_account_config() -> ChainConfiguration:
 def _make_launch_request_config(
     vendor_models_factory: _OptionsFactory = None,
     frameworks_factory: _OptionsFactory = None,
-    use_router_factory: _OptionsFactory = None,
+    router_factory: _OptionsFactory = None,
 ) -> ChainConfiguration:
     """Build the launch request config.
 
@@ -118,8 +123,8 @@ def _make_launch_request_config(
     """
     _empty: OptionsDict = {}
     _router_options: OptionsDict = {
-        "yes": ("Yes", "Use router to load balance across replicas"),
-        "no": ("No", "Do not use router"),
+        ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
+        ROUTER_SGLANG: ("sglang", "In-job SGLang router fronts the replicas (needs replicas > 1)"),
     }
     return ChainConfiguration(
         name="launcher_request_configuration",
@@ -143,10 +148,10 @@ def _make_launch_request_config(
                 default="1",
             ),
             OptionsConfiguration(
-                name="use_router",
-                prompt="Use router to load balance across replicas.",
-                options_factory=use_router_factory,
-                options=None if use_router_factory else _router_options,
+                name="router",
+                prompt="Routing strategy across replicas (opentela = OpenTela mesh, sglang = in-job SGLang router).",
+                options_factory=router_factory,
+                options=None if router_factory else _router_options,
             ),
             TextConfiguration(
                 name="time",
@@ -164,13 +169,13 @@ def _add_advanced_launch_arguments(
     tui_default: bool | None,
 ) -> None:
     advanced_parser.add_argument(
-        "--serving-framework",
+        "--framework",
         dest="framework",
         required=True,
         help="Inference framework to use (e.g. sglang, vllm).",
     )
     advanced_parser.add_argument(
-        "--slurm-environment",
+        "--environment",
         dest="slurm_environment",
         required=True,
         metavar="PATH",
@@ -184,14 +189,14 @@ def _add_advanced_launch_arguments(
         help="Arguments forwarded to the inference framework.",
     )
     advanced_parser.add_argument(
-        "--slurm-replicas",
+        "--replicas",
         dest="replicas",
         type=int,
         default=1,
         help="Number of independent inference engine instances (default: 1).",
     )
     advanced_parser.add_argument(
-        "--slurm-nodes-per-replica",
+        "--nodes-per-replica",
         dest="nodes_per_replica",
         type=int,
         default=1,
@@ -241,7 +246,7 @@ def _add_advanced_launch_arguments(
         help=f"Per-job SLURM time cap for consecutive chains (default: {DEFAULT_MAX_JOB_TIME}).",
     )
     advanced_parser.add_argument(
-        "--slurm-reservation",
+        "--reservation",
         dest="reservation",
         default=os.environ.get("SML_RESERVATION"),
         metavar="RESERVATION",
@@ -254,10 +259,17 @@ def _add_advanced_launch_arguments(
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
-        "--use-router",
-        dest="use_router",
-        action="store_true",
-        help="Enable router to load balance across replicas.",
+        "--router",
+        dest="router",
+        choices=[ROUTER_OPENTELA, ROUTER_SGLANG],
+        type=str.lower,
+        default=ROUTER_OPENTELA,
+        help=(
+            "Routing strategy across replicas. "
+            f"'{ROUTER_OPENTELA}' (default): OpenTela load-balances across the replica peers "
+            f"on the mesh. '{ROUTER_SGLANG}': an in-job SGLang router fronts the replicas and "
+            "becomes the served endpoint (needs replicas > 1)."
+        ),
     )
     advanced_parser.add_argument(
         "--router-args",
@@ -267,18 +279,18 @@ def _add_advanced_launch_arguments(
         help="Arguments forwarded to the router.",
     )
     advanced_parser.add_argument(
-        "--disable-ocf",
-        dest="disable_ocf",
+        "--disable-opentela",
+        dest="disable_opentela",
         action="store_true",
-        help="Disable OCF.",
+        help="Disable OpenTela.",
     )
     advanced_parser.add_argument(
-        "--otela-bootstrap-addr",
-        dest="otela_bootstrap_addr",
+        "--opentela-bootstrap-addr",
+        dest="opentela_bootstrap_addr",
         default=None,
         metavar="MULTIADDR",
         help=(
-            "Override the OCF bootstrap multiaddr "
+            "Override the OpenTela bootstrap multiaddr "
             "(e.g. /ip4/<host>/tcp/<port>/p2p/<peer-id>). "
             "Takes precedence over --dev. Defaults to the prod peer."
         ),
@@ -287,7 +299,7 @@ def _add_advanced_launch_arguments(
         "--dev",
         dest="dev",
         action="store_true",
-        help=("Shorthand for the dev OCF bootstrap peer. Ignored if --otela-bootstrap-addr is also set."),
+        help=("Shorthand for the dev OpenTela bootstrap peer. Ignored if --opentela-bootstrap-addr is also set."),
     )
     advanced_parser.add_argument(
         "--disable-dcgm-exporter",
@@ -388,6 +400,20 @@ async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
     print("SML is configured and ready to use! Please restart the program.")
 
 
+def _optional_init_value(config: InitConfig, name: str) -> str | None:
+    """Read an optional init-config value, tolerating older configs that lack it.
+
+    Newly-added settings (e.g. ``cluster_ssh_host``) won't be present in configs
+    written before they existed, so ``get_value`` raises ``KeyError`` — treat that,
+    and an empty string, as "unset".
+    """
+    try:
+        value = config.get_value(name)
+    except KeyError:
+        return None
+    return value or None
+
+
 def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFirecrest:
     return f7t.v2.AsyncFirecrest(
         firecrest_url=config.get_non_none_value("firecrest_url"),
@@ -405,16 +431,22 @@ async def _get_firecrest_launcher_with_client(
     telemetry_endpoint: str | None = None,
     args: argparse.Namespace | None = None,
     non_interactive: bool = False,
+    ssh_host_override: str | None = None,
 ) -> FirecRESTLauncher:
-    async def _get_systems() -> dict[str, tuple[str, str]]:
-        return {sys["name"]: (sys["name"], sys["ssh"]["host"]) for sys in await client.systems()}
+    systems = await call_with_firecrest_retry(lambda: client.systems())
+    # Each system advertises its login SSH host; cache the mapping so we can both
+    # present the systems to choose from and resolve the chosen one's host for the
+    # TUI node-terminal button (used as the default when no override is set).
+    ssh_hosts = {s["name"]: (s.get("ssh") or {}).get("host") for s in systems}
 
-    firecrest_config = _make_firecrest_launcher_config(systems_factory=_get_systems)
+    systems_options: OptionsDict = {s["name"]: (s["name"], ssh_hosts.get(s["name"]) or "") for s in systems}
+    firecrest_config = _make_firecrest_launcher_config(systems_options=systems_options)
     await firecrest_config.aconfigure(args=args, non_interactive=non_interactive)
-    system_name = firecrest_config.get_non_none_value("firecrest_system")
+    system_name = firecrest_config.get_non_none_value("system")
 
     async def _get_partitions() -> dict[str, tuple[str, str]]:
-        return {part["name"]: (part["name"], part["name"]) for part in await client.partitions(system_name)}
+        partitions = await call_with_firecrest_retry(lambda: client.partitions(system_name))
+        return {part["name"]: (part["name"], part["name"]) for part in partitions}
 
     partition_config = _make_partition_config(partitions_factory=_get_partitions)
     await partition_config.aconfigure(args=args, non_interactive=non_interactive)
@@ -423,7 +455,7 @@ async def _get_firecrest_launcher_with_client(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
-        account = (getattr(args, "slurm_account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
+        account = (getattr(args, "account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
@@ -431,7 +463,7 @@ async def _get_firecrest_launcher_with_client(
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
-        account = slurm_account_config.get_value("slurm_account") or None
+        account = slurm_account_config.get_value("account") or None
 
     return await FirecRESTLauncher.from_client(
         client=client,
@@ -440,6 +472,7 @@ async def _get_firecrest_launcher_with_client(
         reservation=reservation,
         account=account,
         telemetry_endpoint=telemetry_endpoint,
+        ssh_host=ssh_host_override or ssh_hosts.get(system_name),
     )
 
 
@@ -469,7 +502,7 @@ async def _get_slurm_launcher(
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
         account = (
-            (getattr(args, "slurm_account", None) if args else None)
+            (getattr(args, "account", None) if args else None)
             or os.environ.get("SML_ACCOUNT")
             or grp.getgrgid(os.getgid()).gr_name
         )
@@ -480,7 +513,7 @@ async def _get_slurm_launcher(
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
-        account = slurm_account_config.get_value("slurm_account") or grp.getgrgid(os.getgid()).gr_name
+        account = slurm_account_config.get_value("account") or grp.getgrgid(os.getgid()).gr_name
 
     return SlurmLauncher(
         system_name="local",
@@ -494,13 +527,15 @@ async def _get_slurm_launcher(
 
 async def _get_router_options(get_value: GetValueFn) -> dict[str, tuple[str, str]]:
     replicas = get_value("replicas")
+    # The in-job SGLang router only makes sense with more than one replica to
+    # balance across; with a single replica only mesh-level OpenTela routing applies.
     if replicas is not None and int(replicas) > 1:
         return {
-            "yes": ("Yes", "Use router to load balance across replicas"),
-            "no": ("No", "Do not use router"),
+            ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
+            ROUTER_SGLANG: ("sglang", "In-job SGLang router fronts the replicas"),
         }
     return {
-        "no": ("No", "Do not use router"),
+        ROUTER_OPENTELA: ("opentela", _OPENTELA_ROUTER_DESC),
     }
 
 
@@ -525,7 +560,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
     launch_req_config = _make_launch_request_config(
         vendor_models_factory=_get_vendor_models,
         frameworks_factory=_get_frameworks,
-        use_router_factory=lambda get_value: _get_router_options(get_value),
+        router_factory=lambda get_value: _get_router_options(get_value),
     )
     await launch_req_config.aconfigure(args=args)
 
@@ -542,7 +577,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{model}-{create_salt(4)}",
-        use_router=launch_req_config.get_non_none_value("use_router") == "yes",
+        router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
     )
 
 
@@ -556,11 +591,15 @@ async def _create_launcher(
 ) -> Launcher:
     launcher_type = config.get_non_none_value("launcher")
 
-    if launcher_type == "slurm" and getattr(args, "firecrest_system", None):
-        _logger.warning("--firecrest-system is ignored when using the SLURM launcher")
+    if launcher_type == "slurm" and getattr(args, "system", None):
+        _logger.warning("--system is ignored when using the SLURM launcher")
 
     if launcher_type == "firecrest":
         firecrest_client = _get_firecrest_client_from_init_config(config)
+        # SSH host for the TUI's node-terminal button: an explicit override
+        # (env or init config) wins; otherwise it's auto-derived from the
+        # selected FirecREST system inside the helper below.
+        ssh_host_override = os.environ.get("SML_CLUSTER_SSH_HOST") or _optional_init_value(config, "cluster_ssh_host")
         return cast(
             Launcher,
             await _get_firecrest_launcher_with_client(
@@ -568,6 +607,7 @@ async def _create_launcher(
                 telemetry_endpoint=TELEMETRY_ENDPOINT,
                 args=args,
                 non_interactive=non_interactive,
+                ssh_host_override=ssh_host_override,
             ),
         )
     elif launcher_type == "slurm":
@@ -583,7 +623,7 @@ async def _create_launcher(
         raise NotImplementedError(f"Launcher {launcher_type} is not supported yet.")
 
 
-def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, str, str]]:
+def _log_sources(expected_replicas: int, router: RouterMode) -> list[tuple[str, str, str]]:
     """The log sources shown as TUI tabs, as (label, stdout_file, stderr_file).
 
     The master's own orchestration output is in log.out/log.err; each replica's
@@ -591,7 +631,7 @@ def _log_sources(expected_replicas: int, use_router: bool) -> list[tuple[str, st
     """
     sources = [("Master", "log.out", "log.err")]
     sources += [(f"Replica {r}", f"replica_{r}.out", f"replica_{r}.err") for r in range(expected_replicas)]
-    if use_router and expected_replicas > 1:
+    if router == ROUTER_SGLANG and expected_replicas > 1:
         sources.append(("Router", "router.out", "router.err"))
     return sources
 
@@ -626,12 +666,14 @@ async def _run_monitor(
     cscs_api_key: str,
     *,
     expected_replicas: int,
-    use_router: bool = False,
+    router: RouterMode = ROUTER_OPENTELA,
 ) -> None:
-    sources = _log_sources(expected_replicas, use_router)
+    sources = _log_sources(expected_replicas, router)
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
     state = DisplayState([label for label, _, _ in sources])
     state.update(cluster=launcher.system_name, partition=launcher.partition)
+    # Let the TUI's per-replica Terminal button open a shell on the node.
+    state.open_terminal = launcher.terminal_command
 
     async def _monitor_model_health(served: str) -> None:
         # End-to-end probe through the public gateway. It can block for its full
@@ -724,7 +766,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
             _as_single_chain(launch_coro),
             cscs_api_key,
             expected_replicas=launch_request.replicas,
-            use_router=launch_request.use_router,
+            router=launch_request.router,
         )
     else:
         job_id, served = await launch_coro
@@ -758,18 +800,18 @@ def build_launch_args_from_advanced(
         served_model_name = match.group(1)
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
-    ocf_bootstrap_addr: str | None
-    if getattr(args, "otela_bootstrap_addr", None):
-        ocf_bootstrap_addr = args.otela_bootstrap_addr
+    opentela_bootstrap_addr: str | None
+    if getattr(args, "opentela_bootstrap_addr", None):
+        opentela_bootstrap_addr = args.opentela_bootstrap_addr
         if getattr(args, "dev", False):
             print(
-                "warning: --dev ignored because --otela-bootstrap-addr was given.",
+                "warning: --dev ignored because --opentela-bootstrap-addr was given.",
                 file=sys.stderr,
             )
     elif getattr(args, "dev", False):
-        ocf_bootstrap_addr = OCF_BOOTSTRAP_ADDR_DEV
+        opentela_bootstrap_addr = OPENTELA_BOOTSTRAP_ADDR_DEV
     else:
-        ocf_bootstrap_addr = None
+        opentela_bootstrap_addr = None
 
     return LaunchArgs(
         job_name=job_name,
@@ -785,10 +827,10 @@ def build_launch_args_from_advanced(
         framework=args.framework,
         framework_args=args.framework_args,
         pre_launch_cmds=args.pre_launch_cmds,
-        use_router=args.use_router,
+        router=args.router,
         router_args=args.router_args,
-        disable_ocf=args.disable_ocf,
-        ocf_bootstrap_addr=ocf_bootstrap_addr,
+        disable_opentela=args.disable_opentela,
+        opentela_bootstrap_addr=opentela_bootstrap_addr,
         dev=getattr(args, "dev", False),
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
@@ -883,7 +925,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             submit_coro,
             cscs_api_key,
             expected_replicas=launch_args.topology.replicas,
-            use_router=launch_args.use_router,
+            router=launch_args.router,
         )
     else:
         scheduled = await submit_coro

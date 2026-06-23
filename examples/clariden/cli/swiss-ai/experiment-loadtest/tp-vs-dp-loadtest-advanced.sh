@@ -14,12 +14,12 @@ export SML_RESERVATION=SD-69241-apertus-1-5
 
 # --- Experiment 1: TP=4 ---
 sml loadtest advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model-path $MODEL \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-tp4-${SUFFIX} \
     --host 0.0.0.0 --port 8080 \
@@ -30,12 +30,12 @@ sml loadtest advanced \
 
 # --- Experiment 2: TP=1, DP=4 ---
 sml loadtest advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model-path $MODEL \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX} \
     --host 0.0.0.0 --port 8080 \

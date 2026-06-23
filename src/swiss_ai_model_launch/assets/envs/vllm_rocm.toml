@@ -1,7 +1,7 @@
 image = "rocm/vllm:v0.14.0_amd_dev"
 
 mounts = [
-  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
   "/capstor",
   "/iopsstor",
 ]

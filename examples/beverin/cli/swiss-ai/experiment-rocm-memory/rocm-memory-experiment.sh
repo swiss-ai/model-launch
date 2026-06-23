@@ -7,11 +7,11 @@ TIME="12:00:00"
 
 # baseline: mem-fraction 0.5
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-fraction-05 \
     --host 0.0.0.0 --tp-size 4 \
@@ -19,11 +19,11 @@ sml advanced \
 
 # delete checkpoint after loading
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-delete-ckpt \
     --host 0.0.0.0 --tp-size 4 \
@@ -31,11 +31,11 @@ sml advanced \
 
 # disable mmap
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap \
     --host 0.0.0.0 --tp-size 4 \
@@ -43,11 +43,11 @@ sml advanced \
 
 # disable mmap + mem-fraction 0.5
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction-05 \
     --host 0.0.0.0 --tp-size 4 \
@@ -56,11 +56,11 @@ sml advanced \
 
 # disable mmap + mem-fraction 0.7
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction \
     --host 0.0.0.0 --tp-size 4 \
@@ -69,11 +69,11 @@ sml advanced \
 
 # disable mmap + delete ckpt + mem-fraction 0.7
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-delete-ckpt-mem-fraction \
     --host 0.0.0.0 --tp-size 4 \
@@ -83,11 +83,11 @@ sml advanced \
 
 # memory saver
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-saver \
@@ -96,11 +96,11 @@ sml advanced \
 
 # all memory opts combined
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-all-mem-opts \
@@ -111,12 +111,12 @@ sml advanced \
 
 # 2 nodes, tp-size 8
 sml advanced \
-  --firecrest-system beverin \
+  --system beverin \
   --partition mi300 \
-  --slurm-nodes-per-replica 2 \
+  --nodes-per-replica 2 \
   --time "$TIME" \
-  --serving-framework sglang \
-  --slurm-environment "$ENV" \
+  --framework sglang \
+  --environment "$ENV" \
   --framework-args "--model $MODEL \
     --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-2nodes \
     --host 0.0.0.0 --tp-size 8 \

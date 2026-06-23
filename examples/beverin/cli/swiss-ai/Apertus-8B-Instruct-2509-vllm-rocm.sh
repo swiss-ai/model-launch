@@ -1,8 +1,8 @@
 #!/bin/bash
 sml advanced \
-  --firecrest-system beverin \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_rocm.toml \
+  --system beverin \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_rocm.toml \
   --time "05:00:00" \
   --partition mi300 \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \

@@ -1,9 +1,9 @@
 #!/bin/bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Ministral-3-14B-Instruct-2512 \
     --served-model-name mistralai/Ministral-3-14B-Instruct-2512-$(whoami) \
     --host 0.0.0.0 \

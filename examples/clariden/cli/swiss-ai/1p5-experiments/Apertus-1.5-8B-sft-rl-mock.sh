@@ -3,12 +3,12 @@
 # from https://swissai-initiative.slack.com/archives/C0A9JJ7C5K6/p1780860312233579
 
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time 12:00:00 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/Apertus-1p5-8B-sft-capfilter-linear-it8816_gl_180steps \
     --served-model-name swiss-ai/Apertus-1.5-8B-Instruct-sft-rl-mock \
     --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \

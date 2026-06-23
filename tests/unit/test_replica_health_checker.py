@@ -103,9 +103,17 @@ def test_build_report_health_peers_and_last_seen(monkeypatch) -> None:  # type: 
 
     assert report["checked_at"] == 1000
     first, second = report["replicas"]
-    assert first == {"node_rank": 0, "node_ip": "10.0.0.1", "peer_id": "Qm1", "health": "HEALTHY", "last_seen": 1000}
+    assert first == {
+        "node_rank": 0,
+        "node_ip": "10.0.0.1",
+        "node_host": "n0",
+        "peer_id": "Qm1",
+        "health": "HEALTHY",
+        "last_seen": 1000,
+    }
     # 10.0.0.2 has never been healthy: NOT_DEPLOYED, and peer id isn't resolved (only resolved when healthy).
     assert second["health"] == "NOT_DEPLOYED"
+    assert second["node_host"] == "n1"  # head node name is reported regardless of health
     assert second["peer_id"] is None
     assert second["last_seen"] is None
 
@@ -123,6 +131,14 @@ def test_build_report_node_rank_uses_nodes_per_replica(monkeypatch) -> None:  # 
     monkeypatch.setattr(checker, "resolve_peer_id", lambda *a, **k: None)
     report = checker.build_report(["10.0.0.1", "10.0.0.2"], ["n0", "n4"], 4, 8080, 8092, 1.0, {}, {}, {}, 1000)
     assert [r["node_rank"] for r in report["replicas"]] == [0, 4]
+
+
+def test_build_report_node_host_none_when_hosts_missing(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(checker, "_http_get", lambda url, timeout: (200, b""))
+    monkeypatch.setattr(checker, "resolve_peer_id", lambda *a, **k: None)
+    # Fewer host names than IPs (or none at all) must not crash; node_host is None.
+    report = checker.build_report(["10.0.0.1"], [], 1, 8080, 8092, 1.0, {}, {}, {}, 1000)
+    assert report["replicas"][0]["node_host"] is None
 
 
 def test_build_report_freezes_last_seen_and_caches_peer(monkeypatch) -> None:  # type: ignore[no-untyped-def]

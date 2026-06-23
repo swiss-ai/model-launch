@@ -10,42 +10,42 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 
 ## Arguments
 
-| Argument                    | Environment Variable    | Description                                                       |
-| --------------------------- | ----------------------- | ----------------------------------------------------------------- |
-| `--firecrest-system`        | `SML_FIRECREST_SYSTEM`  | Target HPC system                                                 |
-| `--partition`               | `SML_PARTITION`         | SLURM partition                                                   |
-| `--slurm-account`           | `SML_ACCOUNT`           | SLURM account used for job submission                             |
-| `--slurm-reservation`       | `SML_RESERVATION`       | SLURM reservation (optional)                                      |
-| `--serving-framework`       |                         | Inference framework (`sglang`, `vllm`) — **required**             |
-| `--slurm-environment`       |                         | Local path to the environment `.toml` file — **required**         |
-| `--framework-args`          |                         | Arguments forwarded to the inference framework                    |
-| `--slurm-replicas`          |                         | Number of replicas (default: `1`)                                 |
-| `--slurm-nodes-per-replica` |                         | Nodes per replica (default: `1`)                                  |
-| `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                     |
-| `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs |
-| `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)        |
-| `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)           |
-| `--served-model-name`       |                         | Name under which the model is served (auto-generated if omitted)  |
-| `--use-router`              |                         | Load-balance across replicas (needs `replicas > 1`)               |
-| `--router-args`             |                         | Arguments forwarded to the router                                 |
-| `--disable-ocf`             |                         | Disable OCF wrapper                                               |
-| `--otela-bootstrap-addr`    |                         | Override the OCF/OpenTela bootstrap peer (full multiaddr)         |
-| `--dev`                     |                         | Shorthand for the dev OCF/OpenTela bootstrap peer                 |
-| `--disable-metrics`         |                         | Disable vmagent metrics push                                      |
-| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                 |
-| `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                 |
-| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)     |
+| Argument                    | Environment Variable | Description                                                                                                                    |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                              |
+| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                |
+| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                          |
+| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                   |
+| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                          |
+| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                      |
+| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                 |
+| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                              |
+| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                               |
+| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                  |
+| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
+| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
+| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
+| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. |
+| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
+| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
+| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
+| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
+| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
+| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                   |
+| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                              |
+| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                              |
+| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                  |
 
-> Total nodes is `--slurm-replicas × --slurm-nodes-per-replica`. The framework HTTP port is **8080**.
+> Total nodes is `--replicas × --nodes-per-replica`. The framework HTTP port is **8080**.
 
 ## Example: Apertus 8B on Clariden with sglang
 
 ```bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 \
@@ -64,10 +64,10 @@ pass `--consecutive` to serve it with a pre-scheduled **chain of jobs**:
 
 ```bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --time 36:00:00 \
   --consecutive \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
@@ -125,10 +125,10 @@ replicas are marked `STALE` rather than left showing a frozen `HEALTHY`.
 
 ```bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
     --host 0.0.0.0 --enable-metrics" \
@@ -162,13 +162,13 @@ After a real (non-`--output-script`) submission, the same rank scripts also land
 
 > **`master.sh` is self-contained.** Rank scripts are embedded as `cat`-heredocs and extracted at job start to `$HOME/.sml/job-${SLURM_JOB_ID}/` — shared FS, so every compute node `srun` reaches can read them. The sibling `head.sh` / `follower.sh` / `router.sh` from `--output-script` are inspection-only and never read at runtime; to hand-tune, edit the heredoc bodies inside `master.sh`.
 
-## When to disable OCF
+## When to disable OpenTela
 
-> "OCF" and "OpenTela" refer to the same thing — `OCF` is the on-disk binary name from the [OpenTela project](https://github.com/swiss-ai/opentela). The flag is `--disable-ocf` for historical reasons.
+> The [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary ships on-disk as `otela-<arch>` and is referenced via `OPENTELA_BIN`.
 
-By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-ocf) for the longer story.
+By default, every replica joins the OpenTela p2p mesh at startup. That registration is what makes the model resolvable through the public gateway at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/). See [Architecture](architecture.md#disabling-opentela-registration-disable-opentela) for the longer story.
 
-Pass `--disable-ocf` when:
+Pass `--disable-opentela` when:
 
 - **You're benchmarking max throughput.** OpenTela adds a hop on the request path; disabling it gives you the framework's raw numbers. See [Benchmarking](benchmarking.md).
 - **You want the model kept private.** With OpenTela disabled, the replica never registers with the mesh — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
@@ -176,21 +176,21 @@ Pass `--disable-ocf` when:
 
 If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.
 
-## Pointing at a different OCF bootstrap peer
+## Pointing at a different OpenTela bootstrap peer
 
 The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
 
 - `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
-- `--otela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OCF instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
+- `--opentela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OpenTela instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
 
 Example:
 
 ```bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "..." \
   --dev
 ```
@@ -200,14 +200,14 @@ Or for a custom peer:
 ```bash
 sml advanced \
   ... \
-  --otela-bootstrap-addr /ip4/10.0.0.42/tcp/43905/p2p/QmYourPeerId...
+  --opentela-bootstrap-addr /ip4/10.0.0.42/tcp/43905/p2p/QmYourPeerId...
 ```
 
 The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry payload, so launches against different environments are distinguishable downstream.
 
 ## Notes on flag style
 
-- `sml advanced` takes system and partition as **arguments**, not env vars. This keeps each script reproducible without depending on shell state. (The interactive `sml` flow is different — see the [env-var tip](usage-sml.md#tip-env-vars-for-things-that-rarely-change) there.)
+- For reproducibility we recommend passing system and partition as explicit **arguments** in `sml advanced` scripts rather than relying on shell state, though `SML_SYSTEM` and `SML_PARTITION` are still honoured if the corresponding flag is omitted. (The interactive `sml` flow leans on these env vars more — see the [env-var tip](usage-sml.md#tip-env-vars-for-things-that-rarely-change) there.)
 - `--framework-args` is a single quoted string forwarded verbatim to the framework. Keep it explicit; SML doesn't massage it.
 
 ## Next

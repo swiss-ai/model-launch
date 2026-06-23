@@ -73,6 +73,17 @@ class InitConfig(ChainConfiguration):
                                     env_var="SML_FIRECREST_CLIENT_SECRET",
                                     expose_as_arg=False,
                                 ),
+                                TextConfiguration(
+                                    name="cluster_ssh_host",
+                                    prompt="(Optional) SSH host/alias for opening node terminals from the TUI",
+                                    intro=(
+                                        "\nUsed by the TUI's per-replica 'open' button to SSH into a node and "
+                                        "attach a shell.\nLeave blank to auto-detect from the FirecREST system "
+                                        "(or to disable the button).\n"
+                                    ),
+                                    default="",
+                                    env_var="SML_CLUSTER_SSH_HOST",
+                                ),
                             ],
                         ),
                         "slurm": None,

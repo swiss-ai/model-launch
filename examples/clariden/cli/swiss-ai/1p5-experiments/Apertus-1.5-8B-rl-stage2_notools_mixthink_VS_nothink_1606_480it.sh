@@ -5,12 +5,12 @@
 
 # mixthink - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time 12:00:00 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_mixthink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it \
     --tensor-parallel-size 4 \
@@ -23,12 +23,12 @@ sml advanced \
     
 # THINK - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it-THINK
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time 12:00:00 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_mixthink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_mixthink_1606_480it-THINK \
     --tensor-parallel-size 4 \
@@ -46,12 +46,12 @@ sml advanced \
 
 # nothink - swiss-ai/Apertus-1.5-8B-rl-stage2_notools_nothink_1606_480it
   sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time 12:00:00 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_nothink_1606_480it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-stage2_notools_nothink_1606_480it \
     --tensor-parallel-size 4 \

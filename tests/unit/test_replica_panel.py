@@ -55,6 +55,30 @@ def test_panel_lists_each_replica_with_summary(monkeypatch: pytest.MonkeyPatch) 
         assert ago in out
 
 
+def test_panel_shows_node_name_column() -> None:
+    state = DisplayState()
+    state.set_replica_report(
+        ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "Q", 1, 0, "10.0.0.1", "nid001234"),))
+    )
+    out = _render(state)
+    assert "Node Name" in out  # the column header
+    assert "nid001234" in out  # the replica head's SLURM node name
+
+
+def test_malicious_node_ip_is_not_interpreted_as_markup() -> None:
+    # node_ip comes from the (untrusted) health report; a crafted value must render
+    # literally, not as Rich markup — otherwise a `[@click=…]` span would become a
+    # clickable shortcut to arbitrary app actions (e.g. quit-and-kill the job).
+    state = DisplayState()
+    payload = "[@click=app.quit_kill]pwn[/]"
+    state.set_replica_report(
+        ReplicaHealthReport("m", 1, (ReplicaHealth(ModelHealth.HEALTHY, "Q", 1, 0, payload, "nid7"),))
+    )
+    out = _render(state)
+    # The literal markup text survives in the output -> it was not parsed/consumed.
+    assert "@click=app.quit_kill" in out
+
+
 def test_panel_shows_all_running_jobs_during_handover() -> None:
     state = DisplayState()
     # Overlapping handover: old job fully healthy, new job still spinning up.

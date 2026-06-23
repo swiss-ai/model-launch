@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, ReplicaHealthReport
 from swiss_ai_model_launch.launchers.job_status import JobStatus
+
+if TYPE_CHECKING:
+    from swiss_ai_model_launch.launchers.launcher import TerminalCommand
 
 
 @dataclass
@@ -39,6 +45,10 @@ class DisplayState:
         self.sources: list[str] = sources or ["Master"]
         self.active_source: str = self.sources[0]
         self.source_logs: dict[str, tuple[str, str]] = {source: ("", "") for source in self.sources}
+        # Builds the command to open an interactive shell on a replica's node,
+        # given (job_id, node_host). Set by the monitor to the active launcher's
+        # ``terminal_command``; None until then (terminal button is then inert).
+        self.open_terminal: Callable[[int, str], TerminalCommand] | None = None
         self._on_change: Callable[[], None] = lambda: None
 
     def _notify(self) -> None:

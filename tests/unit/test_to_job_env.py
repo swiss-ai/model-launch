@@ -22,10 +22,10 @@ def test_to_job_env_keys():
         "PRE_LAUNCH_CMDS",
         "REPLICAS",
         "NODES_PER_REPLICA",
-        "USE_ROUTER",
+        "ROUTER",
         "ROUTER_ENVIRONMENT",
         "ROUTER_ARGS",
-        "USE_OCF",
+        "USE_OPENTELA",
         "SERVED_MODEL_NAME",
         "METRICS_REMOTE_WRITE_URL",
         "METRICS_AGENT_BIN",
@@ -63,14 +63,14 @@ def test_to_job_env_injects_port_with_no_user_args():
     assert env["FRAMEWORK_ARGS"] == "--port 8080"
 
 
-def test_to_job_env_use_router():
-    assert _make_args(use_router=False).to_job_env()["USE_ROUTER"] == "false"
-    assert _make_args(use_router=True).to_job_env()["USE_ROUTER"] == "true"
+def test_to_job_env_router():
+    assert _make_args(router="opentela").to_job_env()["ROUTER"] == "opentela"
+    assert _make_args(router="sglang").to_job_env()["ROUTER"] == "sglang"
 
 
-def test_to_job_env_use_ocf():
-    assert _make_args(disable_ocf=False).to_job_env()["USE_OCF"] == "true"
-    assert _make_args(disable_ocf=True).to_job_env()["USE_OCF"] == "false"
+def test_to_job_env_use_opentela():
+    assert _make_args(disable_opentela=False).to_job_env()["USE_OPENTELA"] == "true"
+    assert _make_args(disable_opentela=True).to_job_env()["USE_OPENTELA"] == "false"
 
 
 def test_to_job_env_telemetry_endpoint_none():

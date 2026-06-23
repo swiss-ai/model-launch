@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -35,6 +36,24 @@ def _format_duration(seconds: int) -> str:
     if hours:
         return f"{hours}h"
     return f"{minutes}m"
+
+
+@dataclass(frozen=True)
+class TerminalCommand:
+    """How the TUI should open an interactive shell on a replica's node.
+
+    ``argv`` is the command to exec; it blocks until the shell exits, so the TUI
+    runs it while suspended. ``display`` is the same command as a human-readable
+    string — shown before launch and used as the copy/paste fallback. When a
+    prerequisite is missing (e.g. a remote launcher with no SSH host configured)
+    ``available`` is False and ``reason`` explains why; ``display`` then still
+    carries the command the user could run manually.
+    """
+
+    argv: list[str]
+    display: str
+    available: bool = True
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +211,44 @@ class Launcher(ABC):
 
     @abstractmethod
     def get_tail_hint(self, job_id: int) -> str: ...
+
+    def _srun_terminal_argv(self, job_id: int, node_host: str) -> list[str]:
+        """An ``srun`` invocation that attaches an interactive login shell to
+        ``node_host`` *inside* the running job ``job_id``.
+
+        ``--overlap`` joins the live allocation (so the shell sees the job's GPUs,
+        environment and cgroup) without consuming a new task slot; ``--pty`` gives
+        it a terminal. Mirrors the in-job checker's own ``srun --overlap`` step.
+        """
+        return [
+            "srun",
+            "--overlap",
+            f"--jobid={job_id}",
+            "--nodes=1",
+            "--ntasks=1",
+            f"--nodelist={node_host}",
+            "--pty",
+            "bash",
+            "-l",
+        ]
+
+    @staticmethod
+    def _display(argv: list[str]) -> str:
+        """Render an argv as a copy/paste-safe shell string."""
+        return shlex.join(argv)
+
+    def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
+        """Build the command that opens an interactive shell on a replica's node.
+
+        The base implementation is unavailable; launchers that can reach their
+        nodes (SLURM directly, FirecREST over SSH) override it.
+        """
+        return TerminalCommand(
+            argv=[],
+            display="",
+            available=False,
+            reason="Opening a node terminal isn't supported for this launcher.",
+        )
 
     @abstractmethod
     async def read_job_file(self, job_id: int, filename: str) -> str | None:

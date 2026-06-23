@@ -26,6 +26,8 @@ nav:
       - Loadtesting: loadtesting.md
   - MCP Server: mcp.md
   - Architecture: architecture.md
+  - ADRs:
+      - Replica is the Orchestration Unit: adrs/0001-replica-is-the-orchestration-unit.md
   - Development: development.md
   - CI/CD: ci-cd.md
   - FAQ: faq.md

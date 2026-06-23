@@ -4,12 +4,12 @@
 
 
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
   --slurm-nodes 1 \
   --time 12:00:00 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_mixthink_1606_180it \
     --served-model-name swiss-ai/Apertus-1.5-8B-rl-notools_mixthink_1606_180it \
     --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \
