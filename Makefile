@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-std _test-comprehensive test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-std _test-comprehensive test-lightweight test-std test-comprehensive docs docs-build demo demo-raw demo-terminals demo-terminals-raw clean-cache clean-dev
 
 install-dev:
 	uv sync --python 3.12
@@ -98,6 +98,30 @@ demo: demo-raw
 	ffmpeg -y -i docs/assets/launch-apertus-fast.mp4 \
 		-vf "fps=15,scale=1200:-1:flags=lanczos" \
 		docs/assets/launch-apertus.gif
+
+# Node-terminal demo: launches the Apertus-1.5 script with 3 replicas, opens each
+# node's terminal via the "t" chord, runs nvidia-smi, then waits for HEALTHY.
+# Same post-processing as `demo`: the intro (typing the launch command) plays at
+# 1x, everything from the TUI onward is sped up. Eyeball DEMO_TERM_TUI_START once
+# after the first `make demo-terminals-raw` (it's where the live display appears).
+DEMO_TERM_TUI_START ?= 5
+DEMO_TERM_SPEEDUP ?= 5
+
+demo-terminals-raw:
+	@command -v vhs >/dev/null 2>&1 || { echo "vhs not found. Install with: brew install vhs"; exit 1; }
+	mkdir -p docs/assets
+	uv run vhs tapes/launch-apertus-terminals.tape
+
+demo-terminals: demo-terminals-raw
+	@command -v ffmpeg >/dev/null 2>&1 || { echo "ffmpeg not found. Install with: brew install ffmpeg"; exit 1; }
+	ffmpeg -y -i docs/assets/launch-apertus-terminals.mp4 -filter_complex \
+		"[0:v]trim=0:$(DEMO_TERM_TUI_START),setpts=PTS-STARTPTS[wiz]; \
+		 [0:v]trim=$(DEMO_TERM_TUI_START),setpts=(PTS-STARTPTS)/$(DEMO_TERM_SPEEDUP)[tui]; \
+		 [wiz][tui]concat=n=2:v=1[out]" \
+		-map "[out]" docs/assets/launch-apertus-terminals-fast.mp4
+	ffmpeg -y -i docs/assets/launch-apertus-terminals-fast.mp4 \
+		-vf "fps=15,scale=1200:-1:flags=lanczos" \
+		docs/assets/launch-apertus-terminals.gif
 
 clean-cache:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
