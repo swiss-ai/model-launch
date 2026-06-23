@@ -87,42 +87,30 @@ RUN pip install --no-cache-dir --no-deps --force-reinstall \
 ENV CUDA_HOME=/usr/local/cuda
 ENV LD_LIBRARY_PATH=/opt/conda/lib/python${PYTHON_VERSION}/site-packages/nvidia/nvshmem/lib:${LD_LIBRARY_PATH}
 
-ARG GDRCOPY_VERSION=2.5.1
 ARG DEEPEP_COMMIT=9af0e0d0e74f3577af1979c9b9e1ac2cad0104ee
 ARG DEEPEP_MAX_JOBS=32
-
-# GDRCopy userspace lib + DeepEP's expected libmlx5 symlink (for the IBGDA
-# path). The gdrdrv kernel-module deb is best-effort: the module is provided by
-# the host, and a container build has no target kernel to build it against.
-# hadolint ignore=DL3003,DL3008
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential devscripts debhelper check libsubunit-dev dkms \
-        unzip curl git pkg-config && \
-    cd /tmp && curl -fsSL -o gdr.tar.gz \
-        https://github.com/NVIDIA/gdrcopy/archive/refs/tags/v${GDRCOPY_VERSION}.tar.gz && \
-    tar -xzf gdr.tar.gz && cd gdrcopy-${GDRCOPY_VERSION}/packages && \
-    CUDA=/usr/local/cuda ./build-deb-packages.sh && \
-    dpkg -i libgdrapi_*.deb gdrcopy-tests_*.deb gdrcopy_*.deb && \
-    (dpkg -i gdrdrv-dkms_*.deb || true) && \
-    cd / && rm -rf /tmp/gdrcopy* /tmp/gdr.tar.gz && \
-    ln -sf "/usr/lib/$(uname -m)-linux-gnu/libmlx5.so.1" "/usr/lib/$(uname -m)-linux-gnu/libmlx5.so" && \
-    rm -rf /var/lib/apt/lists/*
 
 # NVSHMEM (>=3.3.9 required by DeepEP). cu13 wheel ships an aarch64 build and is
 # auto-discovered by DeepEP via importlib find_spec("nvidia.nvshmem").
 RUN pip install --no-cache-dir "nvidia-nvshmem-cu13>=3.3.9"
 
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
+#
+# GDRCopy / IBGDA and the libmlx5 symlink are intentionally omitted: DeepEP's
+# inter-node path needs NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported
+# on Clariden's Slingshot/CXI fabric, so only intranode (NVLink) EP is usable
+# here and that path needs neither. The GitHub tarball is used (not the zip) so
+# no extra apt packages (unzip) are required — tar is in the base image.
 # hadolint ignore=DL3003
-RUN cd /tmp && curl -fsSL -o deepep.zip \
-        https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.zip && \
-    unzip -q deepep.zip && mv DeepEP-${DEEPEP_COMMIT} DeepEP && cd DeepEP && \
+RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
+        https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.tar.gz && \
+    tar -xzf deepep.tar.gz && mv DeepEP-${DEEPEP_COMMIT} DeepEP && cd DeepEP && \
     sed -i 's/#define NUM_CPU_TIMEOUT_SECS 100/#define NUM_CPU_TIMEOUT_SECS 1000/' csrc/kernels/configs.cuh && \
     sed -i 's/#define NUM_TIMEOUT_CYCLES 200000000000ull/#define NUM_TIMEOUT_CYCLES 2000000000000ull/' csrc/kernels/configs.cuh && \
     sed -i "/^    include_dirs = \['csrc\/'\]/a\    include_dirs.append('${CUDA_HOME}/include/cccl')" setup.py && \
     TORCH_CUDA_ARCH_LIST="9.0" MAX_JOBS=${DEEPEP_MAX_JOBS} \
         python setup.py bdist_wheel -d /tmp/deepep-wheels && \
     pip install --no-cache-dir /tmp/deepep-wheels/*.whl && \
-    cd / && rm -rf /tmp/DeepEP /tmp/deepep.zip /tmp/deepep-wheels
+    cd / && rm -rf /tmp/DeepEP /tmp/deepep.tar.gz /tmp/deepep-wheels
 
 WORKDIR /opt
