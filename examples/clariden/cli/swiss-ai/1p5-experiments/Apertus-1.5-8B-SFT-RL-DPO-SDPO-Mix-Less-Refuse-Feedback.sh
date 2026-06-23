@@ -1,7 +1,6 @@
 #!/bin/bash
 sml advanced \
   --partition normal \
-  --replicas 2 \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/Alignment/constitutional_ai/final_8b/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback \
