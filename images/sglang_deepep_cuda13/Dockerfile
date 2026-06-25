@@ -106,10 +106,17 @@ RUN pip install --no-cache-dir "nvidia-nvshmem-cu13>=3.3.9"
 # InfiniBand verbs headers. DeepEP's csrc/kernels/configs.cuh unconditionally
 # #includes <infiniband/mlx5dv.h> (even for the intranode kernels), so the
 # Mellanox direct-verbs header must be present at compile time. libibverbs-dev
-# provides it (and pulls in the runtime libibverbs/libmlx5 it links against).
+# ships it under /usr/include/infiniband — but this image builds with the
+# conda-forge compiler toolchain, whose isolated sysroot does NOT search
+# /usr/include, so the header is invisible to nvcc/g++ there. Copy the headers
+# into /usr/local/cuda/include (which every DeepEP nvcc/c++ command already
+# -I's) so the include resolves without polluting the compiler with system
+# glibc headers from /usr/include. The SSE intrinsics mlx5dv.h pulls in are
+# x86-only and guarded by #if defined(__SSE3__), so they're skipped on aarch64.
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    cp -a /usr/include/infiniband /usr/local/cuda/include/
 
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
 #
