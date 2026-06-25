@@ -94,13 +94,21 @@ ARG DEEPEP_MAX_JOBS=32
 # auto-discovered by DeepEP via importlib find_spec("nvidia.nvshmem").
 RUN pip install --no-cache-dir "nvidia-nvshmem-cu13>=3.3.9"
 
+# InfiniBand verbs headers. DeepEP's csrc/kernels/configs.cuh unconditionally
+# #includes <infiniband/mlx5dv.h> (even for the intranode kernels), so the
+# Mellanox direct-verbs header must be present at compile time. libibverbs-dev
+# provides it (and pulls in the runtime libibverbs/libmlx5 it links against).
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
 #
-# GDRCopy / IBGDA and the libmlx5 symlink are intentionally omitted: DeepEP's
-# inter-node path needs NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported
-# on Clariden's Slingshot/CXI fabric, so only intranode (NVLink) EP is usable
-# here and that path needs neither. The GitHub tarball is used (not the zip) so
-# no extra apt packages (unzip) are required — tar is in the base image.
+# GDRCopy / IBGDA are intentionally omitted: DeepEP's inter-node path needs
+# NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported on Clariden's
+# Slingshot/CXI fabric, so only intranode (NVLink) EP is usable here and that
+# path doesn't need them. The GitHub tarball is used (not the zip) so no extra
+# apt packages (unzip) are required — tar is in the base image.
 # hadolint ignore=DL3003
 RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
         https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.tar.gz && \
