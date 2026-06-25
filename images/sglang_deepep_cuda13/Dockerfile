@@ -80,6 +80,15 @@ RUN pip install --no-cache-dir --no-deps --force-reinstall \
     conda install -y curl && conda clean -ya && \
     pip install --no-cache-dir sglang-router==0.3.2
 
+# Pin the CUTLASS Python DSL to a stable release. sgl-kernel needs
+# nvidia-cutlass-dsl>=4.4.1, but the build otherwise resolves to the 4.6.0.dev0
+# pre-release, which dropped nvvm.RoundingModeKind — breaking the FlashAttention-4
+# CuTe path that GLM-5.2's NSA attention backend imports
+# (sgl_kernel.flash_attn -> flash_attn_origin.cute), failing with
+# "module 'cutlass._mlir.dialects.nvvm' has no attribute 'RoundingModeKind'".
+# 4.5.2 is the latest stable that still ships RoundingModeKind.
+RUN pip install --no-cache-dir "nvidia-cutlass-dsl==4.5.2"
+
 # ---------------------------------------------------------------------------
 # DeepEP (DeepSeek expert-parallel all-to-all) + NVSHMEM.
 #
