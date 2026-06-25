@@ -27,7 +27,11 @@ FI_CXI_DEFAULT_CQ_SIZE = "131072"
 FI_CXI_DEFAULT_TX_SIZE = "32768"
 FI_CXI_DISABLE_HOST_REGISTER = "1"
 OFI_NCCL_DISABLE_DMABUF = "1"
-SGL_ENABLE_JIT_DEEPGEMM = "0"
+# DeepEP's EP-MoE path asserts deep_gemm JIT is enabled (ep_moe/layer.py),
+# so unlike the base sglang env this must be on. deep_gemm ships in the image
+# and GH200 is sm90, so enabling the flag is sufficient. (Use the current var
+# name; SGL_ENABLE_JIT_DEEPGEMM is deprecated.)
+SGLANG_ENABLE_JIT_DEEPGEMM = "1"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
 
 [annotations]
