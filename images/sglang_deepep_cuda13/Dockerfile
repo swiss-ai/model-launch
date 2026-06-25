@@ -1,5 +1,4 @@
 ARG UBUNTU_VERSION=24.04
-ARG TARGET_PLATFORM=aarch64
 ARG CUDA_VERSION=13.0.0
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
@@ -11,11 +10,19 @@ FROM ${DEVEL_BASE_IMAGE} AS build
 
 WORKDIR /app/build
 
-ARG TARGET_PLATFORM
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:$PATH
-ADD "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${TARGET_PLATFORM}.sh" /root/miniconda.sh
-RUN chmod +x /root/miniconda.sh && \
+# Fetch the Miniforge installer for the build node's native arch. `uname -m`
+# returns exactly the tokens Miniforge uses (aarch64 / x86_64), so the same
+# Dockerfile builds on both the arm64 and amd64 CI clusters. (Done in RUN, not
+# ADD, because ADD cannot shell-interpolate the arch.) curl is not in the base
+# image yet — conda installs it later — so pull it in here first.
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL -o /root/miniconda.sh \
+        "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-$(uname -m).sh" && \
+    chmod +x /root/miniconda.sh && \
     bash /root/miniconda.sh -b -p /opt/conda && \
     rm /root/miniconda.sh && \
     /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython git compilers make && \
@@ -65,8 +72,10 @@ RUN pip install --no-cache-dir --force-reinstall --index-url https://download.py
     torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
 
 # Re-install sgl-kernel with cu130 wheels, install nvidia-cublas, curl, and sglang-router.
+# The wheel is arch-specific; uname -m yields the manylinux2014 token (aarch64 /
+# x86_64) directly, so the same line resolves on both CI clusters.
 RUN pip install --no-cache-dir --no-deps --force-reinstall \
-    "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_aarch64.whl" && \
+    "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_$(uname -m).whl" && \
     pip install --no-cache-dir nvidia-cublas==13.4.0.1 && \
     conda install -y curl && conda clean -ya && \
     pip install --no-cache-dir sglang-router==0.3.2
@@ -76,7 +85,7 @@ RUN pip install --no-cache-dir --no-deps --force-reinstall \
 #
 # Enables `--moe-a2a-backend deepep` for MoE models like GLM-5.2. DeepEP has no
 # PyPI wheel, so it is built from source against the nvidia-nvshmem-cu13 wheel
-# (which ships an aarch64 build and is auto-detected by DeepEP's setup.py).
+# (which ships both aarch64 and x86_64 builds, auto-detected by DeepEP setup.py).
 # Pinned commit + the CUDA-13 CCCL include patch follow SGLang's own
 # docker/Dockerfile so the build matches the sglang 0.5.10.post1 / cu130 stack.
 #
@@ -90,8 +99,8 @@ ENV LD_LIBRARY_PATH=/opt/conda/lib/python${PYTHON_VERSION}/site-packages/nvidia/
 ARG DEEPEP_COMMIT=9af0e0d0e74f3577af1979c9b9e1ac2cad0104ee
 ARG DEEPEP_MAX_JOBS=32
 
-# NVSHMEM (>=3.3.9 required by DeepEP). cu13 wheel ships an aarch64 build and is
-# auto-discovered by DeepEP via importlib find_spec("nvidia.nvshmem").
+# NVSHMEM (>=3.3.9 required by DeepEP). cu13 wheel ships aarch64 + x86_64 builds
+# and is auto-discovered by DeepEP via importlib find_spec("nvidia.nvshmem").
 RUN pip install --no-cache-dir "nvidia-nvshmem-cu13>=3.3.9"
 
 # InfiniBand verbs headers. DeepEP's csrc/kernels/configs.cuh unconditionally
