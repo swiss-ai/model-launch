@@ -13,6 +13,9 @@ workdir = "/opt"
 [env]
 # NCCL_DEBUG = "INFO"  # uncomment for debugging
 # NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
+# JIT DeepGEMM off by default (formerly forced off by the launcher); DeepEP
+# models opt in via sglang_deepep.toml instead.
+SGL_ENABLE_JIT_DEEPGEMM = "0"
 
 [annotations]
 com.hooks.aws_ofi_nccl.enabled = "true"
