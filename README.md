@@ -1,6 +1,6 @@
 # `sml`: Swiss AI Model Launch
 
-<p align="center"><img src="docs/assets/logo-wide.png" alt="SML Logo" width="220"></p>
+<p align="center"><img src="docs/assets/logo-wide.png" alt="SML Logo" width="440"></p>
 
 <p align="center">
   <a href="https://github.com/swiss-ai/model-launch/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/swiss-ai/model-launch/ci.yml?branch=main&label=CI"></a>
