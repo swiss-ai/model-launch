@@ -129,10 +129,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev 
 
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
 #
+# CRITICAL: NUM_MAX_NVL_PEERS is a compile-time constant DeepEP uses as the
+# NVLink-domain (GPUs-per-node) size — it is NOT runtime-detected. Upstream
+# defaults to 8 (DGX H100/H200). Clariden GH200 nodes have 4 GPUs each, so with
+# the default DeepEP groups e.g. ranks 0-7 as one node and does cudaIpcOpenMem-
+# Handle across what are actually two physical nodes, failing at deep_ep.cpp:200
+# with 'invalid resource handle'. Patch it to 4 to match the node GPU count.
+#
 # GDRCopy / IBGDA are intentionally omitted: DeepEP's inter-node path needs
 # NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported on Clariden's
-# Slingshot/CXI fabric, so only intranode (NVLink) EP is usable here and that
-# path doesn't need them. The GitHub tarball is used (not the zip) so no extra
+# Slingshot/CXI fabric. The GitHub tarball is used (not the zip) so no extra
 # apt packages (unzip) are required — tar is in the base image.
 # hadolint ignore=DL3003
 RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
@@ -140,6 +146,7 @@ RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
     tar -xzf deepep.tar.gz && mv DeepEP-${DEEPEP_COMMIT} DeepEP && cd DeepEP && \
     sed -i 's/#define NUM_CPU_TIMEOUT_SECS 100/#define NUM_CPU_TIMEOUT_SECS 1000/' csrc/kernels/configs.cuh && \
     sed -i 's/#define NUM_TIMEOUT_CYCLES 200000000000ull/#define NUM_TIMEOUT_CYCLES 2000000000000ull/' csrc/kernels/configs.cuh && \
+    sed -i 's/#define NUM_MAX_NVL_PEERS 8/#define NUM_MAX_NVL_PEERS 4/' csrc/kernels/configs.cuh && \
     sed -i "/^    include_dirs = \['csrc\/'\]/a\    include_dirs.append('${CUDA_HOME}/include/cccl')" setup.py && \
     TORCH_CUDA_ARCH_LIST="9.0" MAX_JOBS=${DEEPEP_MAX_JOBS} \
         python setup.py bdist_wheel -d /tmp/deepep-wheels && \
