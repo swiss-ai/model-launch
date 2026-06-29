@@ -129,24 +129,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev 
 
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
 #
-# CRITICAL: NUM_MAX_NVL_PEERS is a compile-time constant DeepEP uses as the
-# NVLink-domain (GPUs-per-node) size — it is NOT runtime-detected. Upstream
-# defaults to 8 (DGX H100/H200). Clariden GH200 nodes have 4 GPUs each, so with
-# the default DeepEP groups e.g. ranks 0-7 as one node and does cudaIpcOpenMem-
-# Handle across what are actually two physical nodes, failing at deep_ep.cpp:200
-# with 'invalid resource handle'. Patch it to 4 to match the node GPU count.
+# KNOWN LIMITATION: DeepEP's multi-node path hard-codes NUM_MAX_NVL_PEERS == 8
+# (DGX 8-GPU nodes) via static_asserts in csrc/kernels/internode.cu and
+# csrc/deep_ep.hpp (it packs an 8-bit NVLink-peer bitmask into a uint64_t), so
+# it cannot be rebuilt for Clariden's 4-GPU GH200 nodes. Left at the default 8,
+# DeepEP groups 8 ranks as one node and calls cudaIpcOpenMemHandle across two
+# physical nodes -> deep_ep.cpp:200 'invalid resource handle' on the first MoE
+# all-to-all. Net: DeepEP multi-node is NOT usable on Clariden (this also runs
+# into the Slingshot-vs-IBGDA transport gap). This image still builds DeepEP so
+# `--moe-a2a-backend deepep` imports, but multi-node GLM-5.2 should use a
+# non-DeepEP MoE backend. Kept for single-node / future 8-GPU-node use.
 #
-# GDRCopy / IBGDA are intentionally omitted: DeepEP's inter-node path needs
-# NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported on Clariden's
-# Slingshot/CXI fabric. The GitHub tarball is used (not the zip) so no extra
-# apt packages (unzip) are required — tar is in the base image.
+# GDRCopy / IBGDA are omitted: DeepEP's inter-node path needs NVSHMEM IBGDA over
+# InfiniBand/RoCE, unsupported on Clariden's Slingshot/CXI fabric. The GitHub
+# tarball is used (not the zip) so no extra apt packages (unzip) are required.
 # hadolint ignore=DL3003
 RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
         https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.tar.gz && \
     tar -xzf deepep.tar.gz && mv DeepEP-${DEEPEP_COMMIT} DeepEP && cd DeepEP && \
     sed -i 's/#define NUM_CPU_TIMEOUT_SECS 100/#define NUM_CPU_TIMEOUT_SECS 1000/' csrc/kernels/configs.cuh && \
     sed -i 's/#define NUM_TIMEOUT_CYCLES 200000000000ull/#define NUM_TIMEOUT_CYCLES 2000000000000ull/' csrc/kernels/configs.cuh && \
-    sed -i 's/#define NUM_MAX_NVL_PEERS 8/#define NUM_MAX_NVL_PEERS 4/' csrc/kernels/configs.cuh && \
     sed -i "/^    include_dirs = \['csrc\/'\]/a\    include_dirs.append('${CUDA_HOME}/include/cccl')" setup.py && \
     TORCH_CUDA_ARCH_LIST="9.0" MAX_JOBS=${DEEPEP_MAX_JOBS} \
         python setup.py bdist_wheel -d /tmp/deepep-wheels && \
