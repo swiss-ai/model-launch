@@ -1,4 +1,5 @@
 #!/bin/bash
+# also can be run with src/swiss_ai_model_launch/assets/envs/sglang.toml
 sml advanced \
   --tui \
   --system clariden \
@@ -10,18 +11,9 @@ sml advanced \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-5.2-FP8 \
     --served-model-name zai-org/GLM-5.2-FP8-$(whoami) \
     --tp-size 16 \
-    --dp-size 16 \
     --host 0.0.0.0 \
-    --enable-dp-attention \
-    --moe-a2a-backend none \
     --speculative-algorithm EAGLE \
-    --speculative-num-steps 1 \
+    --speculative-num-steps 5 \
     --speculative-eagle-topk 1 \
-    --speculative-num-draft-tokens 2 \
-    --mem-fraction-static 0.85 \
-    --cuda-graph-max-bs 128 \
-    --chunked-prefill-size 32768 \
-    --max-running-requests 80 \
-    --watchdog-timeout 1800 \
-    --skip-server-warmup \
-    --enable-metrics"
+    --speculative-num-draft-tokens 6 \
+    --mem-fraction-static 0.8"
