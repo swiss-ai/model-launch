@@ -13,7 +13,7 @@ sml advanced \
     --dp-size 16 \
     --host 0.0.0.0 \
     --enable-dp-attention \
-    --moe-a2a-backend deepep \
+    --moe-a2a-backend none \
     --speculative-algorithm EAGLE \
     --speculative-num-steps 1 \
     --speculative-eagle-topk 1 \
@@ -22,7 +22,6 @@ sml advanced \
     --cuda-graph-max-bs 128 \
     --chunked-prefill-size 32768 \
     --max-running-requests 80 \
-    --disable-cuda-graph \
     --watchdog-timeout 1800 \
     --skip-server-warmup \
     --enable-metrics"
