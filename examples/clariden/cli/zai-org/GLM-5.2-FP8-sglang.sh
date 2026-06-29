@@ -1,0 +1,28 @@
+#!/bin/bash
+sml advanced \
+  --tui \
+  --system clariden \
+  --reservation SD-69241-apertus-1-5-0 \
+  --partition normal \
+  --nodes-per-replica 4 \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_deepep.toml \
+  --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-5.2-FP8 \
+    --served-model-name zai-org/GLM-5.2-FP8-$(whoami) \
+    --tp-size 16 \
+    --dp-size 16 \
+    --host 0.0.0.0 \
+    --enable-dp-attention \
+    --moe-a2a-backend deepep \
+    --speculative-algorithm EAGLE \
+    --speculative-num-steps 1 \
+    --speculative-eagle-topk 1 \
+    --speculative-num-draft-tokens 2 \
+    --mem-fraction-static 0.85 \
+    --cuda-graph-max-bs 128 \
+    --chunked-prefill-size 32768 \
+    --max-running-requests 80 \
+    --disable-cuda-graph \
+    --watchdog-timeout 1800 \
+    --skip-server-warmup \
+    --enable-metrics"
