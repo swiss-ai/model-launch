@@ -1,3 +1,20 @@
+# Plain SGLang v0.5.14 image for CUDA 13 / aarch64 (Grace-Hopper GH200, SM90).
+#
+# NOTE ON THE NAME: this directory is still called "sglang_deepep_cuda13" for
+# continuity (sglang_deepep.toml points at its .sqsh), but it NO LONGER builds
+# DeepEP. DeepEP multi-node is unusable on Clariden (4-GPU GH200 nodes vs
+# DeepEP's hard-coded 8-GPU-node assumption + Slingshot-vs-IBGDA transport),
+# and GLM-5.2 is served with --moe-a2a-backend none, so DeepEP/NVSHMEM/libibverbs
+# are all dropped. This bumps SGLang 0.5.10.post1 -> 0.5.14, which adds proper
+# GLM-5.2 (GlmMoeDsa) + MTP/EAGLE support; 0.5.10 only half-supported GLM-5.2
+# (draft loaded as a generic DeepseekV3 NextN head) and corrupted spec decoding.
+#
+# Recipe mirrors SGLang's own v0.5.14 docker/Dockerfile (cu130 branch): for
+# CUDA 13 the cu130 wheels resolve directly (no cu12 force-reinstall dance), the
+# kernel package is renamed sgl-kernel -> sglang-kernel (cu130 build on PyPI,
+# abi3 so it runs on cp312), and FlashAttention-3 is JIT-compiled at runtime via
+# the HF `kernels` lib (no source build) — so the CUDA *devel* base (nvcc) is
+# kept for runtime JIT of FA3 / deep_gemm / flashinfer.
 ARG UBUNTU_VERSION=24.04
 ARG CUDA_VERSION=13.0.0
 ARG CUDA_VERSION_PATH=cu130
@@ -12,11 +29,12 @@ WORKDIR /app/build
 
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:$PATH
-# Fetch the Miniforge installer for the build node's native arch. `uname -m`
-# returns exactly the tokens Miniforge uses (aarch64 / x86_64), so the same
-# Dockerfile builds on both the arm64 and amd64 CI clusters. (Done in RUN, not
-# ADD, because ADD cannot shell-interpolate the arch.) curl is not in the base
-# image yet — conda installs it later — so pull it in here first.
+ENV CUDA_HOME=/usr/local/cuda
+# Miniforge for the build node's native arch (`uname -m` == aarch64 / x86_64,
+# the exact tokens Miniforge uses), so the same Dockerfile builds on both CI
+# clusters. curl is not in the base image yet, so install it first. conda also
+# brings a host compiler toolchain (`compilers`) used by the runtime CUDA JIT
+# (FA3 / deep_gemm / flashinfer) since aarch64 ships no prebuilt cubins.
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
@@ -25,125 +43,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     chmod +x /root/miniconda.sh && \
     bash /root/miniconda.sh -b -p /opt/conda && \
     rm /root/miniconda.sh && \
-    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython git compilers make && \
-    /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja && \
+    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake git compilers make && \
+    /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip setuptools wheel ninja packaging html5lib six && \
     /opt/conda/bin/conda clean -ya
 
+# 1. PyTorch stack, cu130 (aarch64 + x86_64 wheels both live at this index).
 ARG CUDA_VERSION_PATH
-ARG TORCH_VERSION=2.9.1
-ARG INSTALL_CHANNEL=whl
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
-    torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
+ARG TORCH_VERSION=2.11.0
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
+    torch==${TORCH_VERSION} torchvision==0.26.0 torchaudio==2.11.0
 
-RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
-    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
-    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
+# 2. sglang-kernel cu130 build from PyPI (renamed from sgl-kernel). The single
+#    aarch64 wheel is cp310-abi3, so it runs on cp312; --no-deps keeps it from
+#    dragging in a non-cu130 torch.
+ARG SGLANG_KERNEL_VERSION=0.4.4
+RUN pip install --no-cache-dir --force-reinstall --no-deps "sglang-kernel==${SGLANG_KERNEL_VERSION}"
 
-ARG FLASH_ATTN_3_SHA="92ca9da8d66f7b34ff50dc080ec0fef9661260d6"
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Dao-AILab/flash-attention.git && \
-    git -C flash-attention fetch --depth 1 origin ${FLASH_ATTN_3_SHA} && \
-    git -C flash-attention checkout ${FLASH_ATTN_3_SHA} && \
-    git -C flash-attention submodule update --init --depth 1
-
-WORKDIR /app/build/flash-attention/hopper
-ARG FA3_MAX_JOBS=32
-RUN FLASH_ATTENTION_DISABLE_FP16=TRUE FLASH_ATTENTION_DISABLE_SM80=TRUE MAX_JOBS=${FA3_MAX_JOBS} python setup.py install
-
-WORKDIR /app/build
-RUN rm -rf flash-attention
-
-WORKDIR /opt/conda/lib/python${PYTHON_VERSION}/site-packages
-RUN mkdir -p flash_attn_3 && \
-    mv flash_attn_3-*.egg/flash_attn_3/* flash_attn_3/ && \
-    mv flash_attn_3-*.egg/flash_attn_interface.py flash_attn_3/ && \
-    touch flash_attn_3/__init__.py && \
-    rm -rf flash_attn_3-*
-
-WORKDIR /app/build
-
-# Install sglang with all dependencies.
-# NOTE: sglang pins torch to cuda12 wheels, so we use --no-deps first,
-# then install its non-torch dependencies, then re-force cu130 torch.
-RUN pip install --no-cache-dir "sglang[all]==0.5.10.post1"
-
-# Re-install PyTorch cu130 — sglang downgrades to cuda12 torch via its deps.
-ARG CUDA_VERSION_PATH2=${CUDA_VERSION_PATH}
-RUN pip install --no-cache-dir --force-reinstall --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH2}/ \
-    torch==${TORCH_VERSION} torchvision==0.24.1 torchaudio==2.9.1
-
-# Re-install sgl-kernel with cu130 wheels, install nvidia-cublas, curl, and sglang-router.
-# The wheel is arch-specific; uname -m yields the manylinux2014 token (aarch64 /
-# x86_64) directly, so the same line resolves on both CI clusters.
-RUN pip install --no-cache-dir --no-deps --force-reinstall \
-    "sgl-kernel @ https://github.com/sgl-project/whl/releases/download/v0.3.21/sgl_kernel-0.3.21+cu130-cp312-abi3-manylinux2014_$(uname -m).whl" && \
-    pip install --no-cache-dir nvidia-cublas==13.4.0.1 && \
-    conda install -y curl && conda clean -ya && \
-    pip install --no-cache-dir sglang-router==0.3.2
-
-# Pin the CUTLASS Python DSL to a stable release. sgl-kernel needs
-# nvidia-cutlass-dsl>=4.4.1, but the build otherwise resolves to the 4.6.0.dev0
-# pre-release, which dropped nvvm.RoundingModeKind — breaking the FlashAttention-4
-# CuTe path that GLM-5.2's NSA attention backend imports
-# (sgl_kernel.flash_attn -> flash_attn_origin.cute), failing with
-# "module 'cutlass._mlir.dialects.nvvm' has no attribute 'RoundingModeKind'".
-# 4.5.2 is the latest stable that still ships RoundingModeKind.
-RUN pip install --no-cache-dir "nvidia-cutlass-dsl==4.5.2"
-
-# ---------------------------------------------------------------------------
-# DeepEP (DeepSeek expert-parallel all-to-all) + NVSHMEM.
-#
-# Enables `--moe-a2a-backend deepep` for MoE models like GLM-5.2. DeepEP has no
-# PyPI wheel, so it is built from source against the nvidia-nvshmem-cu13 wheel
-# (which ships both aarch64 and x86_64 builds, auto-detected by DeepEP setup.py).
-# Pinned commit + the CUDA-13 CCCL include patch follow SGLang's own
-# docker/Dockerfile so the build matches the sglang 0.5.10.post1 / cu130 stack.
-#
-# NOTE: DeepEP's *inter-node* path relies on NVSHMEM IBGDA over InfiniBand/RoCE
-# and does NOT work over Slingshot/CXI. On Clariden expect intranode (NVLink)
-# expert parallelism to work; multi-node deepep may fail at NVSHMEM init.
-# ---------------------------------------------------------------------------
-ENV CUDA_HOME=/usr/local/cuda
-ENV LD_LIBRARY_PATH=/opt/conda/lib/python${PYTHON_VERSION}/site-packages/nvidia/nvshmem/lib:${LD_LIBRARY_PATH}
-
-ARG DEEPEP_COMMIT=9af0e0d0e74f3577af1979c9b9e1ac2cad0104ee
-ARG DEEPEP_MAX_JOBS=32
-
-# NVSHMEM (>=3.3.9 required by DeepEP). cu13 wheel ships aarch64 + x86_64 builds
-# and is auto-discovered by DeepEP via importlib find_spec("nvidia.nvshmem").
-RUN pip install --no-cache-dir "nvidia-nvshmem-cu13>=3.3.9"
-
-# InfiniBand verbs headers. DeepEP's csrc/kernels/configs.cuh unconditionally
-# #includes <infiniband/mlx5dv.h> (even for the intranode kernels), so the
-# Mellanox direct-verbs header must be present at compile time. libibverbs-dev
-# ships it under /usr/include/infiniband — but this image builds with the
-# conda-forge compiler toolchain, whose isolated sysroot does NOT search
-# /usr/include, so the header is invisible to nvcc/g++ there. Copy the headers
-# into /usr/local/cuda/include (which every DeepEP nvcc/c++ command already
-# -I's) so the include resolves without polluting the compiler with system
-# glibc headers from /usr/include. The SSE intrinsics mlx5dv.h pulls in are
-# x86-only and guarded by #if defined(__SSE3__), so they're skipped on aarch64.
-# hadolint ignore=DL3008
-RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev && \
-    rm -rf /var/lib/apt/lists/* && \
-    cp -a /usr/include/infiniband /usr/local/cuda/include/
-
-# Build + install DeepEP from source for Hopper/SM90 (GH200).
-#
-# GDRCopy / IBGDA are intentionally omitted: DeepEP's inter-node path needs
-# NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported on Clariden's
-# Slingshot/CXI fabric, so only intranode (NVLink) EP is usable here and that
-# path doesn't need them. The GitHub tarball is used (not the zip) so no extra
-# apt packages (unzip) are required — tar is in the base image.
-# hadolint ignore=DL3003
-RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
-        https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.tar.gz && \
-    tar -xzf deepep.tar.gz && mv DeepEP-${DEEPEP_COMMIT} DeepEP && cd DeepEP && \
-    sed -i 's/#define NUM_CPU_TIMEOUT_SECS 100/#define NUM_CPU_TIMEOUT_SECS 1000/' csrc/kernels/configs.cuh && \
-    sed -i 's/#define NUM_TIMEOUT_CYCLES 200000000000ull/#define NUM_TIMEOUT_CYCLES 2000000000000ull/' csrc/kernels/configs.cuh && \
-    sed -i "/^    include_dirs = \['csrc\/'\]/a\    include_dirs.append('${CUDA_HOME}/include/cccl')" setup.py && \
-    TORCH_CUDA_ARCH_LIST="9.0" MAX_JOBS=${DEEPEP_MAX_JOBS} \
-        python setup.py bdist_wheel -d /tmp/deepep-wheels && \
-    pip install --no-cache-dir /tmp/deepep-wheels/*.whl && \
-    cd / && rm -rf /tmp/DeepEP /tmp/deepep.tar.gz /tmp/deepep-wheels
+# 3. Full SGLang 0.5.14. --extra-index-url cu130 keeps torch on the +cu130 build
+#    (the +cu130 local version sorts above plain 2.11.0). This pulls the rest of
+#    the stack at their pinned versions: flashinfer_python[cu13]==0.6.12 +
+#    flashinfer_cubin==0.6.12, nvidia-cutlass-dsl[cu13]==4.5.2, sgl-deep-gemm,
+#    kernels>=0.14.1, flash-attn-4, quack-kernels, transformers, etc. torch and
+#    sglang-kernel are already satisfied, so they are not re-pulled. No FA3
+#    source build and no `kernels download` (aarch64 has no prebuilt cubins —
+#    FA3 JIT-compiles on first use against the devel toolchain).
+ARG SGLANG_VERSION=0.5.14
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
+    "sglang[all]==${SGLANG_VERSION}"
 
 WORKDIR /opt
