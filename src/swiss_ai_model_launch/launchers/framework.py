@@ -50,12 +50,15 @@ class Sglang(Framework):
     env_exports = [
         'export no_proxy="0.0.0.0,$no_proxy"',
         'export NO_PROXY="0.0.0.0,$NO_PROXY"',
-        # JIT DeepGEMM can be unstable on some GPU/model combos. SGL_* is the
-        # historical upstream env-var name; SGLANG_* is the newer one. Both
-        # are exported during the upstream transition.
-        'export SGL_ENABLE_JIT_DEEPGEMM="false"',
-        'export SGLANG_ENABLE_JIT_DEEPGEMM="false"',
     ]
+    # NOTE: JIT DeepGEMM is intentionally NOT forced off here. It used to be
+    # hard-disabled for every sglang launch (it can be unstable on some
+    # GPU/model combos), but a shell `export` in the launch script overrides
+    # the container env from the environment .toml, so models that *need* it
+    # (e.g. DeepEP MoE, which asserts it is on) could not turn it back on.
+    # The default now lives in each env .toml instead: the base sglang.toml
+    # variants set SGL_ENABLE_JIT_DEEPGEMM="0", and sglang_deepep.toml enables
+    # it. A custom env file that omits the var gets sglang's own default.
 
 
 class Vllm(Framework):
