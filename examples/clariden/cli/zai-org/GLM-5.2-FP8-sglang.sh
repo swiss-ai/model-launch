@@ -3,7 +3,6 @@
 sml advanced \
   --tui \
   --system clariden \
-  --reservation SD-69241-apertus-1-5-0 \
   --partition normal \
   --nodes-per-replica 4 \
   --framework sglang \
