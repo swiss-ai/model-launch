@@ -129,20 +129,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends libibverbs-dev 
 
 # Build + install DeepEP from source for Hopper/SM90 (GH200).
 #
-# KNOWN LIMITATION: DeepEP's multi-node path hard-codes NUM_MAX_NVL_PEERS == 8
-# (DGX 8-GPU nodes) via static_asserts in csrc/kernels/internode.cu and
-# csrc/deep_ep.hpp (it packs an 8-bit NVLink-peer bitmask into a uint64_t), so
-# it cannot be rebuilt for Clariden's 4-GPU GH200 nodes. Left at the default 8,
-# DeepEP groups 8 ranks as one node and calls cudaIpcOpenMemHandle across two
-# physical nodes -> deep_ep.cpp:200 'invalid resource handle' on the first MoE
-# all-to-all. Net: DeepEP multi-node is NOT usable on Clariden (this also runs
-# into the Slingshot-vs-IBGDA transport gap). This image still builds DeepEP so
-# `--moe-a2a-backend deepep` imports, but multi-node GLM-5.2 should use a
-# non-DeepEP MoE backend. Kept for single-node / future 8-GPU-node use.
-#
-# GDRCopy / IBGDA are omitted: DeepEP's inter-node path needs NVSHMEM IBGDA over
-# InfiniBand/RoCE, unsupported on Clariden's Slingshot/CXI fabric. The GitHub
-# tarball is used (not the zip) so no extra apt packages (unzip) are required.
+# GDRCopy / IBGDA are intentionally omitted: DeepEP's inter-node path needs
+# NVSHMEM IBGDA over InfiniBand/RoCE, which is unsupported on Clariden's
+# Slingshot/CXI fabric, so only intranode (NVLink) EP is usable here and that
+# path doesn't need them. The GitHub tarball is used (not the zip) so no extra
+# apt packages (unzip) are required — tar is in the base image.
 # hadolint ignore=DL3003
 RUN cd /tmp && curl -fsSL -o deepep.tar.gz \
         https://github.com/deepseek-ai/DeepEP/archive/${DEEPEP_COMMIT}.tar.gz && \
