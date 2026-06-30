@@ -61,7 +61,12 @@ RUN pip install --no-cache-dir \
 # wheel already ships flash_ops.
 ARG SGL_KERNEL_VERSION=0.4.4
 ARG SGLANG_REF=v0.5.14
-ARG SGL_KERNEL_BUILD_JOBS=16
+# Compile parallelism: BUILD_JOBS concurrent nvcc processes, each with
+# COMPILE_THREADS internal threads. Keep BUILD_JOBS*COMPILE_THREADS near the
+# node's core count (64) to avoid oversubscription, and modest enough that the
+# memory-heavy CUTLASS kernels don't OOM (the build job also requests --mem=0).
+ARG SGL_KERNEL_BUILD_JOBS=8
+ARG SGL_KERNEL_COMPILE_THREADS=8
 # hadolint ignore=SC2086
 RUN set -eux; \
     arch="$(uname -m)"; \
@@ -72,7 +77,7 @@ RUN set -eux; \
         pip install --no-cache-dir "scikit-build-core==0.12.2"; \
         git clone --depth 1 --branch "${SGLANG_REF}" https://github.com/sgl-project/sglang.git /tmp/sglang; \
         CMAKE_BUILD_PARALLEL_LEVEL="${SGL_KERNEL_BUILD_JOBS}" \
-        CMAKE_ARGS="-DSGL_KERNEL_ENABLE_FA3=ON -DGITHUB_ARTIFACTORY=github.com -DSGL_KERNEL_COMPILE_THREADS=${SGL_KERNEL_BUILD_JOBS}" \
+        CMAKE_ARGS="-DSGL_KERNEL_ENABLE_FA3=ON -DGITHUB_ARTIFACTORY=github.com -DSGL_KERNEL_COMPILE_THREADS=${SGL_KERNEL_COMPILE_THREADS}" \
             pip wheel --no-build-isolation --no-deps /tmp/sglang/sgl-kernel -w /tmp/sgl-wheels; \
         pip install --no-cache-dir --no-deps --force-reinstall /tmp/sgl-wheels/sglang_kernel-*.whl; \
         python -c "import glob, os, sgl_kernel; d=os.path.dirname(sgl_kernel.__file__); assert glob.glob(os.path.join(d, 'flash_ops*.so')), 'flash_ops .so missing from built wheel'; print('flash_ops compiled in')"; \

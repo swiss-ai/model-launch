@@ -45,6 +45,9 @@ def _build_slurm_script(
         #SBATCH --nodes=1
         #SBATCH --ntasks=1
         #SBATCH --cpus-per-task=64
+        # Request all memory on the node; source builds (e.g. sgl-kernel's CUTLASS
+        # kernels) OOM under the small default per-CPU allocation.
+        #SBATCH --mem=0
         #SBATCH --time=04:00:00
         #SBATCH --account={account}
         #SBATCH --partition={partition}
