@@ -1,5 +1,4 @@
 ARG UBUNTU_VERSION=24.04
-ARG TARGET_PLATFORM=aarch64
 ARG CUDA_VERSION=13.0.0
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
@@ -10,13 +9,17 @@ FROM ${DEVEL_BASE_IMAGE} AS build
 
 WORKDIR /app/build
 
-# Install miniconda, Python, and Python build dependencies.
-ARG TARGET_PLATFORM
+# Install miniconda, Python, and Python build dependencies. The build runs
+# `podman build` natively per arch and passes no build args, so the Miniforge
+# arch is detected from `uname -m` (aarch64 / x86_64) rather than hardcoded.
 ARG PYTHON_VERSION
 ARG MINIFORGE_VERSION=26.3.2-3
 ENV PATH=/opt/conda/bin:$PATH
-ADD "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-${TARGET_PLATFORM}.sh" /root/miniconda.sh
-RUN chmod +x /root/miniconda.sh && \
+# hadolint ignore=DL3008
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-$(uname -m).sh" -o /root/miniconda.sh && \
     bash /root/miniconda.sh -b -p /opt/conda && \
     rm /root/miniconda.sh && \
     /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake pyyaml numpy git compilers make && \
@@ -71,7 +74,7 @@ WORKDIR /app/build
 RUN pip install --no-cache-dir \
         --extra-index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
         "sglang[all]==0.5.14" \
-        "sglang-kernel @ https://github.com/sgl-project/whl/releases/download/v0.4.4/sglang_kernel-0.4.4+cu130-cp310-abi3-manylinux2014_aarch64.whl" && \
+        "sglang-kernel @ https://github.com/sgl-project/whl/releases/download/v0.4.4/sglang_kernel-0.4.4+cu130-cp310-abi3-manylinux2014_$(uname -m).whl" && \
     pip install --no-cache-dir nvidia-cublas==13.6.0.2 && \
     pip install --no-cache-dir sglang-router==0.3.2 && \
     conda install -y curl && conda clean -ya
