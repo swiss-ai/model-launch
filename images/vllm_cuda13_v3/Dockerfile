@@ -26,9 +26,13 @@ RUN apt-get update && \
     /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja && \
     /opt/conda/bin/conda clean -ya
 
-# Install vllm cu130 nightly (brings its own torch nightly+cu130).
+# Install vLLM (CUDA 13). As of v0.24.0 the default PyPI wheels are CUDA 13 and
+# published for both x86_64 and aarch64, and they pin the cu13 torch 2.11 stack,
+# so a plain pinned install brings the right CUDA-13 torch on both arches. The
+# nightly cu130 index is x86_64-only, which is why the previous -U/nightly install
+# could not resolve on arm64.
 RUN pip install --no-cache-dir uv==0.11.25 && \
-    uv pip install --system -U vllm --torch-backend=auto --extra-index-url https://wheels.vllm.ai/nightly/cu130
+    uv pip install --system vllm==0.24.0
 
 # Ensure ray is installed and on PATH.
 RUN pip install --no-cache-dir "ray[default]==2.56.0"
