@@ -77,10 +77,8 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-# RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-#     git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477
-
-RUN git clone --branch audio-tokenizer-prod-cleanup https://github.com/Anunay-Yadav/vllm.git /workspace/vllm
+RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+    git -C /workspace/vllm checkout 40a5516b780daa7ee412295904b133bb4b1e43d2
 
 ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
