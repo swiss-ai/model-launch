@@ -140,3 +140,5 @@ printf '%s\n' \
     '  /workspace/benchmark-audio-tokenizer (VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE)' \
     > /etc/motd
 EOF
+
+ENTRYPOINT ["vllm", "serve"]
