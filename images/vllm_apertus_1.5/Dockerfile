@@ -78,19 +78,11 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 WORKDIR /workspace
 
 RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477 && \
-    git clone https://github.com/swiss-ai/Emu3.5.git /workspace/Emu3.5 && \
-    git -C /workspace/Emu3.5 checkout 8fcf1da48f9c5252fe0a0b8dc842e07b6efcd745 && \
-    git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
-    git -C /workspace/benchmark-audio-tokenizer checkout f8fe507212aa672a067baddb157b92ba3cfe9467 && \
-    git -C /workspace/benchmark-audio-tokenizer submodule update --init --recursive
+    git -C /workspace/vllm checkout 40a5516b780daa7ee412295904b133bb4b1e43d2
 
 ENV VLLM_REPO=/workspace/vllm \
-    EMU35=/workspace/Emu3.5 \
-    VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE=/workspace/benchmark-audio-tokenizer \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib \
-    VLLM_APERTUS_EMU35_CODEBASE=/workspace/Emu3.5
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
 
 WORKDIR /workspace/vllm
 
@@ -112,7 +104,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation \
-    --editable .[audio] \
+    --editable .[audio,apertus] \
     --torch-backend=auto;
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
