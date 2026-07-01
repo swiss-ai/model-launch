@@ -60,17 +60,24 @@ def _build_slurm_script(
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
-        # These compute nodes have no /etc/subuid range for the CI user, so
-        # rootless podman falls back to a single-UID namespace. Unpacking any
-        # base image with files owned by a non-zero GID (e.g. /etc/gshadow is
-        # root:shadow = 0:42) then fails with "lchown ... invalid argument".
-        # ignore_chown_errors lets the overlay driver skip those chowns instead
-        # of aborting the unpack. Written to a job-local file (default graphroot
-        # is kept) so concurrent builds don't race on shared ~/.config.
+        # Container storage must live on node-local disk. $HOME is a network
+        # filesystem (Lustre/GPFS): the overlay driver's per-layer xattrs fail
+        # there with "lsetxattr ... operation not supported", and podman warns
+        # it is an unsupported backing store. Point graphroot/runroot at the
+        # node-local $TMPDIR instead (same local store used for XDG_RUNTIME_DIR).
+        #
+        # ignore_chown_errors: the CI user has no /etc/subuid range, so rootless
+        # podman uses a single-UID namespace and cannot chown files owned by a
+        # non-zero GID (e.g. /etc/gshadow is root:shadow = 0:42) while unpacking
+        # a base image; this skips those chowns instead of aborting the unpack.
+        export PODMAN_STORE="${{TMPDIR:-/tmp}}/podman-store-$$"
+        mkdir -p "${{PODMAN_STORE}}"
         export CONTAINERS_STORAGE_CONF="${{XDG_RUNTIME_DIR}}/storage.conf"
-        cat > "${{CONTAINERS_STORAGE_CONF}}" <<'STORAGE_CONF'
+        cat > "${{CONTAINERS_STORAGE_CONF}}" <<STORAGE_CONF
         [storage]
         driver = "overlay"
+        graphroot = "${{PODMAN_STORE}}/root"
+        runroot = "${{PODMAN_STORE}}/runroot"
         [storage.options.overlay]
         ignore_chown_errors = "true"
         STORAGE_CONF
@@ -82,7 +89,7 @@ def _build_slurm_script(
             podman logout ghcr.io 2>/dev/null || true
             podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
-            rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
+            rm -rf "${{XDG_RUNTIME_DIR}}" "${{PODMAN_STORE}}" 2>/dev/null || true
         }}
         trap cleanup EXIT
 
