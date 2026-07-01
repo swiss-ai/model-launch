@@ -1,0 +1,138 @@
+# -----------------------------------------------------------------------------
+# TREATMENT arm: NCCL over Slingshot HSN via CXI + aws-ofi-nccl.
+#
+# Identical to bench-tcp.yaml except this pod injects the host CXI stack and
+# tells NCCL to use the OFI/CXI transport. Requires HSN-capable nodes (the ones
+# that expose /dev/cxi*). Adjust nodeSelector + the libfabric version in
+# LD_LIBRARY_PATH to match your nodes: `ls /opt/cray/libfabric/` on the node.
+#
+#   kubectl --context breithorn-oidc -n rob-poc create configmap nccl-bench-src --from-file=allreduce_bench.py
+#   kubectl --context breithorn-oidc -n rob-poc apply -f bench-hsn.yaml
+#   kubectl --context breithorn-oidc -n rob-poc logs -f bench-hsn-master
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: bench-hsn
+  namespace: rob-poc
+spec:
+  clusterIP: None
+  selector:
+    app: bench-hsn
+    role: master
+  ports:
+    - name: rdzv
+      port: 29500
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bench-hsn-master
+  namespace: rob-poc
+  labels: { app: bench-hsn, role: master }
+spec:
+  restartPolicy: OnFailure
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet # so bench-hsn.svc DNS resolves under hostNetwork
+  # nodeSelector: { <hsn-node-label>: "true" }   # pin to HSN-capable nodes
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: { matchLabels: { app: bench-hsn } }
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: bench
+      image: ghcr.io/swiss-ai/vllm_cxi:latest
+      command: ["python3", "/src/allreduce_bench.py"]
+      securityContext: { privileged: true }
+      env:
+        - { name: RANK, value: "0" }
+        - { name: WORLD_SIZE, value: "2" }
+        - { name: LOCAL_RANK, value: "0" }
+        - { name: MASTER_ADDR, value: "0.0.0.0" }
+        - { name: MASTER_PORT, value: "29500" }
+        # --- Slingshot / CXI transport ---
+        - { name: FI_PROVIDER, value: "cxi" }
+        - {
+            name: LD_LIBRARY_PATH,
+            value: "/opt/aws-ofi-nccl/lib:/opt/cray/libfabric/1.15.2.0/lib64:/host/lib64",
+          }
+        - { name: NCCL_NET_GDR_LEVEL, value: "PHB" }
+        - { name: NCCL_CROSS_NIC, value: "1" }
+        - { name: NCCL_SOCKET_IFNAME, value: "hsn0,hsn1,hsn2,hsn3" }
+        - { name: FI_CXI_DISABLE_HOST_REGISTER, value: "1" }
+        - { name: FI_CXI_DEFAULT_CQ_SIZE, value: "131072" }
+        - { name: FI_CXI_RX_MATCH_MODE, value: "hybrid" }
+        - { name: OFI_NCCL_PROTOCOL, value: "SENDRECV" }
+        - { name: GLOO_SOCKET_IFNAME, value: "hsn0" }
+        - { name: NCCL_DEBUG, value: "INFO" }
+        - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET" }
+      resources: { limits: { nvidia.com/gpu: 1 } }
+      volumeMounts:
+        - { name: src, mountPath: /src }
+        - { name: cray, mountPath: /opt/cray }
+        - { name: cxi0, mountPath: /dev/cxi0 }
+        - { name: libcxi, mountPath: /host/lib64/libcxi.so.1 }
+        - { name: libcxiutils, mountPath: /host/lib64/libcxiutils.so.0 }
+  volumes:
+    - { name: src, configMap: { name: nccl-bench-src } }
+    - { name: cray, hostPath: { path: /opt/cray } }
+    - { name: cxi0, hostPath: { path: /dev/cxi0, type: CharDevice } }
+    - { name: libcxi, hostPath: { path: /usr/lib64/libcxi.so.1 } }
+    - { name: libcxiutils, hostPath: { path: /usr/lib64/libcxiutils.so.0 } }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bench-hsn-worker
+  namespace: rob-poc
+  labels: { app: bench-hsn, role: worker }
+spec:
+  restartPolicy: OnFailure
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+  # nodeSelector: { <hsn-node-label>: "true" }
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: { matchLabels: { app: bench-hsn } }
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: bench
+      image: ghcr.io/swiss-ai/vllm_cxi:latest
+      command: ["python3", "/src/allreduce_bench.py"]
+      securityContext: { privileged: true }
+      env:
+        - { name: RANK, value: "1" }
+        - { name: WORLD_SIZE, value: "2" }
+        - { name: LOCAL_RANK, value: "0" }
+        - { name: MASTER_ADDR, value: "bench-hsn.rob-poc.svc.cluster.local" }
+        - { name: MASTER_PORT, value: "29500" }
+        - { name: FI_PROVIDER, value: "cxi" }
+        - {
+            name: LD_LIBRARY_PATH,
+            value: "/opt/aws-ofi-nccl/lib:/opt/cray/libfabric/1.15.2.0/lib64:/host/lib64",
+          }
+        - { name: NCCL_NET_GDR_LEVEL, value: "PHB" }
+        - { name: NCCL_CROSS_NIC, value: "1" }
+        - { name: NCCL_SOCKET_IFNAME, value: "hsn0,hsn1,hsn2,hsn3" }
+        - { name: FI_CXI_DISABLE_HOST_REGISTER, value: "1" }
+        - { name: FI_CXI_DEFAULT_CQ_SIZE, value: "131072" }
+        - { name: FI_CXI_RX_MATCH_MODE, value: "hybrid" }
+        - { name: OFI_NCCL_PROTOCOL, value: "SENDRECV" }
+        - { name: GLOO_SOCKET_IFNAME, value: "hsn0" }
+        - { name: NCCL_DEBUG, value: "INFO" }
+        - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET" }
+      resources: { limits: { nvidia.com/gpu: 1 } }
+      volumeMounts:
+        - { name: src, mountPath: /src }
+        - { name: cray, mountPath: /opt/cray }
+        - { name: cxi0, mountPath: /dev/cxi0 }
+        - { name: libcxi, mountPath: /host/lib64/libcxi.so.1 }
+        - { name: libcxiutils, mountPath: /host/lib64/libcxiutils.so.0 }
+  volumes:
+    - { name: src, configMap: { name: nccl-bench-src } }
+    - { name: cray, hostPath: { path: /opt/cray } }
+    - { name: cxi0, hostPath: { path: /dev/cxi0, type: CharDevice } }
+    - { name: libcxi, hostPath: { path: /usr/lib64/libcxi.so.1 } }
+    - { name: libcxiutils, hostPath: { path: /usr/lib64/libcxiutils.so.0 } }
