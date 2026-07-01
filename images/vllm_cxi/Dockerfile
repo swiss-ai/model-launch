@@ -121,6 +121,7 @@ ARG LIBFABRIC_VER=2.3.1
 ARG GDRCOPY_VER=2.5.1
 ARG AWS_OFI_NCCL_VER=v1.19.1
 
+# hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git autotools-dev libtool libhwloc-dev rename && \
@@ -129,10 +130,11 @@ RUN apt-get update && \
 # --- GDRCopy ---
 # GPU Direct RDMA copy library.  Installed to /usr/local before libfabric so
 # that libfabric's ./configure --with-gdrcopy can locate the headers.
+# hadolint ignore=DL3003
 RUN git clone --depth 1 -b v${GDRCOPY_VER} https://github.com/NVIDIA/gdrcopy.git && \
     cd gdrcopy && \
-    export CUDA_PATH=${CUDA_HOME:-$(dirname $(dirname $(which nvcc)))} && \
-    make CC=gcc CUDA=$CUDA_PATH lib && \
+    export CUDA_PATH="${CUDA_HOME:-$(dirname "$(dirname "$(which nvcc)")")}" && \
+    make CC=gcc CUDA="$CUDA_PATH" lib && \
     make lib_install && \
     cd .. && rm -rf gdrcopy
 
@@ -144,10 +146,11 @@ RUN git clone --depth 1 -b v${GDRCOPY_VER} https://github.com/NVIDIA/gdrcopy.git
 #   cuda runtime SO.
 # Note: no --with-cxi or similar; the CXI provider comes from the host mount
 # at runtime.  We only need the generic libfabric headers and stub SO here.
+# hadolint ignore=DL3003
 RUN git clone --depth 1 -b v${LIBFABRIC_VER} https://github.com/ofiwg/libfabric.git && \
     cd libfabric && \
     autoupdate && ./autogen.sh && \
-    export CUDA_PATH=${CUDA_HOME:-$(dirname $(dirname $(which nvcc)))} && \
+    export CUDA_PATH="${CUDA_HOME:-$(dirname "$(dirname "$(which nvcc)")")}" && \
     CC=gcc ./configure \
         --prefix=/opt/libfabric --disable-verbs --disable-psm2 \
         --disable-psm3 --disable-efa --disable-opx --disable-shm \
@@ -156,9 +159,9 @@ RUN git clone --depth 1 -b v${LIBFABRIC_VER} https://github.com/ofiwg/libfabric.
         --disable-hook_debug --disable-hook_hmem \
         --with-gdrcopy=/usr/local \
         --enable-gdrcopy-dlopen \
-        --with-cuda=${CUDA_PATH} \
+        --with-cuda="${CUDA_PATH}" \
         --enable-cuda-dlopen && \
-    make -j$(nproc) && make install && \
+    make -j"$(nproc)" && make install && \
     cd .. && rm -rf libfabric
 
 # --- aws-ofi-nccl ---
@@ -171,18 +174,19 @@ RUN git clone --depth 1 -b v${LIBFABRIC_VER} https://github.com/ofiwg/libfabric.
 #     link time.  The plugin binary is therefore CUDA-version-agnostic and
 #     works inside any vLLM image regardless of its bundled CUDA.
 #   --prefix=/opt/aws-ofi-nccl: install path that will be COPY'd to stage 2.
+# hadolint ignore=DL3003
 RUN git clone --depth 1 -b ${AWS_OFI_NCCL_VER} https://github.com/aws/aws-ofi-nccl.git && \
     cd aws-ofi-nccl && \
     ./autogen.sh && \
-    export CUDA_PATH=${CUDA_HOME:-$(dirname $(dirname $(which nvcc)))} && \
+    export CUDA_PATH="${CUDA_HOME:-$(dirname "$(dirname "$(which nvcc)")")}" && \
     CC=gcc ./configure \
         --disable-tests \
         --disable-nccl-net-symlink \
         --enable-cudart-dynamic \
         --with-libfabric=/opt/libfabric \
         --prefix=/opt/aws-ofi-nccl \
-        --with-cuda=${CUDA_PATH} && \
-    make -j$(nproc) && make install && \
+        --with-cuda="${CUDA_PATH}" && \
+    make -j"$(nproc)" && make install && \
     cd .. && rm -rf aws-ofi-nccl
 
 # Rename libnccl-net-ofi.so → libnccl-net.so.
@@ -206,6 +210,7 @@ FROM ${VLLM_IMAGE}
 # time (GLM-5.1 and similar). Without them HF raises
 # "Couldn't instantiate the backend tokenizer … You need to have sentencepiece
 # or tiktoken installed to convert a slow tokenizer to a fast one."
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir sentencepiece tiktoken
 
 # Copy only the installed plugin tree (~a few MB); all build tooling stays in
