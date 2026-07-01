@@ -71,11 +71,17 @@ def _build_slurm_script(
         }}
         trap cleanup EXIT
 
+        # Log in before building: some images use a private ghcr.io base
+        # (e.g. vllm_cxi's `FROM ghcr.io/swiss-ai/vllm_cuda13`), and the base
+        # pull during `podman build` must be authenticated. Public-base images
+        # are unaffected by an early login.
+        echo "=== Logging in to GHCR ==="
+        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
+
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         podman build -t "${{IMAGE_TAG}}" .
 
         echo "=== Pushing to GHCR ==="
-        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
         podman push "${{IMAGE_TAG}}" "{ghcr_image}"
 
         echo "=== Converting to sqsh ==="
