@@ -60,6 +60,21 @@ def _build_slurm_script(
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
+        # These compute nodes have no /etc/subuid range for the CI user, so
+        # rootless podman falls back to a single-UID namespace. Unpacking any
+        # base image with files owned by a non-zero GID (e.g. /etc/gshadow is
+        # root:shadow = 0:42) then fails with "lchown ... invalid argument".
+        # ignore_chown_errors lets the overlay driver skip those chowns instead
+        # of aborting the unpack. Written to a job-local file (default graphroot
+        # is kept) so concurrent builds don't race on shared ~/.config.
+        export CONTAINERS_STORAGE_CONF="${{XDG_RUNTIME_DIR}}/storage.conf"
+        cat > "${{CONTAINERS_STORAGE_CONF}}" <<'STORAGE_CONF'
+        [storage]
+        driver = "overlay"
+        [storage.options.overlay]
+        ignore_chown_errors = "true"
+        STORAGE_CONF
+
         IMAGE_TAG="{image_name}-{arch}:${{SLURM_JOB_ID}}"
         SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}.sqsh"
 
