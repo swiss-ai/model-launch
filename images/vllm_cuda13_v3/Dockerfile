@@ -1,0 +1,51 @@
+ARG UBUNTU_VERSION=24.04
+ARG CUDA_VERSION=13.0.0
+ARG CUDA_VERSION_PATH=cu130
+ARG PYTHON_VERSION=3.12
+ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}
+
+
+FROM ${DEVEL_BASE_IMAGE} AS build
+
+WORKDIR /app/build
+
+# Install miniconda, Python, and Python build dependencies. The build runs
+# `podman build` natively per arch and passes no build args, so the Miniforge
+# arch is detected from `uname -m` (aarch64 / x86_64) rather than hardcoded.
+ARG PYTHON_VERSION
+ARG MINIFORGE_VERSION=26.3.2-3
+ENV PATH=/opt/conda/bin:$PATH
+# hadolint ignore=DL3008
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-$(uname -m).sh" -o /root/miniconda.sh && \
+    bash /root/miniconda.sh -b -p /opt/conda && \
+    rm /root/miniconda.sh && \
+    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake pyyaml numpy git compilers make && \
+    /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja && \
+    /opt/conda/bin/conda clean -ya
+
+# Install vLLM (CUDA 13). As of v0.24.0 the default PyPI wheels are CUDA 13 and
+# published for both x86_64 and aarch64, and they pin the cu13 torch 2.11 stack,
+# so a plain pinned install brings the right CUDA-13 torch on both arches. The
+# nightly cu130 index is x86_64-only, which is why the previous -U/nightly install
+# could not resolve on arm64.
+RUN pip install --no-cache-dir uv==0.11.25 && \
+    uv pip install --system vllm==0.24.0
+
+# Ensure ray is installed and on PATH.
+RUN pip install --no-cache-dir "ray[default]==2.56.0"
+
+# Symlink cuDNN and NCCL headers into conda include path.
+RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
+    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
+    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
+
+# Remove nvidia-cublas (pulled as transitive dep) — conflicts with CUDA 13 toolkit's cuBLAS.
+RUN pip uninstall -y nvidia-cublas 2>/dev/null; true
+
+# Install curl for router health checks.
+RUN conda install -y curl && conda clean -ya
+
+WORKDIR /opt
