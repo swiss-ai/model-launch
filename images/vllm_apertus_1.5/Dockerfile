@@ -104,7 +104,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation \
-    --editable .[audio,apertus] \
+    --editable ".[audio,apertus]" \
     --torch-backend=auto;
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
