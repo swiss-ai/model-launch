@@ -95,8 +95,10 @@ WORKDIR /workspace
 RUN git clone --branch "${VLLM_REPO_BRANCH}" --single-branch "${VLLM_REPO_URL}" /workspace/vllm && \
     git -C /workspace/vllm rev-parse HEAD
 
+# No PYTHONPATH here: the editable install already exposes the package. Forcing
+# /workspace/vllm onto sys.path shadows the editable-install finder and hides
+# the compiled extensions (vllm._C) built by setup.py.
 ENV VLLM_REPO=/workspace/vllm \
-    PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
 
 WORKDIR /workspace/vllm
@@ -112,16 +114,27 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest "fastapi[standard]>=0.115.0,<0.137.0"
 
+# set -e is required: without it a failing python check is swallowed and the
+# image commits anyway (the trailing printf exits 0).
 RUN <<'EOF'
+set -euo pipefail
+echo "Compiled extensions in source tree:"
+find /workspace/vllm/vllm -maxdepth 1 -name '*.so' -print
 python - <<'PY'
 import torch
 
 print(f"Torch runtime: {torch.__version__} (CUDA {torch.version.cuda})")
+
+import vllm
+
+print(f"vllm resolved from: {vllm.__file__}")
 try:
     import vllm._C  # noqa: F401
-except Exception as exc:
+except ImportError as exc:
+    # ModuleNotFoundError (missing .so) must fail the build; only tolerate the
+    # driver being absent from the build environment.
     if "libcuda.so.1" in str(exc):
-        print("Skipping strict vllm._C import check during image build: libcuda.so.1 is unavailable in build environment.")
+        print("vllm._C is present; skipping strict import check: libcuda.so.1 is unavailable in build environment.")
     else:
         raise
 else:
