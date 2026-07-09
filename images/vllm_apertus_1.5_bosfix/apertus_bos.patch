@@ -1,21 +1,70 @@
-diff --git a/vllm/entrypoints/openai/completion/protocol.py b/vllm/entrypoints/openai/completion/protocol.py
-index c785d2540..9123d0a5f 100644
---- a/vllm/entrypoints/openai/completion/protocol.py
-+++ b/vllm/entrypoints/openai/completion/protocol.py
-@@ -86,10 +86,13 @@ class CompletionRequest(OpenAIBaseModel):
-     # --8<-- [start:completion-extra-params]
-     prompt_embeds: bytes | list[bytes] | None = None
-     add_special_tokens: bool = Field(
--        default=True,
-+        default=False,
-         description=(
--            "If true (the default), special tokens (e.g. BOS) will be added to "
--            "the prompt."
-+            "If true, special tokens (e.g. BOS) will be added to the prompt. "
-+            "Defaults to false: Apertus clients typically render the chat "
-+            "template themselves and send a prompt that already begins with "
-+            "BOS, and adding another would duplicate it. Set to true for raw "
-+            "text completion on a prompt that does not already carry a BOS."
-         ),
-     )
-     response_format: AnyResponseFormat | None = Field(
+diff --git a/vllm/model_executor/models/apertus.py b/vllm/model_executor/models/apertus.py
+index b89ed42c9..e987462cd 100644
+--- a/vllm/model_executor/models/apertus.py
++++ b/vllm/model_executor/models/apertus.py
+@@ -110,6 +110,28 @@ class ApertusProcessingInfo(BaseProcessingInfo):
+     def get_hf_config(self) -> ApertusConfig:
+         return self.ctx.get_hf_config(ApertusConfig)
+ 
++    def get_default_tok_params(self):
++        """Apertus' chat template renders ``{{ bos_token }}`` into the prompt
++        text. If ``add_special_tokens=True`` (the base-class default), the
++        tokenizer prepends *another* BOS, producing a ``[1, 1, ...]``
++        double-BOS sequence that the model was not trained on.
++
++        Setting ``add_special_tokens=False`` here prevents the duplicate and
++        ensures both ``llm.generate()`` and the chat/completions API behave
++        correctly for instruct models. For base models (without chat template),
++        we keep the default (True) to ensure BOS is added for raw prompts.
++
++        Ported from vllm-project/vllm#39842, which applies the same fix to
++        Gemma 4.
++        """
++        tokenizer = self.ctx.get_tokenizer()
++        has_chat_template = getattr(tokenizer, "chat_template", None) is not None
++
++        params = super().get_default_tok_params()
++        if has_chat_template:
++            params = params.with_kwargs(add_special_tokens=False)
++        return params
++
+     def get_data_parser(self) -> MultiModalDataParser:
+         # Apertus audio tokenizer expects mono waveform at 24kHz.
+         return MultiModalDataParser(
+@@ -266,11 +288,18 @@ class ApertusMultiModalProcessor(BaseMultiModalProcessor[ApertusProcessingInfo])
+         self._validate_supported_inputs(inputs.mm_data_items)
+ 
+         tokenizer = self.info.get_tokenizer()
++        already_tokenized = not isinstance(inputs.prompt, str)
+         prompt_text = (
+             inputs.prompt
+             if isinstance(inputs.prompt, str)
+             else tokenizer.decode(inputs.prompt)
+         )
++        # A token-id prompt was already tokenized by the renderer, which applied
++        # add_special_tokens per the request. Decoding it back to text keeps the
++        # BOS as literal text, so re-encoding must not add another.
++        tokenization_kwargs = dict(inputs.tokenization_kwargs)
++        if already_tokenized:
++            tokenization_kwargs.setdefault("add_special_tokens", False)
+         merged_mm_processor_kwargs = self.info.ctx.get_merged_mm_kwargs(
+             inputs.hf_processor_mm_kwargs
+         )
+@@ -322,7 +351,7 @@ class ApertusMultiModalProcessor(BaseMultiModalProcessor[ApertusProcessingInfo])
+             with timing_ctx.record("tokenize"):
+                 prompt_token_ids = self._tokenize_text(
+                     prompt_text,
+-                    inputs.tokenization_kwargs,
++                    tokenization_kwargs,
+                 )
+             return mm_input(
+                 prompt_token_ids=prompt_token_ids,
+@@ -425,7 +454,7 @@ class ApertusMultiModalProcessor(BaseMultiModalProcessor[ApertusProcessingInfo])
+         with timing_ctx.record("tokenize"):
+             prompt_token_ids = self._tokenize_text(
+                 merged_prompt,
+-                inputs.tokenization_kwargs,
++                tokenization_kwargs,
+             )
+ 
+         return mm_input(
