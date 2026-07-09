@@ -125,16 +125,28 @@ import torch
 
 print(f"Torch runtime: {torch.__version__} (CUDA {torch.version.cuda})")
 
+import importlib
+import importlib.util
+
 import vllm
 
 print(f"vllm resolved from: {vllm.__file__}")
+
+# This branch builds against the libtorch stable ABI, so the CUDA kernels are
+# vllm._C_stable_libtorch / vllm._moe_C_stable_libtorch (see
+# vllm/platforms/cuda.py import_kernels), not vllm._C.
+REQUIRED = ["vllm._C_stable_libtorch", "vllm._moe_C_stable_libtorch"]
+missing = [name for name in REQUIRED if importlib.util.find_spec(name) is None]
+if missing:
+    raise SystemExit(f"Compiled vLLM extensions missing from image: {missing}")
 try:
-    import vllm._C  # noqa: F401
+    for name in REQUIRED:
+        importlib.import_module(name)
 except ImportError as exc:
-    # ModuleNotFoundError (missing .so) must fail the build; only tolerate the
-    # driver being absent from the build environment.
+    # A missing .so must fail the build; only tolerate the driver being
+    # absent from the build environment.
     if "libcuda.so.1" in str(exc):
-        print("vllm._C is present; skipping strict import check: libcuda.so.1 is unavailable in build environment.")
+        print("Extensions present; skipping strict import check: libcuda.so.1 is unavailable in build environment.")
     else:
         raise
 else:
