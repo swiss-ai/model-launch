@@ -9,10 +9,12 @@ ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
 ARG TARGETARCH
 
-# Build vLLM from the Infomaniak fork, apertus-1-5 branch.
-# https://github.com/Infomaniak/vllm/tree/apertus-1-5
-ARG VLLM_REPO_URL=https://github.com/Infomaniak/vllm.git
+# Build vLLM from the swiss-ai mirror of the Infomaniak fork (apertus-1-5
+# branch): the Infomaniak tip plus Apertus multimodal runtime fixes.
+# https://github.com/swiss-ai/infomaniak-vllm/tree/apertus-1-5
+ARG VLLM_REPO_URL=https://github.com/swiss-ai/infomaniak-vllm.git
 ARG VLLM_REPO_BRANCH=apertus-1-5
+ARG VLLM_REPO_COMMIT=aa64d5e6dca80cb4a9e3cb6ba4b3591a49d268a8
 
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
     MAX_JOBS="${MAX_JOBS}" \
@@ -51,7 +53,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --no-modify-path --profile minimal --default-toolchain "${RUST_TOOLCHAIN}"
 ENV PATH="/opt/cargo/bin:${PATH}"
 
-RUN python3 -m venv /opt/venv
+# --seed installs pip/setuptools/wheel so the later `python -m pip` step and
+# in-container debugging keep working (a bare uv venv ships without pip).
+# Unlike python3 -m venv, uv does not create include/ — the cuDNN/NCCL
+# header symlink step below needs it.
+RUN /root/.local/bin/uv venv --seed --python /usr/bin/python3 /opt/venv && \
+    mkdir -p /opt/venv/include
 ENV VIRTUAL_ENV="/opt/venv"
 ENV PATH="/opt/venv/bin:/root/.local/bin:${PATH}"
 
@@ -91,8 +98,9 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-# Clone the exact branch requested and record its tip commit for reproducibility.
+# Clone the branch and pin the exact commit for reproducibility.
 RUN git clone --branch "${VLLM_REPO_BRANCH}" --single-branch "${VLLM_REPO_URL}" /workspace/vllm && \
+    git -C /workspace/vllm checkout "${VLLM_REPO_COMMIT}" && \
     git -C /workspace/vllm rev-parse HEAD
 
 # No PYTHONPATH here: the editable install already exposes the package. Forcing
