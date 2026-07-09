@@ -11,10 +11,17 @@ on:
         description: "Image dir under images/ to build on GitHub runners."
         required: true
         type: string
+  # Temporary: workflow_dispatch only registers once this file reaches the
+  # default branch, so trigger on pushes to the hotfix branch until merged.
+  push:
+    branches: [vllm-apertus-1.5-bosfix]
+
+env:
+  IMAGE_DIR: ${{ inputs.image || 'vllm_apertus_1.5_bosfix' }}
 
 jobs:
   build:
-    name: Build ${{ inputs.image }} (${{ matrix.arch }})
+    name: Build ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -31,7 +38,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Validate image dir
-        run: test -d "images/${{ inputs.image }}"
+        run: test -d "images/${IMAGE_DIR}"
 
       - name: Free disk space
         run: |
@@ -51,14 +58,14 @@ jobs:
       - name: Build and push :latest-${{ matrix.arch }}
         uses: docker/build-push-action@v6
         with:
-          context: images/${{ inputs.image }}
+          context: images/${{ env.IMAGE_DIR }}
           platforms: linux/${{ matrix.arch }}
           push: true
           provenance: false
-          tags: ghcr.io/swiss-ai/${{ inputs.image }}:latest-${{ matrix.arch }}
+          tags: ghcr.io/swiss-ai/${{ env.IMAGE_DIR }}:latest-${{ matrix.arch }}
 
   merge-manifests:
-    name: Merge multi-arch manifest ${{ inputs.image }}
+    name: Merge multi-arch manifest
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
@@ -74,7 +81,7 @@ jobs:
 
       - name: Create and push multi-arch :latest
         env:
-          IMAGE: ghcr.io/swiss-ai/${{ inputs.image }}
+          IMAGE: ghcr.io/swiss-ai/${{ env.IMAGE_DIR }}
         run: |
           docker buildx imagetools create -t "${IMAGE}:latest" \
             "${IMAGE}:latest-arm64" \
@@ -82,5 +89,5 @@ jobs:
 
       - name: Inspect
         env:
-          IMAGE: ghcr.io/swiss-ai/${{ inputs.image }}
+          IMAGE: ghcr.io/swiss-ai/${{ env.IMAGE_DIR }}
         run: docker buildx imagetools inspect "${IMAGE}:latest"
