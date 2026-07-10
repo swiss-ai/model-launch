@@ -1,4 +1,4 @@
-image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_apertus_1.5-arm64.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_apertus_1.5-{arch}.sqsh"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",

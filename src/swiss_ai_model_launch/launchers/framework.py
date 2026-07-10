@@ -433,11 +433,14 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
         '    echo "Running on ARM64 (aarch64)"',
         "    export SP_NCCL_SO_PATH=/usr/lib/aarch64-linux-gnu/",
         f"    export OPENTELA_BIN=/opentelabin/{opentela_bin_channel}/otela-arm64",
+        # Consumed by the env-file {arch} substitution below.
+        "    SML_ARCH=arm64",
     ]
     x86_lines = [
         '    echo "Running on x86_64"',
         "    export SP_NCCL_SO_PATH=/usr/lib/x86_64-linux-gnu/",
         f"    export OPENTELA_BIN=/opentelabin/{opentela_bin_channel}/otela-amd64",
+        "    SML_ARCH=amd64",
     ]
     if needs_metrics_bin:
         arm_lines.append(f'    metrics_agent_bin="{base}-arm64"')
@@ -455,6 +458,39 @@ def _render_arch_detection(launch_args: LaunchArgs) -> str:
         f'elif [[ "$ARCH" == "x86_64" ]]; then\n{x86_block}\n'
         "else\n"
         '    echo "Unknown architecture: $ARCH" >&2\n'
+        "    exit 1\n"
+        "fi"
+    )
+
+
+def _render_env_file_resolution(launch_args: LaunchArgs) -> str:
+    """Resolve an ``{arch}`` placeholder in the env toml's image path.
+
+    CI builds each image natively per arch and writes ``<image>-arm64.sqsh`` /
+    ``<image>-amd64.sqsh``. A single env toml has to serve both clusters, and
+    the launcher never knows the target arch — it is only known on the node,
+    from ``uname -m``. So substitute here, on the batch host, and hand srun the
+    resolved copy.
+
+    Env files with no placeholder are passed through untouched, so a pinned
+    path (``...-arm64.sqsh``) keeps working.
+    """
+    env = launch_args.environment
+    return (
+        f'SML_ENV_FILE="{env}"\n'
+        'if grep -q "{arch}" "$SML_ENV_FILE"; then\n'
+        '    SML_RESOLVED_ENV="env_resolved_${SLURM_JOB_ID}_${SML_ARCH}.toml"\n'
+        '    sed "s|{arch}|${SML_ARCH}|g" "$SML_ENV_FILE" > "$SML_RESOLVED_ENV"\n'
+        '    SML_ENV_FILE="$SML_RESOLVED_ENV"\n'
+        '    echo "Resolved env file for ${SML_ARCH}: $SML_ENV_FILE"\n'
+        "fi\n"
+        "\n"
+        "# A missing image is otherwise reported by pyxis as an opaque failure\n"
+        "# deep inside srun; fail here with the path that was actually wanted.\n"
+        'SML_IMAGE=$(sed -n \'s|^ *image *= *"\\(/[^"]*\\)".*|\\1|p\' "$SML_ENV_FILE" | head -1)\n'
+        'if [[ -n "$SML_IMAGE" && ! -e "$SML_IMAGE" ]]; then\n'
+        '    echo "Container image not found: $SML_IMAGE" >&2\n'
+        '    echo "  (from env file $SML_ENV_FILE, arch ${SML_ARCH})" >&2\n'
         "    exit 1\n"
         "fi"
     )
@@ -494,7 +530,6 @@ def _render_replica_head_ip_discovery(replicas: int, nodes_per_replica: int) -> 
 def _render_replica_launches(launch_args: LaunchArgs) -> str:
     topology = launch_args.topology
     npr = topology.nodes_per_replica
-    env = launch_args.environment
 
     def srun_call(node_index: int, script: str, args: str, comment: str, log_base: str) -> str:
         return (
@@ -506,7 +541,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             # pyxis container. Attached per-srun rather than via the env toml's
             # static mount list, which is being narrowed and read-only-ed.
             f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
-            f'    --environment="{env}" \\\n'
+            '    --environment="${SML_ENV_FILE}" \\\n'
             # Per-replica stdout/stderr (the batch script's own log.out/log.err
             # only carries the master's orchestration output).
             f'    --output="logs/${{SLURM_JOB_ID}}/{log_base}.out" \\\n'
@@ -694,7 +729,7 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         'srun --nodes=1 --ntasks=1 --nodelist="$router_host_node" \\\n'
         "    --container-writable \\\n"
         '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
-        f'    --environment="{launch_args.environment}" \\\n'
+        '    --environment="${SML_ENV_FILE}" \\\n'
         "    --overlap \\\n"
         '    --output="logs/${SLURM_JOB_ID}/router.out" \\\n'
         '    --error="logs/${SLURM_JOB_ID}/router.err" \\\n'
@@ -780,6 +815,7 @@ def render_master(launch_args: LaunchArgs) -> str:
         sections.append(telemetry)
 
     sections.append(_render_arch_detection(launch_args))
+    sections.append(_render_env_file_resolution(launch_args))
     sections.append(_render_node_mapping())
 
     topology = launch_args.topology

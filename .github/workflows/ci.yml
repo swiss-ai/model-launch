@@ -37,10 +37,20 @@ jobs:
           # PR builds publish to a per-PR pre-release channel so they can never
           # overwrite what main published. Merging to main republishes under
           # ":latest". build_image.py rejects any other channel value.
+          #
+          # ":latest" means "built from main" — gate on the ref, not the event.
+          # A workflow_dispatch runs against whatever branch it was dispatched
+          # from, and with an empty `image` input it rebuilds every image, so
+          # an ungated dispatch could republish all of :latest from unmerged
+          # code. Refuse rather than publish.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANNEL="pr-${{ github.event.pull_request.number }}"
-          else
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
             CHANNEL="latest"
+          else
+            echo "Refusing to publish images from ${{ github.ref }}." >&2
+            echo "Open a pull request to build under a pr-<number> channel." >&2
+            exit 1
           fi
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "Release channel: $CHANNEL"
