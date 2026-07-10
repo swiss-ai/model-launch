@@ -90,7 +90,9 @@ def _build_slurm_script(
         trap cleanup EXIT
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
-        podman build -t "${{IMAGE_TAG}}" .
+        # --format docker: honor SHELL instructions (OCI format silently
+        # ignores SHELL, so RUN steps needing bash/pipefail break under sh).
+        podman build --format docker -t "${{IMAGE_TAG}}" .
 
         echo "=== Pushing to GHCR ==="
         echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
