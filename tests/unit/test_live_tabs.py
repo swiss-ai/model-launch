@@ -109,3 +109,17 @@ async def test_log_pane_unchanged_text_is_not_reloaded() -> None:
         state.set_source_log("Master", "\n".join(f"line {i}" for i in range(200)), "")
         await pilot.pause()
         assert out.scroll_offset.y == 0
+
+
+async def test_state_update_after_app_exits_is_ignored() -> None:
+    """DisplayState outlives the app; the monitor keeps updating it during teardown.
+
+    A late update must not query widgets that are already gone.
+    """
+    state = DisplayState()
+    app = _SMLApp(state, asyncio.sleep(3600))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+    state.update(job_id=42)  # would raise NoMatches if _refresh_all were still wired
+    app._tick()  # the 0.5s interval can fire once more during shutdown

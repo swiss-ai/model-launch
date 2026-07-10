@@ -376,6 +376,12 @@ class _SMLApp(App[bool]):
         self.set_interval(0.5, self._tick)
         self.run_worker(self._work, exclusive=True)
 
+    def on_unmount(self) -> None:
+        # DisplayState outlives the app: the monitor keeps updating it while the
+        # app tears down. Leaving _refresh_all wired means a late update queries
+        # widgets that no longer exist.
+        self._state._on_change = lambda: None
+
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         # Only the outer (source) tabs change which source the monitor fetches;
         # ignore the inner stdout/stderr switches.
@@ -584,6 +590,10 @@ class _SMLApp(App[bool]):
         return table
 
     def _tick(self) -> None:
+        # The interval can fire once more while the app is shutting down, after
+        # the widgets are gone.
+        if not self.is_running:
+            return
         # Drive the blinking HEALTHY heart and refresh both panels that show it.
         self._blink_on = not self._blink_on
         self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
@@ -625,6 +635,10 @@ class _SMLApp(App[bool]):
             area.scroll_to(x=previous_offset.x, y=previous_offset.y, animate=False)
 
     def _refresh_all(self) -> None:
+        # A state update can land between the widgets being torn down and
+        # on_unmount running, which is where _on_change is dropped.
+        if not self.is_running:
+            return
         self.query_one(f"#{_STATUS_LABEL_ID}", Label).update(self._render_status())
         self._refresh_chain()
         self._refresh_replicas()
