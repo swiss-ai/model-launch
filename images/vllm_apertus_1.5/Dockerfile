@@ -77,8 +77,10 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477 && \
+# apertus-bos-fix = 09eae2122 (the previous pin) + the double-BOS fix
+# (chat template owns the BOS token, apertus-program #420).
+RUN git clone --branch apertus-bos-fix https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+    git -C /workspace/vllm checkout b5cb2818c8b8968e1278d071511b85bc366cf834 && \
     git clone https://github.com/swiss-ai/Emu3.5.git /workspace/Emu3.5 && \
     git -C /workspace/Emu3.5 checkout 8fcf1da48f9c5252fe0a0b8dc842e07b6efcd745 && \
     git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
