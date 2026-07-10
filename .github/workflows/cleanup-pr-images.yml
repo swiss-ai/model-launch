@@ -1,0 +1,55 @@
+name: Cleanup PR Images
+
+# PR builds publish pre-release artifacts under a pr-<number> channel: GHCR
+# tags (pr-N, pr-N-arm64, pr-N-amd64) and a capstor sqsh directory. Once the PR
+# is closed — merged or not — nothing references them, so remove them here.
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Delete pr-${{ github.event.pull_request.number }} artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    env:
+      CHANNEL: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Delete GHCR tags
+        # Deleting an org-owned package version needs admin on the package.
+        # Provide GHCR_DELETE_TOKEN (a PAT with delete:packages) if the default
+        # token is not enough; never fail the workflow over leftover tags.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_DELETE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          # Exact tag match only: a prefix match on "pr-4" would also delete
+          # "pr-42". Each channel owns exactly these three tags.
+          FILTER=".[] | select(.metadata.container.tags | any(. == \"${CHANNEL}\" or . == \"${CHANNEL}-arm64\" or . == \"${CHANNEL}-amd64\")) | .id"
+          for image in $(ls images/); do
+            echo "== $image"
+            versions=$(gh api --paginate \
+              "/orgs/swiss-ai/packages/container/${image}/versions" \
+              --jq "$FILTER") || continue
+            for id in $versions; do
+              echo "  deleting version $id"
+              gh api -X DELETE "/orgs/swiss-ai/packages/container/${image}/versions/${id}" || true
+            done
+          done
+
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+
+      - name: Delete capstor sqsh directory and build contexts
+        continue-on-error: true
+        env:
+          SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
+          SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+          SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+          SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
+          SML_SYSTEM: ${{ vars.SML_SYSTEM }}
+        run: python .github/scripts/cleanup_pr_images.py "${CHANNEL}"

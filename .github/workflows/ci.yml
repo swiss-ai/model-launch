@@ -25,10 +25,25 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.detect.outputs.images }}
+      channel: ${{ steps.channel.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Resolve release channel
+        id: channel
+        run: |
+          # PR builds publish to a per-PR pre-release channel so they can never
+          # overwrite what main published. Merging to main republishes under
+          # ":latest". build_image.py rejects any other channel value.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANNEL="pr-${{ github.event.pull_request.number }}"
+          else
+            CHANNEL="latest"
+          fi
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Release channel: $CHANNEL"
 
       - name: Detect changed image directories
         id: detect
@@ -77,8 +92,8 @@ jobs:
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
         # Each arch is built natively on its own cluster, reached via a
-        # different FireCREST endpoint, and pushed to a :latest-<arch> tag.
-        # The merge-manifests job combines them into a multi-arch :latest.
+        # different FireCREST endpoint, and pushed to a :<channel>-<arch> tag.
+        # The merge-manifests job combines them into a multi-arch :<channel>.
         arch: [arm64, amd64]
       fail-fast: false
     env:
@@ -97,6 +112,10 @@ jobs:
       SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GHCR_ACTOR: ${{ github.actor }}
+      # The channel is part of the cache key: a PR build only proves the
+      # pr-<N> artifacts exist. Without it, merging an already-built PR would
+      # hit the cache on main, skip the build, and never publish ":latest".
+      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
       - name: Restore build cache
@@ -104,14 +123,14 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build-sentinel
-          key: build-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
+          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
       - uses: ./.github/actions/setup
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           python-version: "3.12"
       - name: Build image and save sqsh
         if: steps.cache.outputs.cache-hit != 'true'
-        run: python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}"
+        run: python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
         timeout-minutes: 300
       - name: Save build cache
         if: steps.cache.outputs.cache-hit != 'true'
@@ -120,10 +139,10 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           path: .build-sentinel
-          key: build-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
+          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
 
   merge-manifests:
-    name: Merge multi-arch manifest ${{ matrix.image }}
+    name: Merge multi-arch manifest ${{ matrix.image }} (${{ needs.detect-changes.outputs.channel }})
     needs: [detect-changes, build]
     # Only if every arch build succeeded — a partial set would yield a
     # single-arch manifest.
@@ -142,17 +161,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create and push multi-arch :latest
+      - name: Create and push multi-arch manifest
         env:
           IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
+          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
         run: |
-          docker buildx imagetools create -t "${IMAGE}:latest" \
-            "${IMAGE}:latest-arm64" \
-            "${IMAGE}:latest-amd64"
+          docker buildx imagetools create -t "${IMAGE}:${CHANNEL}" \
+            "${IMAGE}:${CHANNEL}-arm64" \
+            "${IMAGE}:${CHANNEL}-amd64"
       - name: Inspect
         env:
           IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
-        run: docker buildx imagetools inspect "${IMAGE}:latest"
+          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
+        run: docker buildx imagetools inspect "${IMAGE}:${CHANNEL}"
 
   test-lightweight:
     name: Integration Tests (lightweight)
