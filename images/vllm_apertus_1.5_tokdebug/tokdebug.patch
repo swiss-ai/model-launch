@@ -1,0 +1,44 @@
+diff --git a/vllm/multimodal/processing/context.py b/vllm/multimodal/processing/context.py
+index ef9710374..a8e970bfe 100644
+--- a/vllm/multimodal/processing/context.py
++++ b/vllm/multimodal/processing/context.py
+@@ -341,19 +341,38 @@ class BaseProcessingInfo:
+ 
+     def get_default_tok_params(self) -> TokenizeParams:
+         """Construct the default parameters for tokenization."""
++        import traceback
++
+         from vllm.renderers import TokenizeParams
+ 
+         model_config = self.ctx.model_config
+         encoder_config = model_config.encoder_config or {}
+ 
+-        return TokenizeParams(
++        params = TokenizeParams(
+             max_total_tokens=model_config.max_model_len,
+             do_lower_case=encoder_config.get("do_lower_case", False),
+             add_special_tokens=True,
+         )
++        print(
++            f"[TOKDEBUG] {type(self).__name__}.get_default_tok_params() "
++            f"pid={__import__('os').getpid()} model={model_config.model} "
++            f"-> add_special_tokens={params.add_special_tokens}",
++            flush=True,
++        )
++        print(
++            "[TOKDEBUG] called from:\n"
++            + "".join(traceback.format_stack(limit=12)[:-1]),
++            flush=True,
++        )
++        return params
+ 
+     @cached_property
+     def default_tok_params(self) -> TokenizeParams:
++        print(
++            f"[TOKDEBUG] {type(self).__name__}.default_tok_params cached_property "
++            "accessed (first time in this process)",
++            flush=True,
++        )
+         return self.get_default_tok_params()
+ 
+     def _get_expected_hidden_size(self) -> int | None:
