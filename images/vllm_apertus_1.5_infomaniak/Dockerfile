@@ -123,8 +123,10 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest "fastapi[standard]>=0.115.0,<0.137.0"
 
 # set -e is required: without it a failing python check is swallowed and the
-# image commits anyway (the trailing printf exits 0).
+# image commits anyway (the trailing printf exits 0). The bash shebang keeps
+# this working even if a builder ignores SHELL (OCI image format).
 RUN <<'EOF'
+#!/usr/bin/env bash
 set -euo pipefail
 echo "Compiled extensions in source tree:"
 find /workspace/vllm/vllm -maxdepth 1 -name '*.so' -print
