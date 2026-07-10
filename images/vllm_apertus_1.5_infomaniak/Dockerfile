@@ -1,7 +1,7 @@
 FROM docker.io/nvidia/cuda:13.0.0-cudnn-devel-ubuntu24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG MAX_JOBS=8
+ARG MAX_JOBS=32
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG RUST_TOOLCHAIN=1.95.0
@@ -14,7 +14,9 @@ ARG TARGETARCH
 # https://github.com/swiss-ai/infomaniak-vllm/tree/apertus-1-5
 ARG VLLM_REPO_URL=https://github.com/swiss-ai/infomaniak-vllm.git
 ARG VLLM_REPO_BRANCH=apertus-1-5
-ARG VLLM_REPO_COMMIT=aa64d5e6dca80cb4a9e3cb6ba4b3591a49d268a8
+ARG VLLM_REPO_COMMIT=08a8a4af3fb904ab809c6347b785407f180ccf22
+ARG SWISS_AI_VLLM_COMMIT=aa64d5e6dca80cb4a9e3cb6ba4b3591a49d268a8
+ARG VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/08a8a4af3fb904ab809c6347b785407f180ccf22/vllm-0.23.1rc1.dev719%2Bg08a8a4af3-cp38-abi3-manylinux_2_28_aarch64.whl
 
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
     MAX_JOBS="${MAX_JOBS}" \
@@ -23,7 +25,11 @@ ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
     UV_HTTP_TIMEOUT=500 \
     UV_INDEX_STRATEGY=unsafe-best-match \
     UV_LINK_MODE=copy \
-    VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION}"
+    VLLM_USE_PRECOMPILED=1 \
+    VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION}" \
+    VLLM_PRECOMPILED_WHEEL_VARIANT="${CUDA_VERSION_PATH}" \
+    VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_REPO_COMMIT}" \
+    VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION}"
 
 # Keep host NVIDIA driver libraries first to avoid CUDA Error 803
 # from loading cuda-compat stubs in /usr/local/cuda/compat.
@@ -100,7 +106,7 @@ WORKDIR /workspace
 
 # Clone the branch and pin the exact commit for reproducibility.
 RUN git clone --branch "${VLLM_REPO_BRANCH}" --single-branch "${VLLM_REPO_URL}" /workspace/vllm && \
-    git -C /workspace/vllm checkout "${VLLM_REPO_COMMIT}" && \
+    git -C /workspace/vllm checkout "${SWISS_AI_VLLM_COMMIT}" && \
     git -C /workspace/vllm rev-parse HEAD
 
 # No PYTHONPATH here: the editable install already exposes the package. Forcing
@@ -111,14 +117,15 @@ ENV VLLM_REPO=/workspace/vllm \
 
 WORKDIR /workspace/vllm
 
-# Build and install vLLM from source (compiles CUDA + Rust extensions).
+# Install vLLM from the editable source tree, reusing the CUDA 13 precompiled
+# native extensions for the pinned commit.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=cache,target=/root/.cache/ccache,sharing=locked \
-    uv pip install \
+    VLLM_USE_PRECOMPILED=1 uv -v pip install \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation \
-    --editable .
+    --editable .[audio]
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest "fastapi[standard]>=0.115.0,<0.137.0"
 
