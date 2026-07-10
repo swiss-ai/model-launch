@@ -479,7 +479,14 @@ def _render_env_file_resolution(launch_args: LaunchArgs) -> str:
     return (
         f'SML_ENV_FILE="{env}"\n'
         'if grep -q "{arch}" "$SML_ENV_FILE"; then\n'
-        '    SML_RESOLVED_ENV="env_resolved_${SLURM_JOB_ID}_${SML_ARCH}.toml"\n'
+        # Absolute, and in the job's working dir. Two constraints:
+        #  - pyxis treats an --environment value with no "/" in it as an EDF
+        #    *name*: it appends ".toml" and searches ~/.edf and the site EDF
+        #    dir, never the working directory.
+        #  - the source toml may be the read-only packaged asset (the local
+        #    SLURM launcher passes it straight through), so don't write beside
+        #    it. $PWD already holds the job's logs/ tree.
+        '    SML_RESOLVED_ENV="${PWD}/env_resolved_${SLURM_JOB_ID}_${SML_ARCH}.toml"\n'
         '    sed "s|{arch}|${SML_ARCH}|g" "$SML_ENV_FILE" > "$SML_RESOLVED_ENV"\n'
         '    SML_ENV_FILE="$SML_RESOLVED_ENV"\n'
         '    echo "Resolved env file for ${SML_ARCH}: $SML_ENV_FILE"\n'
