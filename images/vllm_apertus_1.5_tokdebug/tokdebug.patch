@@ -1,5 +1,5 @@
 diff --git a/vllm/model_executor/models/apertus.py b/vllm/model_executor/models/apertus.py
-index 5ef13066e..23fb53002 100644
+index 5ef13066e..50d219e9b 100644
 --- a/vllm/model_executor/models/apertus.py
 +++ b/vllm/model_executor/models/apertus.py
 @@ -470,6 +470,29 @@ class ApertusProcessingInfo(BaseProcessingInfo):
@@ -32,6 +32,28 @@ index 5ef13066e..23fb53002 100644
      def get_data_parser(self) -> MultiModalDataParser:
          # Apertus audio tokenizer expects mono waveform at 24kHz.
          return MultiModalDataParser(
+@@ -764,6 +787,21 @@ class ApertusMultiModalProcessor(BaseMultiModalProcessor[ApertusProcessingInfo])
+             if isinstance(inputs.prompt, str)
+             else tokenizer.decode(inputs.prompt)
+         )
++        # A token-id prompt was already tokenized upstream (the renderer applied
++        # add_special_tokens per the request), so the decoded text carries its
++        # BOS as literal text. Re-encoding below must not add another one, or
++        # every multimodal chat request starts [1, 1, ...] (double BOS). Port
++        # of the second vllm_apertus_1.5_bosfix hunk (apertus-program #420).
++        if not isinstance(inputs.prompt, str):
++            tokenization_kwargs = dict(inputs.tokenization_kwargs)
++            tokenization_kwargs.setdefault("add_special_tokens", False)
++            inputs.tokenization_kwargs = tokenization_kwargs
++        print(
++            "[TOKDEBUG] ApertusMultiModalProcessor.apply(): "
++            f"already_tokenized={not isinstance(inputs.prompt, str)} "
++            f"tokenization_kwargs={dict(inputs.tokenization_kwargs)}",
++            flush=True,
++        )
+         merged_mm_processor_kwargs = self.info.ctx.get_merged_mm_kwargs(
+             inputs.hf_processor_mm_kwargs
+         )
 diff --git a/vllm/multimodal/processing/context.py b/vllm/multimodal/processing/context.py
 index ef9710374..a8e970bfe 100644
 --- a/vllm/multimodal/processing/context.py
