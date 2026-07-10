@@ -1,3 +1,37 @@
+diff --git a/vllm/model_executor/models/apertus.py b/vllm/model_executor/models/apertus.py
+index 5ef13066e..23fb53002 100644
+--- a/vllm/model_executor/models/apertus.py
++++ b/vllm/model_executor/models/apertus.py
+@@ -470,6 +470,29 @@ class ApertusProcessingInfo(BaseProcessingInfo):
+     def get_hf_config(self) -> ApertusConfig:
+         return self.ctx.get_hf_config(ApertusConfig)
+ 
++    def get_default_tok_params(self):
++        """The Apertus chat template renders ``{{ bos_token }}`` itself, so the
++        template owns BOS: when the tokenizer carries a chat template, default
++        tokenization must not add special tokens or every offline
++        ``LLM.chat()`` prompt starts with a double BOS (``[1, 1, ...]``).
++        Base checkpoints (no chat template) keep the default so raw prompts
++        still get their BOS. Ported from the vllm_apertus_1.5_bosfix image;
++        same pattern as vllm-project/vllm#39842 for Gemma 4.
++        """
++        tokenizer = self.ctx.get_tokenizer()
++        has_chat_template = getattr(tokenizer, "chat_template", None) is not None
++
++        params = super().get_default_tok_params()
++        if has_chat_template:
++            params = params.with_kwargs(add_special_tokens=False)
++        print(
++            f"[TOKDEBUG] ApertusProcessingInfo.get_default_tok_params() override:"
++            f" has_chat_template={has_chat_template}"
++            f" -> add_special_tokens={params.add_special_tokens}",
++            flush=True,
++        )
++        return params
++
+     def get_data_parser(self) -> MultiModalDataParser:
+         # Apertus audio tokenizer expects mono waveform at 24kHz.
+         return MultiModalDataParser(
 diff --git a/vllm/multimodal/processing/context.py b/vllm/multimodal/processing/context.py
 index ef9710374..a8e970bfe 100644
 --- a/vllm/multimodal/processing/context.py
