@@ -5,7 +5,7 @@ sml advanced \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/ahadinia_models/apertus-ai/Apertus-v1.5-8B-RC-2607 \
-    --served-model-name apertus-ai/Apertus-v1.5-8B-RC-2607-nothink \
+    --served-model-name apertus-ai/Apertus-v1.5-8B-RC-2607 \
     --skip-mm-profiling \
     --trust-remote-code \
     --max-model-len 262144 \
