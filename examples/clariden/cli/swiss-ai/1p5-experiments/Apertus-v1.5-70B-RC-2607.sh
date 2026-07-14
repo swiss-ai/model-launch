@@ -5,7 +5,7 @@ sml advanced \
   --framework vllm \
   --time 12:00:00 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
-  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/ahadinia_models/apertus-ai/Apertus-v1.5-70B-RC-2607 \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/ahadinia_models/apertus-ai/Apertus-v1.5-70B-RC \
     --served-model-name apertus-ai/Apertus-v1.5-70B-RC \
     --tensor-parallel-size 4 \
     --skip-mm-profiling \
