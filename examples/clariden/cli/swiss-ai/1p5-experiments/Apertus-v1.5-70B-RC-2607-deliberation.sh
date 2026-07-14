@@ -14,7 +14,5 @@ sml advanced \
     --max-model-len 262144 \
     --enable-auto-tool-choice \
     --tool-call-parser apertus \
-    --tool-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_tool_parser.py \
     --reasoning-parser apertus \
-    --reasoning-parser-plugin /capstor/store/cscs/swissai/infra01/tool-parser-vllm/apertus_reasoning_parser.py \
     --default-chat-template-kwargs.enable_thinking true"
