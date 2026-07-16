@@ -30,7 +30,7 @@ SERVED_2="swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX}"
 OUT_1=$(sml advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time "$TIME" \
   --framework sglang \
   --environment "$ENV" \
@@ -46,7 +46,7 @@ JOB_1=$(echo "$OUT_1" | grep "Job submitted:" | awk '{print $3}')
 OUT_2=$(sml advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time "$TIME" \
   --framework sglang \
   --environment "$ENV" \

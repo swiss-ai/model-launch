@@ -16,7 +16,7 @@ export SML_RESERVATION=SD-69241-apertus-1-5
 sml loadtest advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time "$TIME" \
   --framework sglang \
   --environment "$ENV" \
@@ -32,7 +32,7 @@ sml loadtest advanced \
 sml loadtest advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time "$TIME" \
   --framework sglang \
   --environment "$ENV" \

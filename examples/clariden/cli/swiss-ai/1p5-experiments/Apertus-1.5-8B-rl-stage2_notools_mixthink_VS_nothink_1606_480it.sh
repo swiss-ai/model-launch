@@ -7,7 +7,7 @@
 sml advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time 12:00:00 \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
@@ -25,7 +25,7 @@ sml advanced \
 sml advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time 12:00:00 \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
@@ -48,7 +48,7 @@ sml advanced \
   sml advanced \
   --system clariden \
   --partition normal \
-  --slurm-nodes 1 \
+  --nodes 1 \
   --time 12:00:00 \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
