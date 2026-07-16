@@ -63,6 +63,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
         "cmake>=3.26.1" \
         "setuptools-scm>=8" \
         "jinja2>=3.1.6" \
+        setuptools_rust \
         regex \
         build \
         "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*" \
@@ -77,20 +78,13 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477 && \
-    git clone https://github.com/swiss-ai/Emu3.5.git /workspace/Emu3.5 && \
-    git -C /workspace/Emu3.5 checkout 8fcf1da48f9c5252fe0a0b8dc842e07b6efcd745 && \
-    git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
-    git -C /workspace/benchmark-audio-tokenizer checkout f8fe507212aa672a067baddb157b92ba3cfe9467 && \
-    git -C /workspace/benchmark-audio-tokenizer submodule update --init --recursive
+RUN git clone --branch apertus_integration_v0.25.1 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+    git -C /workspace/vllm checkout 0a1c301562c7cfc3c39a28f81a70001516daae4f
 
 ENV VLLM_REPO=/workspace/vllm \
-    EMU35=/workspace/Emu3.5 \
-    VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE=/workspace/benchmark-audio-tokenizer \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib \
-    VLLM_APERTUS_EMU35_CODEBASE=/workspace/Emu3.5
+    VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm
 
 WORKDIR /workspace/vllm
 
@@ -104,7 +98,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
         arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
     esac; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://github.com/vllm-project/vllm/releases/download/v0.19.0/vllm-0.19.0+cu130-cp38-abi3-manylinux_2_35_${WHEEL_ARCH}.whl}"; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/752a3a504485790a2e8491cacbb35c137339ad34/vllm-0.25.1-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
     if [ -z "${VLLM_PRECOMPILED_WHEEL_COMMIT:-}" ] && VLLM_GIT_COMMIT="$(git -C "${VLLM_REPO}" rev-parse HEAD 2>/dev/null)"; then \
     export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_GIT_COMMIT}"; \
     fi; \
@@ -112,7 +106,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation \
-    --editable .[audio] \
+    --editable ".[audio,apertus]" \
     --torch-backend=auto;
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
