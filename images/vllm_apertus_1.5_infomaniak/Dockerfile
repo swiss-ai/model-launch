@@ -9,14 +9,12 @@ ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
 ARG TARGETARCH
 
-# Build vLLM from the swiss-ai mirror of the Infomaniak fork (apertus-1-5
-# branch): the Infomaniak tip plus Apertus multimodal runtime fixes.
-# https://github.com/swiss-ai/infomaniak-vllm/tree/apertus-1-5
-ARG VLLM_REPO_URL=https://github.com/swiss-ai/infomaniak-vllm.git
-ARG VLLM_REPO_BRANCH=apertus-1-5
-ARG VLLM_REPO_COMMIT=08a8a4af3fb904ab809c6347b785407f180ccf22
-ARG SWISS_AI_VLLM_COMMIT=aa64d5e6dca80cb4a9e3cb6ba4b3591a49d268a8
-ARG VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/08a8a4af3fb904ab809c6347b785407f180ccf22/vllm-0.23.1rc1.dev719%2Bg08a8a4af3-cp38-abi3-manylinux_2_28_aarch64.whl
+# https://github.com/swiss-ai/vllm/tree/serving
+ARG VLLM_REPO_URL=https://github.com/swiss-ai/vllm.git
+ARG VLLM_REPO_BRANCH=serving
+ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
+ARG SWISS_AI_VLLM_COMMIT=7e4af082a9b04ef78242393f2aa7add0e6d3a911
+ARG VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/ae6170f874a7c66512bd24aa714b3a02f8a61838/vllm-0.23.1rc1.dev977%2Bgae6170f87-cp38-abi3-manylinux_2_28_aarch64.whl
 
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
     MAX_JOBS="${MAX_JOBS}" \
@@ -51,7 +49,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Rust toolchain — the apertus-1-5 branch builds a Rust extension via setuptools-rust
+# Rust toolchain — the serving fixes branch builds a Rust extension via setuptools-rust
 # (rust-toolchain.toml pins channel 1.95).
 ENV RUSTUP_HOME=/opt/rustup \
     CARGO_HOME=/opt/cargo
@@ -113,7 +111,8 @@ RUN git clone --branch "${VLLM_REPO_BRANCH}" --single-branch "${VLLM_REPO_URL}" 
 # /workspace/vllm onto sys.path shadows the editable-install finder and hides
 # the compiled extensions (vllm._C) built by setup.py.
 ENV VLLM_REPO=/workspace/vllm \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib \
+    VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm
 
 WORKDIR /workspace/vllm
 
@@ -170,8 +169,8 @@ else:
     print("vLLM native extension import check passed.")
 PY
 printf '%s\n' \
-    'Production CUDA 13 image with Infomaniak vLLM (apertus-1-5 branch) built inline in Dockerfile.' \
-    'Source: https://github.com/Infomaniak/vllm/tree/apertus-1-5' \
+    'Production CUDA 13 image with Swiss AI vLLM (serving branch) built inline in Dockerfile.' \
+    'Source: https://github.com/swiss-ai/vllm/tree/serving' \
     'Included path: /workspace/vllm' \
     > /etc/motd
 EOF
