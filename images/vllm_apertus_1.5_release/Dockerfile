@@ -83,8 +83,7 @@ RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspa
 
 ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib \
-    VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
 
 WORKDIR /workspace/vllm
 
