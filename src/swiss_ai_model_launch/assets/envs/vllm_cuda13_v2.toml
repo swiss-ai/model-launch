@@ -1,6 +1,7 @@
 image = "/capstor/store/cscs/swissai/infra01/container-images/ci/vllm_cuda13_v2.sqsh"
 
 mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
   "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
   "/capstor",
   "/iopsstor",
