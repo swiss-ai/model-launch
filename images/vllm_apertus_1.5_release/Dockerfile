@@ -91,7 +91,9 @@ ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
 
-RUN cd /workspace/transformers && uv pip install \
+WORKDIR /workspace/transformers
+
+RUN uv pip install \
     --python /opt/venv/bin/python \
     --no-deps \
     --editable .
@@ -123,7 +125,6 @@ RUN <<'EOF'
 
 set -eux
 
-cd /workspace/vllm
 echo "HEAD=$(git rev-parse HEAD)"
 echo "Describe=$(git describe --tags --long --always --dirty)"
 
