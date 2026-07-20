@@ -6,6 +6,9 @@ ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
+ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
+ARG SWISS_AI_VLLM_COMMIT=56d1dfcc84aea7b8b1e653ba335a24ccf9e4ca4a
+ARG TRANFORMERS_COMMIT=0a2293153f548ae0fe8001ee89134660392b2f25
 ARG TARGETARCH
 
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
@@ -79,11 +82,19 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 WORKDIR /workspace
 
 RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout 56d1dfcc84aea7b8b1e653ba335a24ccf9e4ca4a
+    git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
+
+RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/RaphaelKreft/transformers.git /workspace/transformers && \
+    git -C /workspace/transformers checkout ${TRANFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python${PYTHON_VERSION}/site-packages/torch/lib
+
+RUN cd /workspace/transformers && uv pip install \
+    --python /opt/venv/bin/python \
+    --no-deps \
+    --editable .
 
 WORKDIR /workspace/vllm
 
@@ -97,10 +108,8 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
         arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
     esac; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/ae6170f874a7c66512bd24aa714b3a02f8a61838/vllm-0.23.1rc1.dev977%2Bgae6170f87-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
-    if [ -z "${VLLM_PRECOMPILED_WHEEL_COMMIT:-}" ] && VLLM_GIT_COMMIT="$(git -C "${VLLM_REPO}" rev-parse HEAD 2>/dev/null)"; then \
-    export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_GIT_COMMIT}"; \
-    fi; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_REPO_COMMIT}/vllm-0.23.1rc1.dev977%2Bgae6170f87-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
+    export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_REPO_COMMIT}}"; \
     VLLM_USE_PRECOMPILED=1 uv pip install \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
@@ -111,25 +120,30 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
 
 RUN <<'EOF'
+
+set -eux
+
+cd /workspace/vllm
+echo "HEAD=$(git rev-parse HEAD)"
+echo "Describe=$(git describe --tags --long --always --dirty)"
+
 python - <<'PY'
+
+from pathlib import Path
+
 import torch
+import vllm
 
 print(f"Torch runtime: {torch.__version__} (CUDA {torch.version.cuda})")
-try:
-    import vllm._C  # noqa: F401
-except Exception as exc:
-    if "libcuda.so.1" in str(exc):
-        print("Skipping strict vllm._C import check during image build: libcuda.so.1 is unavailable in build environment.")
-    else:
-        raise
-else:
-    print("vLLM native extension import check passed.")
+print(f"vLLM runtime version: {vllm.__version__}")
+print(f"vLLM imported from: {Path(vllm.__file__).resolve()}")
 PY
-printf '%s\n' \
-    'Production CUDA 13 image with local vLLM source built inline in Dockerfile.' \
-    'Included paths:' \
-    '  /workspace/vllm' \
-    '  /workspace/Emu3.5 (EMU35)' \
-    '  /workspace/benchmark-audio-tokenizer (VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE)' \
-    > /etc/motd
+
+cat > /etc/motd <<'MOTD'
+Production CUDA 13 image with local vLLM source installed in editable mode.
+
+Included paths:
+  /workspace/vllm
+  /workspace/transformers
+MOTD
 EOF
