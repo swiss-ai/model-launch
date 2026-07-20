@@ -79,7 +79,7 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 WORKDIR /workspace
 
 RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout f9cb1f3722b003ca957444a0c4afe6e97e1b7be2
+    git -C /workspace/vllm checkout 45f2855ca477a23d4b37f1d4c4cd6753f3901280
 
 ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
