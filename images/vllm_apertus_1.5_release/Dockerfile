@@ -86,7 +86,7 @@ RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspa
     git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
 
 RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/RaphaelKreft/transformers.git /workspace/transformers && \
-    git -C /workspace/transformers checkout ${TRANFORMERS_COMMIT}
+    git -C /workspace/transformers checkout ${TRANSFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \
     PYTHONPATH=/workspace/vllm:${PYTHONPATH} \
