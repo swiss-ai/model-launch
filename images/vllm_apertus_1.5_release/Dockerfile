@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3 python3-dev python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN python3 -m pip install --user --no-cache-dir "uv==0.11.30"
 
 RUN python3 -m venv /opt/venv
 ENV VIRTUAL_ENV="/opt/venv"
@@ -70,11 +70,13 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
         regex \
         build \
         "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*" \
-        "ray[default]" && \
+        "ray[default]==2.56.0" && \
     python -c "import torch; print('Torch:', torch.__version__); print('Torch CUDA:', torch.version.cuda)"
 
 # CUDA 13 compatibility: expose cuDNN/NCCL headers where extension builds can find them.
-RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
+RUN CUDNN_H="$(find /usr -name cudnn.h -print -quit)" && \
+    [ -n "${CUDNN_H}" ] || { echo "cudnn.h not found" >&2; exit 1; } && \
+    CUDNN_DIR="$(dirname "${CUDNN_H}")" && \
     find "${CUDNN_DIR}" -maxdepth 1 -name 'cudnn*.h' -exec ln -sf {} /opt/venv/include/ \; && \
     NCCL_H=$(find /opt/venv/lib/python${PYTHON_VERSION}/site-packages -path '*/nvidia/nccl/include/nccl.h' -print -quit) && \
     if [ -n "${NCCL_H}" ]; then ln -sf "${NCCL_H}" /opt/venv/include/nccl.h; fi
