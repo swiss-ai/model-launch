@@ -95,8 +95,7 @@ WORKDIR /workspace/transformers
 
 RUN uv pip install \
     --python /opt/venv/bin/python \
-    --no-deps \
-    --editable .
+    --no-deps .
 
 WORKDIR /workspace/vllm
 
@@ -115,36 +114,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     VLLM_USE_PRECOMPILED=1 uv pip install \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
-    --no-build-isolation \
-    --editable ".[audio]" \
+    --no-build-isolation ".[audio]" \
     --torch-backend=auto;
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
-
-RUN <<'EOF'
-
-set -eux
-
-echo "HEAD=$(git rev-parse HEAD)"
-echo "Describe=$(git describe --tags --long --always --dirty)"
-
-python - <<'PY'
-
-from pathlib import Path
-
-import torch
-import vllm
-
-print(f"Torch runtime: {torch.__version__} (CUDA {torch.version.cuda})")
-print(f"vLLM runtime version: {vllm.__version__}")
-print(f"vLLM imported from: {Path(vllm.__file__).resolve()}")
-PY
-
-cat > /etc/motd <<'MOTD'
-Production CUDA 13 image with local vLLM source installed in editable mode.
-
-Included paths:
-  /workspace/vllm
-  /workspace/transformers
-MOTD
-EOF
