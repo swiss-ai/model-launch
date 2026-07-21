@@ -40,9 +40,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3 python3-dev python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --user --no-cache-dir "uv==0.11.30"
-
-RUN python3 -m venv /opt/venv
+RUN python3 -m pip install --user --no-cache-dir "uv==0.11.30" && \
+    python3 -m venv /opt/venv
 ENV VIRTUAL_ENV="/opt/venv"
 ENV PATH="/opt/venv/bin:/root/.local/bin:${PATH}"
 
