@@ -7,7 +7,7 @@ ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
 ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
-ARG SWISS_AI_VLLM_COMMIT=f2225709c6a85d40ca5c0435625bb5856ed40e9d
+ARG SWISS_AI_VLLM_COMMIT=cf454a4eefdb78c263d73bc76dabf3955a9f0291
 ARG TRANSFORMERS_COMMIT=3797303dda74844e3d1f8977ff5518bb91f818b4
 ARG TARGETARCH
 
@@ -34,43 +34,39 @@ WORKDIR /opt
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-    bash bash-completion ca-certificates ccache curl git less vim-tiny \
-    build-essential cmake ninja-build pkgconf \
+    bash-completion ca-certificates ccache curl git less vim-tiny \
+    build-essential pkgconf \
     libibverbs-dev libnuma1 libnuma-dev \
-    python3 python3-dev python3-pip python3-venv \
+    python3 python3-dev python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir "uv==0.11.30"
+    /opt/venv/bin/pip install "uv==0.11.30"
 ENV VIRTUAL_ENV="/opt/venv"
 ENV PATH="/opt/venv/bin:/root/.local/bin:${PATH}"
 
 RUN python --version && python -m pip --version && uv --version
 
-# hadolint ignore=DL3013
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    python -m pip install --upgrade \
-    pip \
-    wheel \
-    "setuptools>=77.0.3,<81.0.0"
-
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv pip install --python /opt/venv/bin/python \
         --extra-index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
+        torch==2.11.0 \
+        torchvision==0.26.0 \
+        torchaudio==2.11.0 \
         "packaging>=24.2" \
         ninja \
         "cmake>=3.26.1" \
+        "setuptools>=77.0.3,<81.0.0" \
         "setuptools-scm>=8" \
         "jinja2>=3.1.6" \
         setuptools_rust \
         regex \
         build \
-        "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*" \
-        "ray[default]==2.56.0" && \
-    python -c "import torch; print('Torch:', torch.__version__); print('Torch CUDA:', torch.version.cuda)"
+        wheel \
+        "protobuf>=6.33.6" \
+        ruff \
+        tblib \
+        pytest
 
 # CUDA 13 compatibility: expose cuDNN/NCCL headers where extension builds can find them.
 RUN CUDNN_H="$(find /usr -name cudnn.h -print -quit)" && \
@@ -85,7 +81,7 @@ WORKDIR /workspace
 RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
 
-RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/RaphaelKreft/transformers.git /workspace/transformers && \
+RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/swiss-ai/transformers.git /workspace/transformers && \
     git -C /workspace/transformers checkout ${TRANSFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \
@@ -117,5 +113,3 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --reinstall-package vllm \
     --no-build-isolation ".[audio]" \
     --torch-backend=auto;
-
-RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
