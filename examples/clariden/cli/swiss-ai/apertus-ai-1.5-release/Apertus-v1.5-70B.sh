@@ -8,11 +8,9 @@ sml advanced \
   --framework-args "--model apertus-ai/Apertus-v1.5-70B \
     --served-model-name apertus-ai/Apertus-v1.5-70B \
     --tensor-parallel-size 4 \
-    --skip-mm-profiling \
-    --trust-remote-code \
     --gpu-memory-utilization 0.8 \
     --max-model-len 262144 \
     --enable-auto-tool-choice \
     --tool-call-parser apertus \
-    --default-chat-template-kwargs.enable_thinking false
+    --default-chat-template-kwargs.enable_thinking false \
     --compilation-config.pass_config.fuse_allreduce_rms false"
