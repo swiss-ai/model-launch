@@ -13,3 +13,8 @@
 # transformers/testing_utils.py ("Not critical, only usable on the sandboxed
 # CI instance"). Ships with every transformers install.
 raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
+
+# Pydantic's URL-type docstrings use example credentialed URIs (e.g.
+# "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
+# placeholder markers.
+path:*/site-packages/pydantic/networks.py

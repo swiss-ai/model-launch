@@ -215,8 +215,18 @@ def _extract_layer(repo: str, digest: str, media_type: str, dest: str) -> list[s
 
 
 def _run_trufflehog(directory: str) -> list[dict]:
+    # Trufflehog defaults --concurrency to the CPU count; on many-core hosts
+    # that many workers on a multi-GB layer gets the process OOM-killed.
+    concurrency = min(os.cpu_count() or 4, 16)
     result = subprocess.run(
-        ["trufflehog", "filesystem", directory, "--json", "--no-update"],
+        [
+            "trufflehog",
+            "filesystem",
+            directory,
+            "--json",
+            "--no-update",
+            f"--concurrency={concurrency}",
+        ],
         capture_output=True,
         text=True,
     )
