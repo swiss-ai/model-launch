@@ -151,12 +151,63 @@ jobs:
           path: .build-sentinel
           key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
 
+  scan-secrets:
+    name: Secret Scan ${{ matrix.image }} (${{ matrix.arch }})
+    needs: [detect-changes, build]
+    if: needs.build.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+        arch: [arm64, amd64]
+      fail-fast: false
+    env:
+      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+      # Mirrors the build sentinel: skip rescanning image content that already
+      # passed under the same channel and scan rules.
+      - name: Restore scan cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .scan-sentinel
+          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
+      - name: Install trufflehog
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
+      # The runner's root disk is too small for the largest extracted layers;
+      # /mnt has ~65 GB free.
+      - name: Prepare scan workdir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
+      - name: Scan image layers for secrets
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          SCAN_WORKDIR: /mnt/image-scan
+        run: python3 .github/scripts/scan_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
+        timeout-minutes: 90
+      - name: Save scan cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: mkdir -p .scan-sentinel && touch .scan-sentinel/scanned
+      - uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: .scan-sentinel
+          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
+
   merge-manifests:
     name: Merge multi-arch manifest ${{ matrix.image }} (${{ needs.detect-changes.outputs.channel }})
-    needs: [detect-changes, build]
+    needs: [detect-changes, build, scan-secrets]
     # Only if every arch build succeeded — a partial set would yield a
-    # single-arch manifest.
-    if: needs.build.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    # single-arch manifest — and no arch's secret scan failed: the per-arch
+    # tags are already pushed at this point, but a failed scan blocks the
+    # release from being published under the multi-arch :<channel> tag.
+    if: needs.build.result == 'success' && needs.scan-secrets.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
       packages: write
