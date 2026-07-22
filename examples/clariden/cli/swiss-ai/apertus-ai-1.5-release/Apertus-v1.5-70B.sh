@@ -13,5 +13,4 @@ sml advanced \
     --max-model-len 262144 \
     --enable-auto-tool-choice \
     --tool-call-parser apertus \
-    --default-chat-template-kwargs.enable_thinking false \
     --compilation-config.pass_config.fuse_allreduce_rms false"

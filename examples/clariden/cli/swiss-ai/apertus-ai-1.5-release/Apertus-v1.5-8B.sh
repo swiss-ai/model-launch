@@ -11,5 +11,4 @@ sml advanced \
     --gpu-memory-utilization 0.6 \
     --max-model-len 262144 \
     --enable-auto-tool-choice \
-    --tool-call-parser apertus \
-    --default-chat-template-kwargs.enable_thinking false"
+    --tool-call-parser apertus"
