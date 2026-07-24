@@ -5,8 +5,8 @@ sml advanced \
   --framework vllm \
   --time 12:00:00 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5_release.toml \
-  --framework-args "--model apertus-ai/Apertus-v1.5-70B \
-    --served-model-name apertus-ai/Apertus-v1.5-70B-deliberation-TTT \
+  --framework-args "--model swiss-ai/Apertus-v1.5-70B \
+    --served-model-name swiss-ai/Apertus-v1.5-70B-thinking \
     --chat-template-content-format string \
     --tensor-parallel-size 4 \
     --gpu-memory-utilization 0.8 \
