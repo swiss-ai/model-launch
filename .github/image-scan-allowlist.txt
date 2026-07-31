@@ -16,5 +16,32 @@ raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
 
 # Pydantic's URL-type docstrings use example credentialed URIs (e.g.
 # "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
-# placeholder markers.
+# placeholder markers. Second rule: the same content in compiled form.
 path:*/site-packages/pydantic/networks.py
+path:*/site-packages/pydantic/__pycache__/networks.cpython-*.pyc
+
+# conda's URL helpers embed doctest examples with credentialed URIs
+# ("https://u:p@conda.io", "https://TestUser:Password@anaconda.org";
+# verified against conda 26.5.3 upstream). Present as source, bytecode,
+# and the duplicate under opt/conda/pkgs/ — the leading * covers all.
+path:*/conda/common/url.py
+path:*/conda/common/__pycache__/url.cpython-*.pyc
+path:*/conda_libmamba_solver/index.py
+path:*/conda_libmamba_solver/__pycache__/index.cpython-*.pyc
+
+# conda-forge packages ship their test suites under pkgs/<pkg>/info/test;
+# boltons' and unearth's URL tests use example credentialed URIs.
+path:opt/conda/pkgs/*/info/test/*
+
+# Tcl's bundled http client module documents proxy auth with example
+# credentialed URLs.
+path:*/tcl8/8.6/http-*.tm
+
+# pycryptodome ships its published self-test key vectors (PEM blocks in
+# Cryptodome/SelfTest; verified identical to upstream) with every install.
+path:*/site-packages/Cryptodome/SelfTest/*
+
+# sglang's model-gateway doc page shows a placeholder DSN
+# ("postgres://user:password@host:5432/dbname"; verified at the pinned
+# swiss-ai/sglang-apertus commit).
+path:workspace/sglang/docs_new/docs/advanced_features/sgl_model_gateway.mdx

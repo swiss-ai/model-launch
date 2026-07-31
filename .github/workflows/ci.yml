@@ -206,6 +206,9 @@ jobs:
     # single-arch manifest — and no arch's secret scan failed: the per-arch
     # tags are already pushed at this point, but a failed scan blocks the
     # release from being published under the multi-arch :<channel> tag.
+    # Tests deliberately do NOT gate this: they run against the capstor sqsh
+    # published by the build job, so holding back the GHCR tag would only
+    # leave the two artifacts inconsistent, not protect consumers.
     if: needs.build.result == 'success' && needs.scan-secrets.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
@@ -235,13 +238,21 @@ jobs:
           CHANNEL: ${{ needs.detect-changes.outputs.channel }}
         run: docker buildx imagetools inspect "${IMAGE}:${CHANNEL}"
 
+  # The test jobs are the last stage: after the secret scan (an image that
+  # fails security screening never gets cluster time) and after the manifest
+  # merge (so they validate the fully published release). `!= 'failure'` (not
+  # `== 'success'`) keeps them running when build/scan/merge were skipped
+  # because no image changed — tests then exercise the previously published
+  # images.
   test-lightweight:
     name: Integration Tests (lightweight)
-    needs: [detect-changes, build]
+    needs: [detect-changes, build, scan-secrets, merge-manifests]
     if: |
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.scan-secrets.result != 'failure' &&
+      needs.merge-manifests.result != 'failure' &&
       github.event_name != 'workflow_dispatch' &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
@@ -262,11 +273,13 @@ jobs:
 
   test-std:
     name: Integration Tests (std)
-    needs: [detect-changes, build]
+    needs: [detect-changes, build, scan-secrets, merge-manifests]
     if: |
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.scan-secrets.result != 'failure' &&
+      needs.merge-manifests.result != 'failure' &&
       contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
     runs-on: ubuntu-latest
@@ -286,11 +299,13 @@ jobs:
 
   test-comprehensive:
     name: Integration Tests (comprehensive)
-    needs: [detect-changes, build]
+    needs: [detect-changes, build, scan-secrets, merge-manifests]
     if: |
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.scan-secrets.result != 'failure' &&
+      needs.merge-manifests.result != 'failure' &&
       (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests'))
     runs-on: ubuntu-latest
     env:
