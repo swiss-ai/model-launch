@@ -116,7 +116,11 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --reinstall-package vllm \
     --no-build-isolation \
     --editable .[audio] \
-    --torch-backend=auto;
+    --torch-backend="${VLLM_PRECOMPILED_WHEEL_VARIANT}";
+    # torch-backend must stay pinned to the image's CUDA variant: `auto`
+    # resolves against the BUILD node's driver, which can pull a newer-CUDA
+    # torch while the earlier-pinned torchaudio stays cu130 — torchaudio then
+    # refuses to import at runtime (mismatched CUDA versions).
 
 RUN uv pip install --python /opt/venv/bin/python scipy ruff tblib pytest  "fastapi[standard]>=0.115.0,<0.137.0"
 
