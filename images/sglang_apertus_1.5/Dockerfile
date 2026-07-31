@@ -1,5 +1,4 @@
 ARG UBUNTU_VERSION=24.04
-ARG TARGET_PLATFORM=aarch64
 ARG CUDA_VERSION=13.0.0
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
@@ -7,7 +6,6 @@ ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${U
 
 FROM ${DEVEL_BASE_IMAGE}
 
-ARG TARGET_PLATFORM
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:${PATH} \
     SGLANG_BUILD_RUST_EXTS=none
@@ -15,20 +13,27 @@ ENV PATH=/opt/conda/bin:${PATH} \
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
+        curl \
         git \
         bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
-ADD "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${TARGET_PLATFORM}.sh" /root/miniforge.sh
-
+# Download the Miniforge installer matching the build arch so native arm64 and
+# amd64 builds both work from the same Dockerfile.
 # hadolint ignore=DL3013
-RUN chmod +x /root/miniforge.sh && \
-    bash /root/miniforge.sh -b -p /opt/conda && \
-    rm /root/miniforge.sh && \
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+      x86_64|aarch64) ;; \
+      *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac; \
+    curl -fL "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" -o /root/miniforge.sh; \
+    bash /root/miniforge.sh -b -p /opt/conda; \
+    rm /root/miniforge.sh; \
     conda install -y \
-        python=${PYTHON_VERSION} && \
+        python=${PYTHON_VERSION}; \
     python -m pip install --upgrade --no-cache-dir \
-        pip "setuptools<70" && \
+        pip "setuptools<70"; \
     conda clean -ya
 
 # Must match the current fork's python/pyproject.toml.
