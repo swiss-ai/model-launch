@@ -10,17 +10,15 @@ ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:${PATH} \
     SGLANG_BUILD_RUST_EXTS=none
 
-# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        git \
-        bzip2 \
+        ca-certificates=20240203 \
+        git=1:2.43.0-1ubuntu7.3 \
+        bzip2=1.0.8-5.1build0.1 \
+        curl=8.5.0-2ubuntu10.9 \
     && rm -rf /var/lib/apt/lists/*
 
 # Download the Miniforge installer matching the build arch so native arm64 and
 # amd64 builds both work from the same Dockerfile.
-# hadolint ignore=DL3013
 RUN set -eux; \
     ARCH="$(uname -m)"; \
     case "${ARCH}" in \
@@ -31,9 +29,11 @@ RUN set -eux; \
     bash /root/miniforge.sh -b -p /opt/conda; \
     rm /root/miniforge.sh; \
     conda install -y \
-        python=${PYTHON_VERSION}; \
+        python=${PYTHON_VERSION} \
+        curl=8.20.0 && \
     python -m pip install --upgrade --no-cache-dir \
-        pip "setuptools<70"; \
+        pip==26.1.2 \
+        setuptools==69.5.1 && \
     conda clean -ya
 
 # Must match the current fork's python/pyproject.toml.
