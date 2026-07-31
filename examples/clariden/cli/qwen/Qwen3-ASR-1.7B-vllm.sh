@@ -1,9 +1,9 @@
 #!/bin/bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --pre-launch-cmds "pip install librosa audioread" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
     --served-model-name Qwen/Qwen3-ASR-1.7B-$(whoami) \

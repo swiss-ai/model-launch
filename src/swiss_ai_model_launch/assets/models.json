@@ -202,5 +202,19 @@
     "environment": null,
     "nodes_per_replica": 1,
     "framework_args": "--tp-size 4 --reasoning-parser deepseek-r1 --enable-metrics"
+  },
+  {
+    "model": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_cuda13_v2.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--deploy-config /opt/conda/lib/python3.12/site-packages/vllm_omni/deploy/qwen3_tts.yaml --omni --trust-remote-code --enforce-eager --max-model-len 8192 --gpu-memory-utilization 0.40"
+  },
+  {
+    "model": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+    "framework": "vllm",
+    "environment": "src/swiss_ai_model_launch/assets/envs/vllm_cuda13_v2.toml",
+    "nodes_per_worker": 1,
+    "framework_args": "--deploy-config /opt/conda/lib/python3.12/site-packages/vllm_omni/deploy/cosyvoice3.yaml --omni --trust-remote-code --enforce-eager --max-model-len 8192 --gpu-memory-utilization 0.40"
   }
 ]

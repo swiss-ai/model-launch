@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import shlex
 import shutil
@@ -12,7 +13,7 @@ from pathlib import Path
 import firecrest as f7t
 
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt
 
 from .core import build_run_config
 from .models import LoadtestConfig, ServerConfig
@@ -169,9 +170,11 @@ async def _wait_for_firecrest_job(
     poll_seconds: int = 10,
 ) -> None:
     while True:
-        job_info = await launcher.client.job_info(
-            system_name=launcher.system_name,
-            jobid=str(job_id),
+        job_info = await call_with_firecrest_retry(
+            lambda: launcher.client.job_info(
+                system_name=launcher.system_name,
+                jobid=str(job_id),
+            )
         )
         raw_state = str(job_info[0]["status"]["state"]).split()[0].upper()
         if raw_state not in _FIRECREST_ACTIVE_STATES:
@@ -257,10 +260,12 @@ async def submit_cluster_loadtest(
     if isinstance(launcher, FirecRESTLauncher):
         firecrest_working_dir = str(launcher._get_working_dir())
         remote_run_dir = str(Path(firecrest_working_dir) / run_label)
-        await launcher.client.mkdir(
-            system_name=launcher.system_name,
-            path=remote_run_dir,
-            create_parents=True,
+        await call_with_firecrest_retry(
+            lambda: launcher.client.mkdir(
+                system_name=launcher.system_name,
+                path=remote_run_dir,
+                create_parents=True,
+            )
         )
         with tempfile.TemporaryDirectory(prefix="sml_loadtest_") as tmp_dir:
             tmp_run_dir = Path(tmp_dir)
@@ -271,20 +276,25 @@ async def submit_cluster_loadtest(
                 k6_script=k6_script,
             )
             for filename in ("script.js", "run_config.json"):
-                await launcher.client.upload(
-                    system_name=launcher.system_name,
-                    local_file=tmp_run_dir / filename,
-                    directory=remote_run_dir,
-                    filename=filename,
-                    account=launcher.account,
-                    blocking=True,
+                await call_with_firecrest_retry(
+                    functools.partial(
+                        launcher.client.upload,
+                        system_name=launcher.system_name,
+                        local_file=tmp_run_dir / filename,
+                        directory=remote_run_dir,
+                        filename=filename,
+                        account=launcher.account,
+                        blocking=True,
+                    )
                 )
 
-        report = await launcher.client.submit(
-            system_name=launcher.system_name,
-            working_dir=firecrest_working_dir,
-            script_str=script,
-            account=launcher.account,
+        report = await call_with_firecrest_retry(
+            lambda: launcher.client.submit(
+                system_name=launcher.system_name,
+                working_dir=firecrest_working_dir,
+                script_str=script,
+                account=launcher.account,
+            )
         )
         job_id = int(report["jobId"])
         if cluster.wait:
@@ -295,12 +305,14 @@ async def submit_cluster_loadtest(
             )
             summary_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                await launcher.client.download(
-                    system_name=launcher.system_name,
-                    source_path=str(Path(firecrest_working_dir) / run_label / "summary.json"),
-                    target_path=summary_path,
-                    account=launcher.account,
-                    blocking=True,
+                await call_with_firecrest_retry(
+                    lambda: launcher.client.download(
+                        system_name=launcher.system_name,
+                        source_path=str(Path(firecrest_working_dir) / run_label / "summary.json"),
+                        target_path=summary_path,
+                        account=launcher.account,
+                        blocking=True,
+                    )
                 )
             except f7t.FirecrestException as e:
                 raise RuntimeError(f"Could not download cluster loadtest summary for job {job_id}: {e}") from e

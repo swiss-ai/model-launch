@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from importlib.resources import files
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -24,6 +25,25 @@ _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.to
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
 
 _APP_WORKING_DIRECTORY = ".sml"
+
+# squeue/sacct emit these placeholders when a time isn't known (e.g. a pending
+# job with no scheduler estimate, or a job that never started).
+_SLURM_UNKNOWN_TIMES = frozenset({"", "N/A", "Unknown", "None", "(null)"})
+
+
+def _slurm_iso_env() -> dict[str, str]:
+    """Environment forcing squeue to emit absolute ISO timestamps.
+
+    Sites often set SLURM_TIME_FORMAT=relative, which makes squeue print things
+    like "Tomorr 06:04" — abbreviated and impossible to re-expand to a real date.
+    "standard" yields ISO 8601 (e.g. 2026-06-20T06:04:00) regardless of that.
+    """
+    return {**os.environ, "SLURM_TIME_FORMAT": "standard"}
+
+
+def _normalise_slurm_time(value: str) -> str | None:
+    value = value.strip()
+    return None if value in _SLURM_UNKNOWN_TIMES else value
 
 
 class SlurmLauncher(Launcher):
@@ -73,7 +93,7 @@ class SlurmLauncher(Launcher):
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
-            use_router=launch_request.use_router,
+            router=launch_request.router,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
@@ -127,14 +147,20 @@ class SlurmLauncher(Launcher):
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]
 
-    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        launch_args = launch_args.model_copy(
+    async def _prepare_launch_args(self, launch_args: LaunchArgs) -> LaunchArgs:
+        return launch_args.model_copy(
             update={
                 "environment": str(Path(launch_args.environment).resolve()),
             }
         )
-        job_id = await self._sbatch(launch_args)
-        return job_id, launch_args.served_model_name
+
+    async def _submit_one(self, launch_args: LaunchArgs) -> int:
+        return await self._sbatch(launch_args)
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        prepared = await self._prepare_launch_args(launch_args)
+        job_id = await self._submit_one(prepared)
+        return job_id, prepared.served_model_name
 
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]:
         env_path = self._get_local_env_file_path(launch_request)
@@ -185,6 +211,49 @@ class SlurmLauncher(Launcher):
 
         return JobStatus.UNKNOWN
 
+    async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:
+        # squeue while the job is live: %S is the actual start (or the
+        # scheduler's estimate while pending), %e the expected end. Force ISO
+        # output so a site's SLURM_TIME_FORMAT=relative doesn't give us
+        # un-parseable "Tomorr 06:04"-style stamps.
+        proc = await asyncio.create_subprocess_exec(
+            "squeue",
+            "-j",
+            str(job_id),
+            "-h",
+            "-o",
+            "%S|%e",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=_slurm_iso_env(),
+        )
+        stdout, _ = await proc.communicate()
+        line = stdout.decode().strip()
+        if line:
+            start, _, end = line.partition("|")
+            return _normalise_slurm_time(start), _normalise_slurm_time(end)
+
+        # Job left the queue — sacct has the recorded start/end of a finished job.
+        proc = await asyncio.create_subprocess_exec(
+            "sacct",
+            "-j",
+            str(job_id),
+            "-n",
+            "-o",
+            "Start,End",
+            "--parsable2",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        for line in stdout.decode().splitlines():
+            line = line.strip()
+            if line:
+                start, _, end = line.partition("|")
+                return _normalise_slurm_time(start), _normalise_slurm_time(end)
+
+        return None, None
+
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = self._get_working_dir() / "logs" / str(job_id)
 
@@ -202,6 +271,12 @@ class SlurmLauncher(Launcher):
 
     def get_tail_hint(self, job_id: int) -> str:
         return f"tail -f ~/.sml/logs/{job_id}/log.out"
+
+    def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
+        # SLURM launches assume we're already on the cluster (an `srun` away from
+        # the compute nodes), so attach a shell directly — no SSH hop needed.
+        argv = self._srun_terminal_argv(job_id, node_host)
+        return TerminalCommand(argv=argv, display=self._display(argv))
 
     async def cancel_job(self, job_id: int) -> None:
         proc = await asyncio.create_subprocess_exec(

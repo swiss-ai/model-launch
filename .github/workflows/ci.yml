@@ -25,10 +25,35 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.detect.outputs.images }}
+      channel: ${{ steps.channel.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Resolve release channel
+        id: channel
+        run: |
+          # PR builds publish to a per-PR pre-release channel so they can never
+          # overwrite what main published. Merging to main republishes under
+          # ":latest". build_image.py rejects any other channel value.
+          #
+          # ":latest" means "built from main" — gate on the ref, not the event.
+          # A workflow_dispatch runs against whatever branch it was dispatched
+          # from, and with an empty `image` input it rebuilds every image, so
+          # an ungated dispatch could republish all of :latest from unmerged
+          # code. Refuse rather than publish.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANNEL="pr-${{ github.event.pull_request.number }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            CHANNEL="latest"
+          else
+            echo "Refusing to publish images from ${{ github.ref }}." >&2
+            echo "Open a pull request to build under a pr-<number> channel." >&2
+            exit 1
+          fi
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Release channel: $CHANNEL"
 
       - name: Detect changed image directories
         id: detect
@@ -77,8 +102,8 @@ jobs:
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
         # Each arch is built natively on its own cluster, reached via a
-        # different FireCREST endpoint, and pushed to a :latest-<arch> tag.
-        # The merge-manifests job combines them into a multi-arch :latest.
+        # different FireCREST endpoint, and pushed to a :<channel>-<arch> tag.
+        # The merge-manifests job combines them into a multi-arch :<channel>.
         arch: [arm64, amd64]
       fail-fast: false
     env:
@@ -87,16 +112,20 @@ jobs:
       SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       # arm64 (Grace) cluster — base vars.
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
-      SML_FIRECREST_SYSTEM: ${{ vars.SML_FIRECREST_SYSTEM }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
       SML_RESERVATION: ${{ vars.SML_RESERVATION }}
       # amd64 (x86_64) cluster — different URL / system / partition, same creds.
       # No reservation on this cluster.
       SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
-      SML_FIRECREST_SYSTEM_AMD64: ${{ vars.SML_FIRECREST_SYSTEM_AMD64 }}
+      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
       SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GHCR_ACTOR: ${{ github.actor }}
+      # The channel is part of the cache key: a PR build only proves the
+      # pr-<N> artifacts exist. Without it, merging an already-built PR would
+      # hit the cache on main, skip the build, and never publish ":latest".
+      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
       - name: Restore build cache
@@ -104,14 +133,14 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build-sentinel
-          key: build-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
+          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
       - uses: ./.github/actions/setup
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           python-version: "3.12"
       - name: Build image and save sqsh
         if: steps.cache.outputs.cache-hit != 'true'
-        run: python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}"
+        run: python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
         timeout-minutes: 300
       - name: Save build cache
         if: steps.cache.outputs.cache-hit != 'true'
@@ -120,14 +149,65 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           path: .build-sentinel
-          key: build-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
+          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
+
+  scan-secrets:
+    name: Secret Scan ${{ matrix.image }} (${{ matrix.arch }})
+    needs: [detect-changes, build]
+    if: needs.build.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+        arch: [arm64, amd64]
+      fail-fast: false
+    env:
+      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+      # Mirrors the build sentinel: skip rescanning image content that already
+      # passed under the same channel and scan rules.
+      - name: Restore scan cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .scan-sentinel
+          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
+      - name: Install trufflehog
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
+      # The runner's root disk is too small for the largest extracted layers;
+      # /mnt has ~65 GB free.
+      - name: Prepare scan workdir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
+      - name: Scan image layers for secrets
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          SCAN_WORKDIR: /mnt/image-scan
+        run: python3 .github/scripts/scan_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
+        timeout-minutes: 90
+      - name: Save scan cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: mkdir -p .scan-sentinel && touch .scan-sentinel/scanned
+      - uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: .scan-sentinel
+          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
 
   merge-manifests:
-    name: Merge multi-arch manifest ${{ matrix.image }}
-    needs: [detect-changes, build]
+    name: Merge multi-arch manifest ${{ matrix.image }} (${{ needs.detect-changes.outputs.channel }})
+    needs: [detect-changes, build, scan-secrets]
     # Only if every arch build succeeded — a partial set would yield a
-    # single-arch manifest.
-    if: needs.build.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    # single-arch manifest — and no arch's secret scan failed: the per-arch
+    # tags are already pushed at this point, but a failed scan blocks the
+    # release from being published under the multi-arch :<channel> tag.
+    if: needs.build.result == 'success' && needs.scan-secrets.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -142,17 +222,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create and push multi-arch :latest
+      - name: Create and push multi-arch manifest
         env:
           IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
+          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
         run: |
-          docker buildx imagetools create -t "${IMAGE}:latest" \
-            "${IMAGE}:latest-arm64" \
-            "${IMAGE}:latest-amd64"
+          docker buildx imagetools create -t "${IMAGE}:${CHANNEL}" \
+            "${IMAGE}:${CHANNEL}-arm64" \
+            "${IMAGE}:${CHANNEL}-amd64"
       - name: Inspect
         env:
           IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
-        run: docker buildx imagetools inspect "${IMAGE}:latest"
+          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
+        run: docker buildx imagetools inspect "${IMAGE}:${CHANNEL}"
 
   test-lightweight:
     name: Integration Tests (lightweight)
@@ -169,7 +251,7 @@ jobs:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
       SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
       SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
-      SML_FIRECREST_SYSTEM: ${{ vars.SML_FIRECREST_SYSTEM }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
       SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
@@ -195,7 +277,7 @@ jobs:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
       SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
       SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
-      SML_FIRECREST_SYSTEM: ${{ vars.SML_FIRECREST_SYSTEM }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
       SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
@@ -220,7 +302,7 @@ jobs:
       SML_CSCS_API_KEY: ${{ secrets.SML_CSCS_API_KEY }}
       SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
       SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
-      SML_FIRECREST_SYSTEM: ${{ vars.SML_FIRECREST_SYSTEM }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
       SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}

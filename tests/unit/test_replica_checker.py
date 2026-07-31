@@ -8,8 +8,22 @@ def test_parse_health_report_all_healthy() -> None:
         {
             "checked_at": 1771765000,
             "replicas": [
-                {"node_rank": 0, "node_ip": "10.0.0.1", "peer_id": "QmA", "health": "HEALTHY", "last_seen": 1771764990},
-                {"node_rank": 1, "node_ip": "10.0.0.2", "peer_id": "QmB", "health": "HEALTHY", "last_seen": 1771764991},
+                {
+                    "node_rank": 0,
+                    "node_ip": "10.0.0.1",
+                    "node_host": "nid01",
+                    "peer_id": "QmA",
+                    "health": "HEALTHY",
+                    "last_seen": 1771764990,
+                },
+                {
+                    "node_rank": 1,
+                    "node_ip": "10.0.0.2",
+                    "node_host": "nid02",
+                    "peer_id": "QmB",
+                    "health": "HEALTHY",
+                    "last_seen": 1771764991,
+                },
             ],
         }
     )
@@ -19,7 +33,7 @@ def test_parse_health_report_all_healthy() -> None:
     assert report.found == 2
     assert report.all_healthy
     assert report.complete
-    assert report.replicas[0] == ReplicaHealth(ModelHealth.HEALTHY, "QmA", 1771764990, 0, "10.0.0.1")
+    assert report.replicas[0] == ReplicaHealth(ModelHealth.HEALTHY, "QmA", 1771764990, 0, "10.0.0.1", "nid01")
 
 
 def test_parse_health_report_unknown_health_maps_to_error() -> None:
@@ -35,6 +49,7 @@ def test_parse_health_report_missing_optionals_are_none() -> None:
     assert replica.last_seen is None
     assert replica.node_rank is None
     assert replica.node_ip is None
+    assert replica.node_host is None
 
 
 def test_parse_health_report_complete_requires_expected_count() -> None:

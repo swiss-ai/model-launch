@@ -103,9 +103,17 @@ def test_build_report_health_peers_and_last_seen(monkeypatch) -> None:  # type: 
 
     assert report["checked_at"] == 1000
     first, second = report["replicas"]
-    assert first == {"node_rank": 0, "node_ip": "10.0.0.1", "peer_id": "Qm1", "health": "HEALTHY", "last_seen": 1000}
+    assert first == {
+        "node_rank": 0,
+        "node_ip": "10.0.0.1",
+        "node_host": "n0",
+        "peer_id": "Qm1",
+        "health": "HEALTHY",
+        "last_seen": 1000,
+    }
     # 10.0.0.2 has never been healthy: NOT_DEPLOYED, and peer id isn't resolved (only resolved when healthy).
     assert second["health"] == "NOT_DEPLOYED"
+    assert second["node_host"] == "n1"  # head node name is reported regardless of health
     assert second["peer_id"] is None
     assert second["last_seen"] is None
 
@@ -123,6 +131,14 @@ def test_build_report_node_rank_uses_nodes_per_replica(monkeypatch) -> None:  # 
     monkeypatch.setattr(checker, "resolve_peer_id", lambda *a, **k: None)
     report = checker.build_report(["10.0.0.1", "10.0.0.2"], ["n0", "n4"], 4, 8080, 8092, 1.0, {}, {}, {}, 1000)
     assert [r["node_rank"] for r in report["replicas"]] == [0, 4]
+
+
+def test_build_report_node_host_none_when_hosts_missing(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(checker, "_http_get", lambda url, timeout: (200, b""))
+    monkeypatch.setattr(checker, "resolve_peer_id", lambda *a, **k: None)
+    # Fewer host names than IPs (or none at all) must not crash; node_host is None.
+    report = checker.build_report(["10.0.0.1"], [], 1, 8080, 8092, 1.0, {}, {}, {}, 1000)
+    assert report["replicas"][0]["node_host"] is None
 
 
 def test_build_report_freezes_last_seen_and_caches_peer(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -167,3 +183,60 @@ def test_write_report_atomically(tmp_path) -> None:  # type: ignore[no-untyped-d
     checker.write_report_atomically({"checked_at": 5, "replicas": []}, str(target))
     assert json.loads(target.read_text()) == {"checked_at": 5, "replicas": []}
     assert not (tmp_path / "replica_health.json.tmp").exists()  # temp file renamed away
+
+
+class _Ran:
+    def __init__(self, returncode: int = 0, stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def test_cancel_previous_job_success(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    seen: dict[str, object] = {}
+
+    def _ok(cmd, **_k):  # type: ignore[no-untyped-def]
+        seen["cmd"] = cmd
+        return _Ran(returncode=0)
+
+    monkeypatch.setattr(checker.subprocess, "run", _ok)
+    assert checker.cancel_previous_job("4242") is True
+    assert seen["cmd"] == ["scancel", "4242"]
+
+
+def test_cancel_previous_job_nonzero_exit(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    class _Failed:
+        returncode = 1
+        stderr = "no such job"
+
+    monkeypatch.setattr(checker.subprocess, "run", lambda *a, **k: _Failed())
+    assert checker.cancel_previous_job("4242") is False
+
+
+def test_cancel_previous_job_subprocess_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    def _boom(*_a: object, **_k: object) -> object:
+        raise subprocess.SubprocessError("scancel missing")
+
+    monkeypatch.setattr(checker.subprocess, "run", _boom)
+    assert checker.cancel_previous_job("4242") is False
+
+
+def _report(*healths: str) -> dict:
+    return {"checked_at": 1, "replicas": [{"health": h} for h in healths]}
+
+
+def test_all_replicas_healthy_true_when_all_present_and_healthy() -> None:
+    assert checker.all_replicas_healthy(_report("HEALTHY", "HEALTHY"), 2) is True
+
+
+def test_all_replicas_healthy_false_when_any_unhealthy_or_missing() -> None:
+    assert checker.all_replicas_healthy(_report("HEALTHY", "NOT_RESPONDING"), 2) is False
+    assert checker.all_replicas_healthy(_report("HEALTHY"), 2) is False  # one not reported yet
+
+
+def test_all_replicas_healthy_guards_zero_expected() -> None:
+    # No expected replicas -> never "all healthy"; otherwise the empty all() would
+    # be vacuously true and the handover would cancel the predecessor immediately,
+    # dropping the only allocation.
+    assert checker.all_replicas_healthy(_report(), 0) is False
+    assert checker.all_replicas_healthy({"replicas": []}, 0) is False
+    assert checker.all_replicas_healthy(_report(), -1) is False

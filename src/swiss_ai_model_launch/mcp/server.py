@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import getpass
 import grp
 import os
@@ -16,7 +17,7 @@ from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLa
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.utils import create_salt
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt
 
 _POLL_INTERVAL_SECONDS = 10
 _TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
@@ -137,13 +138,13 @@ if InitConfig.exists() and InitConfig.load().get_value("launcher") == "firecrest
         client = (
             _launcher.client if isinstance(_launcher, FirecRESTLauncher) else _build_firecrest_client(InitConfig.load())
         )
-        systems = await client.systems()
+        systems = await call_with_firecrest_retry(lambda: client.systems())
         result = []
         for system in systems:
             system_name = system["name"]
             partitions, reservations = await asyncio.gather(
-                client.partitions(system_name),
-                client.reservations(system_name),
+                call_with_firecrest_retry(functools.partial(client.partitions, system_name)),
+                call_with_firecrest_retry(functools.partial(client.reservations, system_name)),
             )
             result.append(
                 {
@@ -250,7 +251,12 @@ async def launch_preconfigured_model(
     framework: Annotated[Literal["sglang", "vllm"], "Inference framework."],
     replicas: Annotated[int, "Number of independent inference engine instances to launch."] = 1,
     time: Annotated[str, "Job time limit in HH:MM:SS format (e.g. '03:00:00')."] = "03:00:00",
-    use_router: Annotated[bool, "Enable router for load balancing across replicas."] = False,
+    router: Annotated[
+        Literal["opentela", "sglang"],
+        "Routing strategy across replicas. 'opentela' (default): OpenTela load-balances across "
+        "the replica peers on the mesh. 'sglang': an in-job SGLang router fronts the replicas "
+        "and becomes the served endpoint (needs replicas > 1).",
+    ] = "opentela",
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -289,7 +295,7 @@ async def launch_preconfigured_model(
         replicas=replicas,
         time=time,
         served_model_name=f"{model}-{create_salt(4)}",
-        use_router=use_router,
+        router=router,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")

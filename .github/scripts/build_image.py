@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 import sys
 import tempfile
 import time
@@ -11,6 +12,10 @@ from textwrap import dedent
 import firecrest as f7t
 
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
+_RELEASE_CHANNEL = "latest"
+# Anything outside this set lands in a filesystem path and a registry tag, so
+# it must not contain path separators or shell metacharacters.
+_CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
 _POLL_INTERVAL = 60
 _TIMEOUT = 4 * 3600
 _TERMINAL_STATES = {
@@ -23,9 +28,22 @@ _TERMINAL_STATES = {
 }
 
 
+def sqsh_path(image_name: str, arch: str, channel: str) -> str:
+    """Where a build's squashfs lands on the shared capstor store.
+
+    The release channel keeps its historical flat path, because the env TOMLs
+    and other consumers point straight at it. Pre-release channels get their
+    own subdirectory so a PR build can never overwrite what main published.
+    """
+    if channel == _RELEASE_CHANNEL:
+        return f"{_CAPSTOR_IMAGES}/{image_name}-{arch}.sqsh"
+    return f"{_CAPSTOR_IMAGES}/{channel}/{image_name}-{arch}.sqsh"
+
+
 def _build_slurm_script(
     image_name: str,
     arch: str,
+    channel: str,
     account: str,
     partition: str,
     reservation: str | None,
@@ -35,13 +53,13 @@ def _build_slurm_script(
     ghcr_actor: str,
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
-    # Push to an arch-specific tag; a later merge step combines the per-arch
-    # tags into a single multi-arch manifest list under ":latest".
-    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:latest-{arch}"
+    # Push to a channel- and arch-specific tag; a later merge step combines the
+    # per-arch tags into a single multi-arch manifest list under ":<channel>".
+    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:{channel}-{arch}"
     return dedent(
         f"""
         #!/bin/bash
-        #SBATCH --job-name=build-{image_name}-{arch}
+        #SBATCH --job-name=build-{image_name}-{arch}-{channel}
         #SBATCH --nodes=1
         #SBATCH --ntasks=1
         #SBATCH --cpus-per-task=64
@@ -60,30 +78,8 @@ def _build_slurm_script(
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
-        # Container storage must live on node-local disk. $HOME is a network
-        # filesystem (Lustre/GPFS): the overlay driver's per-layer xattrs fail
-        # there with "lsetxattr ... operation not supported", and podman warns
-        # it is an unsupported backing store. Point graphroot/runroot at the
-        # node-local $TMPDIR instead (same local store used for XDG_RUNTIME_DIR).
-        #
-        # ignore_chown_errors: the CI user has no /etc/subuid range, so rootless
-        # podman uses a single-UID namespace and cannot chown files owned by a
-        # non-zero GID (e.g. /etc/gshadow is root:shadow = 0:42) while unpacking
-        # a base image; this skips those chowns instead of aborting the unpack.
-        export PODMAN_STORE="${{TMPDIR:-/tmp}}/podman-store-$$"
-        mkdir -p "${{PODMAN_STORE}}"
-        export CONTAINERS_STORAGE_CONF="${{XDG_RUNTIME_DIR}}/storage.conf"
-        cat > "${{CONTAINERS_STORAGE_CONF}}" <<STORAGE_CONF
-        [storage]
-        driver = "overlay"
-        graphroot = "${{PODMAN_STORE}}/root"
-        runroot = "${{PODMAN_STORE}}/runroot"
-        [storage.options.overlay]
-        ignore_chown_errors = "true"
-        STORAGE_CONF
-
-        IMAGE_TAG="{image_name}-{arch}:${{SLURM_JOB_ID}}"
-        SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}.sqsh"
+        IMAGE_TAG="{image_name}-{arch}-{channel}:${{SLURM_JOB_ID}}"
+        SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}-{channel}.sqsh"
 
         cleanup() {{
             podman logout ghcr.io 2>/dev/null || true
@@ -101,7 +97,9 @@ def _build_slurm_script(
         echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
-        podman build -t "${{IMAGE_TAG}}" .
+        # --format docker: honor SHELL instructions (OCI format silently
+        # ignores SHELL, so RUN steps needing bash/pipefail break under sh).
+        podman build --format docker -t "${{IMAGE_TAG}}" .
 
         echo "=== Pushing to GHCR ==="
         podman push "${{IMAGE_TAG}}" "{ghcr_image}"
@@ -116,6 +114,7 @@ def _build_slurm_script(
 
         echo "=== Saving to capstor ==="
         mkdir -p "$(dirname "{output_sqsh}")"
+        chmod o+rx "$(dirname "{output_sqsh}")"
         cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
         mv "{output_sqsh}.tmp" "{output_sqsh}"
         chmod o+rx "{output_sqsh}"
@@ -165,7 +164,7 @@ def _arch_env(base_key: str, arch: str) -> str | None:
     return os.environ.get(f"{base_key}_{arch.upper()}")
 
 
-async def main(image_name: str, arch: str) -> int:
+async def main(image_name: str, arch: str, channel: str) -> int:
     # Shared across both clusters.
     client_id = os.environ["SML_FIRECREST_CLIENT_ID"]
     client_secret = os.environ["SML_FIRECREST_CLIENT_SECRET"]
@@ -173,14 +172,14 @@ async def main(image_name: str, arch: str) -> int:
 
     # Per-arch: different cluster reached via a different FireCREST endpoint.
     firecrest_url = _arch_env("SML_FIRECREST_URL", arch)
-    system_name = _arch_env("SML_FIRECREST_SYSTEM", arch)
+    system_name = _arch_env("SML_SYSTEM", arch)
     partition = _arch_env("SML_PARTITION", arch)
     reservation = _arch_env("SML_RESERVATION", arch)
     missing = [
         name
         for name, val in (
             ("SML_FIRECREST_URL", firecrest_url),
-            ("SML_FIRECREST_SYSTEM", system_name),
+            ("SML_SYSTEM", system_name),
             ("SML_PARTITION", partition),
         )
         if not val
@@ -203,9 +202,10 @@ async def main(image_name: str, arch: str) -> int:
     username = user_info["user"]["name"]
     account = user_info["group"]["name"]
 
-    # Arch-suffixed so concurrent arm64/amd64 builds don't clobber each other's
-    # uploaded build context on a shared home filesystem.
-    remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}-{arch}"
+    # Arch- and channel-suffixed so concurrent builds (arm64/amd64, main/PR)
+    # don't clobber each other's uploaded build context on a shared home
+    # filesystem.
+    remote_build_dir = f"/users/{username}/.sml/image-builds/{image_name}-{arch}-{channel}"
     remote_logs_dir = f"/users/{username}/.sml/image-builds/logs"
 
     print("Creating remote directories...")
@@ -228,11 +228,12 @@ async def main(image_name: str, arch: str) -> int:
 
     # Arch-suffixed: capstor is a shared store, so per-arch builds must not
     # write to the same path.
-    output_sqsh = f"{_CAPSTOR_IMAGES}/{image_name}-{arch}.sqsh"
+    output_sqsh = sqsh_path(image_name, arch, channel)
 
     script = _build_slurm_script(
         image_name=image_name,
         arch=arch,
+        channel=channel,
         account=account,
         partition=partition,
         reservation=reservation,
@@ -274,12 +275,16 @@ async def main(image_name: str, arch: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (2, 3):
-        print(f"Usage: {sys.argv[0]} <image_name> [arch]", file=sys.stderr)
+    if len(sys.argv) not in (2, 3, 4):
+        print(f"Usage: {sys.argv[0]} <image_name> [arch] [channel]", file=sys.stderr)
         sys.exit(1)
     image_arg = sys.argv[1]
-    arch_arg = sys.argv[2] if len(sys.argv) == 3 else "arm64"
+    arch_arg = sys.argv[2] if len(sys.argv) >= 3 else "arm64"
+    channel_arg = sys.argv[3] if len(sys.argv) == 4 else _RELEASE_CHANNEL
     if arch_arg not in ("arm64", "amd64"):
         print(f"Unsupported arch '{arch_arg}' (expected arm64 or amd64)", file=sys.stderr)
         sys.exit(1)
-    sys.exit(asyncio.run(main(image_arg, arch_arg)))
+    if not _CHANNEL_RE.match(channel_arg):
+        print(f"Unsupported channel '{channel_arg}' (expected 'latest' or 'pr-<number>')", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(asyncio.run(main(image_arg, arch_arg, channel_arg)))

@@ -18,7 +18,7 @@ _REQUIRED_ENV_VARS = [
     "SML_CSCS_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
-    "SML_FIRECREST_SYSTEM",
+    "SML_SYSTEM",
     "SML_FIRECREST_TOKEN_URI",
     "SML_FIRECREST_URL",
     "SML_LOADTEST_MODEL",
@@ -53,7 +53,7 @@ async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
     try:
         yield await FirecRESTLauncher.from_client(
             client=client,
-            system_name=env["SML_FIRECREST_SYSTEM"],
+            system_name=env["SML_SYSTEM"],
             partition=env["SML_PARTITION"],
             reservation=env["SML_RESERVATION"] or None,
         )

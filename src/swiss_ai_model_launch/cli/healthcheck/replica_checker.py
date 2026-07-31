@@ -25,8 +25,9 @@ class ReplicaHealth:
 
     ``last_seen`` is the epoch-seconds of the last time the in-job checker saw
     the replica HEALTHY (``None`` if never). ``peer_id`` is the OpenTela peer id
-    (best-effort, ``None`` if unresolved); ``node_rank``/``node_ip`` identify the
-    replica head.
+    (best-effort, ``None`` if unresolved); ``node_rank``/``node_ip``/``node_host``
+    identify the replica head (``node_host`` is its SLURM node name, used to open
+    an interactive shell on the node from the TUI).
     """
 
     health: ModelHealth
@@ -34,6 +35,7 @@ class ReplicaHealth:
     last_seen: int | None = None
     node_rank: int | None = None
     node_ip: str | None = None
+    node_host: str | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,7 @@ def parse_health_report(report_json: str, served_model_name: str, expected_repli
             last_seen=_to_int(r.get("last_seen")),
             node_rank=_to_int(r.get("node_rank")),
             node_ip=_to_str(r.get("node_ip")),
+            node_host=_to_str(r.get("node_host")),
         )
         for r in (raw_replicas if isinstance(raw_replicas, list) else [])
         if isinstance(r, dict)

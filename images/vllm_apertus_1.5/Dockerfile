@@ -77,8 +77,11 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus_integration https://github.com/swiss-ai/vllm.git /workspace/vllm && \
-    git -C /workspace/vllm checkout 09eae2122ed71aa27765bbbf8c043009bfb86477 && \
+# apertus-in-tree-parsers = apertus-bos-fix (b5cb2818c, the previous pin:
+# double-BOS fix, apertus-program #420) + in-tree Apertus tool/reasoning
+# parsers, so launches select them by name with no --*-parser-plugin flags.
+RUN git clone --branch apertus-in-tree-parsers https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+    git -C /workspace/vllm checkout 9b6629176fbea773ee175067ab418d103a20c16a && \
     git clone https://github.com/swiss-ai/Emu3.5.git /workspace/Emu3.5 && \
     git -C /workspace/Emu3.5 checkout 8fcf1da48f9c5252fe0a0b8dc842e07b6efcd745 && \
     git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
@@ -140,3 +143,4 @@ printf '%s\n' \
     '  /workspace/benchmark-audio-tokenizer (VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE)' \
     > /etc/motd
 EOF
+

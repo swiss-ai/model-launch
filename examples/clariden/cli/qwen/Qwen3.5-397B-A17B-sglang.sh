@@ -1,10 +1,10 @@
 #!/bin/bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --slurm-nodes-per-replica 4 \
-  --serving-framework sglang \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --nodes-per-replica 4 \
+  --framework sglang \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.5-397B-A17B \
     --host 0.0.0.0 \
     --tp-size 16 \

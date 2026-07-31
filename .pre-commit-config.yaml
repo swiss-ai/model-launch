@@ -20,15 +20,11 @@ repos:
         entry: npx markdownlint-cli2 --config .markdownlint.yaml
         language: system
         types: [markdown]
-        exclude: ^legacy/
-
       - id: shellcheck
         name: shellcheck
         entry: shellcheck
         language: system
         types: [shell]
-        exclude: ^legacy/
-
       - id: hadolint
         name: hadolint
         entry: hadolint
@@ -41,15 +37,11 @@ repos:
         entry: npx --yes @taplo/cli fmt
         language: system
         files: \.toml$
-        exclude: ^legacy/
-
       - id: prettier
         name: prettier
         entry: npx prettier --write
         language: system
         files: \.(json|ya?ml)$
-        exclude: ^legacy/
-
       - id: mypy
         name: mypy
         entry: make dmypy

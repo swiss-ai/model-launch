@@ -1,10 +1,10 @@
 #!/bin/bash
 sml advanced \
-  --firecrest-system clariden \
+  --system clariden \
   --partition normal \
-  --slurm-nodes-per-replica 2 \
-  --serving-framework vllm \
-  --slurm-environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --nodes-per-replica 2 \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V4-Flash \
     --host 0.0.0.0 \
     --served-model-name deepseek-ai/DeepSeek-V4-Flash-$(whoami) \

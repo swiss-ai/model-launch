@@ -37,6 +37,37 @@ from typing import Any, Dict, List, Optional, Tuple
 # launching a job step every cycle when /v1/self is unreachable.
 _MAX_PEER_ATTEMPTS = 5
 _SRUN_TIMEOUT_SECONDS = 30.0
+_SCANCEL_TIMEOUT_SECONDS = 30.0
+
+
+def cancel_previous_job(job_id):
+    # type: (str) -> bool
+    """scancel the predecessor in a consecutive chain. Returns True on success.
+
+    Run from the batch node once this job's replicas are all healthy, so the
+    handover releases the old allocation. Best-effort: a failure (already gone,
+    scancel missing) is reported and simply retried next cycle.
+    """
+    cmd = ["scancel", job_id]
+    try:
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=_SCANCEL_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        sys.stderr.write("replica health checker: scancel %s failed: %s\n" % (job_id, exc))
+        sys.stderr.flush()
+        return False
+    if result.returncode != 0:
+        sys.stderr.write(
+            "replica health checker: scancel %s exited %s: %s\n" % (job_id, result.returncode, result.stderr.strip())
+        )
+        sys.stderr.flush()
+        return False
+    return True
 
 
 def _http_get(url: str, timeout: float) -> Optional[Tuple[int, bytes]]:
@@ -59,21 +90,22 @@ def check_health(node_ip: str, framework_port: int, timeout: float) -> str:
     return "HEALTHY" if 200 <= status < 300 else "NOT_RESPONDING"
 
 
-def _self_fetch_code(ocf_port: int) -> str:
+def _self_fetch_code(opentela_port: int) -> str:
     # Executed on the target node: /v1/self is localhost-only and returns the
     # node's own Peer record, whose "id" is the libp2p peer id.
     return (
         "import json, urllib.request; "
-        f"print(json.load(urllib.request.urlopen('http://localhost:{ocf_port}/v1/self', timeout=5)).get('id') or '')"
+        f"print(json.load(urllib.request.urlopen('http://localhost:{opentela_port}"
+        "/v1/self', timeout=5)).get('id') or '')"
     )
 
 
-def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> Optional[str]:
+def resolve_peer_id(host: str, opentela_port: int, timeout: float) -> Optional[str]:
     """Fetch a node's own OpenTela peer id by querying ``/v1/self`` on that node.
 
     ``/v1/self`` only answers to localhost, so we run a one-off ``srun --overlap``
     step on the node itself (sharing the live allocation). Returns ``None`` on any
-    failure (no host, srun unavailable, timeout, OCF not up).
+    failure (no host, srun unavailable, timeout, OpenTela not up).
     """
     if not host:
         return None
@@ -85,7 +117,7 @@ def resolve_peer_id(host: str, ocf_port: int, timeout: float) -> Optional[str]:
         f"--nodelist={host}",
         "python3",
         "-c",
-        _self_fetch_code(ocf_port),
+        _self_fetch_code(opentela_port),
     ]
     try:
         result = subprocess.run(  # noqa: S603
@@ -106,7 +138,7 @@ def build_report(
     replica_hosts: List[str],
     nodes_per_replica: int,
     framework_port: int,
-    ocf_port: int,
+    opentela_port: int,
     timeout: float,
     peer_ids: Dict[int, str],
     peer_attempts: Dict[int, int],
@@ -129,7 +161,7 @@ def build_report(
             last_seen[index] = now
             if index not in peer_ids and peer_attempts.get(index, 0) < _MAX_PEER_ATTEMPTS:
                 peer_attempts[index] = peer_attempts.get(index, 0) + 1
-                resolved = resolve_peer_id(host, ocf_port, _SRUN_TIMEOUT_SECONDS)
+                resolved = resolve_peer_id(host, opentela_port, _SRUN_TIMEOUT_SECONDS)
                 if resolved:
                     peer_ids[index] = resolved
         elif index not in last_seen:
@@ -138,12 +170,30 @@ def build_report(
             {
                 "node_rank": index * nodes_per_replica,
                 "node_ip": node_ip,
+                # The replica head's SLURM node name (e.g. "nid001234"). The CLI
+                # uses it to open an interactive shell on the node via
+                # `srun --overlap --nodelist=<host> --pty bash`.
+                "node_host": host or None,
                 "peer_id": peer_ids.get(index),
                 "health": health,
                 "last_seen": last_seen.get(index),
             }
         )
     return {"checked_at": now, "replicas": replicas}
+
+
+def all_replicas_healthy(report, expected):
+    # type: (Dict[str, Any], int) -> bool
+    """Whether every expected replica is present and HEALTHY in this report.
+
+    Guards against ``expected == 0`` (an empty/unset replica list): with no
+    replicas the ``all(...)`` below is vacuously true, which would otherwise let
+    the handover cancel the predecessor immediately and drop the only allocation.
+    """
+    if expected <= 0:
+        return False
+    replicas = report.get("replicas", [])
+    return len(replicas) >= expected and all(r.get("health") == "HEALTHY" for r in replicas)
 
 
 def write_report_atomically(report: Dict[str, Any], report_path: str) -> None:
@@ -159,16 +209,20 @@ def write_report_atomically(report: Dict[str, Any], report_path: str) -> None:
 def main() -> int:
     report_path = os.environ["SML_HEALTH_REPORT_PATH"]
     framework_port = int(os.environ.get("SML_HEALTH_FRAMEWORK_PORT") or "8080")
-    ocf_port = int(os.environ.get("SML_HEALTH_OCF_PORT") or "8092")
+    opentela_port = int(os.environ.get("SML_HEALTH_OPENTELA_PORT") or "8092")
     interval = float(os.environ.get("SML_HEALTH_INTERVAL") or "30")
     timeout = float(os.environ.get("SML_HEALTH_TIMEOUT") or "10")
     nodes_per_replica = int(os.environ.get("SML_HEALTH_NODES_PER_REPLICA") or "1")
     replica_ips = os.environ.get("SML_HEALTH_REPLICA_IPS", "").split()
     replica_hosts = os.environ.get("SML_HEALTH_REPLICA_HOSTS", "").split()
+    # Predecessor in a consecutive chain to cancel once this job is fully healthy.
+    previous_job_id = os.environ.get("SML_HEALTH_PREVIOUS_JOB_ID", "").strip()
 
     peer_ids: Dict[int, str] = {}
     peer_attempts: Dict[int, int] = {}
     last_seen: Dict[int, int] = {}
+    handover_done = False
+    expected = len(replica_ips)
     while True:
         # Never let a transient failure (e.g. a momentary write error) kill the
         # checker — log it and keep going so the report self-heals next cycle.
@@ -178,7 +232,7 @@ def main() -> int:
                 replica_hosts,
                 nodes_per_replica,
                 framework_port,
-                ocf_port,
+                opentela_port,
                 timeout,
                 peer_ids,
                 peer_attempts,
@@ -186,6 +240,15 @@ def main() -> int:
                 int(time.time()),
             )
             write_report_atomically(report, report_path)
+            # Handover: cancel the predecessor only once every expected replica is
+            # serving here, so the chain never drops below a healthy allocation.
+            if previous_job_id and not handover_done and all_replicas_healthy(report, expected):
+                sys.stdout.write(
+                    "replica health checker: all %d replicas healthy; cancelling predecessor job %s\n"
+                    % (expected, previous_job_id)
+                )
+                sys.stdout.flush()
+                handover_done = cancel_previous_job(previous_job_id)
         except Exception as exc:  # resilience: keep the loop alive on any error
             sys.stderr.write(f"replica health checker: iteration failed: {exc}\n")
             sys.stderr.flush()

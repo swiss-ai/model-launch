@@ -1,6 +1,6 @@
 from swiss_ai_model_launch.launchers.framework import (
-    OCF_BOOTSTRAP_ADDR,
-    OCF_BOOTSTRAP_ADDR_DEV,
+    OPENTELA_BOOTSTRAP_ADDR,
+    OPENTELA_BOOTSTRAP_ADDR_DEV,
     render_master,
     render_rank_scripts,
 )
@@ -31,7 +31,7 @@ def test_sglang_head_singular_uses_entrypoint_directly():
 def test_sglang_multi_node_passes_node_rank():
     args = _make_args(framework="sglang", topology=Topology(replicas=1, nodes_per_replica=4))
     follower = render_rank_scripts(args)["follower.sh"]
-    # Unquoted because the cmd is reused inside OCF's --subprocess "..."; the
+    # Unquoted because the cmd is reused inside OpenTela's --subprocess "..."; the
     # surrounding outer quotes there make inner quotes redundant (shellcheck
     # SC2027). node_rank is a small int passed as $1 from master, safe.
     assert "--node-rank $node_rank" in follower
@@ -54,30 +54,30 @@ def test_vllm_follower_joins_ray():
     assert "vllm.entrypoints" not in follower  # follower doesn't run the API server
 
 
-def test_ocf_disabled_omits_wrap():
-    args = _make_args(disable_ocf=True, topology=Topology(replicas=1, nodes_per_replica=1))
+def test_opentela_disabled_omits_wrap():
+    args = _make_args(disable_opentela=True, topology=Topology(replicas=1, nodes_per_replica=1))
     head = render_rank_scripts(args)["head.sh"]
-    assert "$OCF_BIN start" not in head
+    assert "$OPENTELA_BIN start" not in head
     assert "--bootstrap.addr" not in head
 
 
-def test_ocf_enabled_wraps_head_and_follower():
+def test_opentela_enabled_wraps_head_and_follower():
     args = _make_args(
         framework="sglang",
-        disable_ocf=False,
+        disable_opentela=False,
         topology=Topology(replicas=1, nodes_per_replica=4),
     )
     scripts = render_rank_scripts(args)
-    assert "$OCF_BIN start" in scripts["head.sh"]
+    assert "$OPENTELA_BIN start" in scripts["head.sh"]
     assert "--service.name llm" in scripts["head.sh"]
-    assert "$OCF_BIN start" in scripts["follower.sh"]
+    assert "$OPENTELA_BIN start" in scripts["follower.sh"]
     assert "--service.name" not in scripts["follower.sh"]
 
 
-def test_ocf_labels_include_started_at_and_expires_at():
+def test_opentela_labels_include_started_at_and_expires_at():
     args = _make_args(
         framework="sglang",
-        disable_ocf=False,
+        disable_opentela=False,
         time="06:00:00",
         topology=Topology(replicas=1, nodes_per_replica=1),
     )
@@ -86,16 +86,16 @@ def test_ocf_labels_include_started_at_and_expires_at():
     assert '--label expires_at=$(date -u -d "+21600 seconds" +%FT%TZ)' in head
 
 
-def test_ocf_labels_expires_at_scales_with_time():
+def test_opentela_labels_expires_at_scales_with_time():
     args = _make_args(time="00:05:00", topology=Topology(replicas=1, nodes_per_replica=1))
     head = render_rank_scripts(args)["head.sh"]
     assert '--label expires_at=$(date -u -d "+300 seconds" +%FT%TZ)' in head
 
 
-def test_ocf_labels_include_framework_args():
+def test_opentela_labels_include_framework_args():
     args = _make_args(
         framework="sglang",
-        disable_ocf=False,
+        disable_opentela=False,
         framework_args="--model /path/to/model --tp 4",
         topology=Topology(replicas=1, nodes_per_replica=1),
     )
@@ -103,7 +103,7 @@ def test_ocf_labels_include_framework_args():
     assert "--label 'framework_args=--port 8080 --model /path/to/model --tp 4'" in head
 
 
-def test_ocf_labels_framework_args_whitespace_normalised():
+def test_opentela_labels_framework_args_whitespace_normalised():
     args = _make_args(
         framework_args="--model /m     --tp 4\n    --max-len 8192",
         topology=Topology(replicas=1, nodes_per_replica=1),
@@ -112,30 +112,30 @@ def test_ocf_labels_framework_args_whitespace_normalised():
     assert "--label 'framework_args=--port 8080 --model /m --tp 4 --max-len 8192'" in head
 
 
-def test_ocf_bootstrap_addr_defaults_to_prod():
+def test_opentela_bootstrap_addr_defaults_to_prod():
     args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2))
     scripts = render_rank_scripts(args)
     for s in (scripts["head.sh"], scripts["follower.sh"]):
-        assert f'--bootstrap.addr "{OCF_BOOTSTRAP_ADDR}"' in s
-        assert OCF_BOOTSTRAP_ADDR_DEV not in s
+        assert f'--bootstrap.addr "{OPENTELA_BOOTSTRAP_ADDR}"' in s
+        assert OPENTELA_BOOTSTRAP_ADDR_DEV not in s
 
 
-def test_ocf_bootstrap_addr_dev_override():
+def test_opentela_bootstrap_addr_dev_override():
     args = _make_args(
         topology=Topology(replicas=1, nodes_per_replica=2),
-        ocf_bootstrap_addr=OCF_BOOTSTRAP_ADDR_DEV,
+        opentela_bootstrap_addr=OPENTELA_BOOTSTRAP_ADDR_DEV,
     )
     scripts = render_rank_scripts(args)
     for s in (scripts["head.sh"], scripts["follower.sh"]):
-        assert f'--bootstrap.addr "{OCF_BOOTSTRAP_ADDR_DEV}"' in s
-        assert OCF_BOOTSTRAP_ADDR not in s
+        assert f'--bootstrap.addr "{OPENTELA_BOOTSTRAP_ADDR_DEV}"' in s
+        assert OPENTELA_BOOTSTRAP_ADDR not in s
 
 
-def test_ocf_bootstrap_addr_custom_override():
+def test_opentela_bootstrap_addr_custom_override():
     custom = "/ip4/10.0.0.99/tcp/43905/p2p/QmCustomPeerIdForTestingOnlyXXXXXXXXXXXXXX"
     args = _make_args(
         topology=Topology(replicas=1, nodes_per_replica=1),
-        ocf_bootstrap_addr=custom,
+        opentela_bootstrap_addr=custom,
     )
     head = render_rank_scripts(args)["head.sh"]
     assert f'--bootstrap.addr "{custom}"' in head
@@ -144,22 +144,96 @@ def test_ocf_bootstrap_addr_custom_override():
 def test_telemetry_payload_uses_resolved_bootstrap_addr():
     args = _make_args(
         telemetry_endpoint="https://telemetry.example.com/jobs",
-        ocf_bootstrap_addr=OCF_BOOTSTRAP_ADDR_DEV,
+        opentela_bootstrap_addr=OPENTELA_BOOTSTRAP_ADDR_DEV,
     )
     master = render_master(args)
-    assert f'"ocf_bootstrap_addr": "{OCF_BOOTSTRAP_ADDR_DEV}"' in master
+    assert f'"ocf_bootstrap_addr": "{OPENTELA_BOOTSTRAP_ADDR_DEV}"' in master
 
 
-def test_vllm_follower_ocf_metrics_only():
+def test_vllm_follower_opentela_metrics_only():
     args = _make_args(
         framework="vllm",
-        disable_ocf=False,
+        disable_opentela=False,
         topology=Topology(replicas=1, nodes_per_replica=2),
     )
     follower = render_rank_scripts(args)["follower.sh"]
-    assert "$OCF_BIN start" in follower
+    assert "$OPENTELA_BIN start" in follower
     assert "--service.name" not in follower
     assert "ray start --address=" in follower
+
+
+def test_router_registers_as_llm_front_door_on_router_port():
+    # With a router fronting the replicas, the router is the OpenTela `llm`
+    # endpoint, advertised on the router port (not the framework port).
+    args = _make_args(
+        disable_opentela=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        router="sglang",
+    )
+    router = render_rank_scripts(args)["router.sh"]
+    assert "$OPENTELA_BIN start" in router
+    assert "--service.name llm" in router
+    assert "--service.port 30000" in router
+    # The wrapped subprocess is still the router launcher.
+    assert "sglang_router.launch_router" in router
+
+
+def test_head_goes_metrics_only_when_fronted_by_router():
+    # The heads must NOT advertise `llm` when a router fronts them, otherwise
+    # OpenTela would route straight to a replica and bypass the router.
+    args = _make_args(
+        disable_opentela=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        router="sglang",
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "$OPENTELA_BIN start" in head
+    assert "--service.name" not in head
+
+
+def test_head_registers_as_llm_without_router():
+    # Multi-replica but no router: each head is its own `llm` endpoint.
+    args = _make_args(
+        disable_opentela=False,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        router="opentela",
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "--service.name llm" in head
+
+
+def test_router_omits_opentela_wrap_when_disabled():
+    args = _make_args(
+        disable_opentela=True,
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        router="sglang",
+    )
+    router = render_rank_scripts(args)["router.sh"]
+    assert "$OPENTELA_BIN start" not in router
+    assert "--bootstrap.addr" not in router
+    assert "sglang_router.launch_router" in router
+
+
+def test_telemetry_opentela_service_port_follows_router():
+    # The telemetry record reports where `llm` is advertised: the router port
+    # when fronted by a router, otherwise the framework port.
+    with_router = render_master(
+        _make_args(
+            telemetry_endpoint="https://telemetry.example.com/jobs",
+            topology=Topology(replicas=2, nodes_per_replica=1),
+            router="sglang",
+        )
+    )
+    assert '"ocf_service_port": 30000' in with_router
+
+    without_router = render_master(
+        _make_args(
+            telemetry_endpoint="https://telemetry.example.com/jobs",
+            topology=Topology(replicas=2, nodes_per_replica=1),
+            router="opentela",
+        )
+    )
+    assert '"ocf_service_port": 8080' in without_router
 
 
 def test_master_telemetry_omitted_when_no_endpoint():

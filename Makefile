@@ -19,9 +19,9 @@ lint:
 format:
 	uv run --frozen ruff format .
 	uv run --frozen ruff check --fix .
-	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs taplo fmt
-	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx prettier --write
-	-npx markdownlint-cli2 --config .markdownlint.yaml --fix "**/*.md" "!legacy/**/*.md" "!.venv/**/*.md"
+	find . -name "*.toml" -not -path "./.venv/*" | xargs taplo fmt
+	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./.venv/*" | xargs npx prettier --write
+	-npx markdownlint-cli2 --config .markdownlint.yaml --fix "**/*.md" "!.venv/**/*.md"
 
 check: static
 
@@ -32,19 +32,19 @@ dmypy:
 	uv run --frozen dmypy run -- src
 
 shellcheck:
-	find . -name "*.sh" -not -path "./legacy/*" -not -path "./.venv/*" | xargs uv run --frozen shellcheck
+	find . -name "*.sh" -not -path "./.venv/*" | xargs uv run --frozen shellcheck
 
 markdownlint:
-	npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!legacy/**/*.md" "!.venv/**/*.md"
+	npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!.venv/**/*.md"
 
 dockerlint:
 	find images/ -name "Dockerfile*" | xargs uv run --frozen hadolint
 
 tomlfmt:
-	find . -name "*.toml" -not -path "./legacy/*" -not -path "./.venv/*" | xargs taplo fmt --check
+	find . -name "*.toml" -not -path "./.venv/*" | xargs taplo fmt --check
 
 prettier:
-	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./legacy/*" -not -path "./.venv/*" | xargs npx prettier --check
+	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./.venv/*" | xargs npx prettier --check
 
 static: lint mypy shellcheck markdownlint dockerlint tomlfmt prettier
 

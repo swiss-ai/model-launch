@@ -14,7 +14,7 @@ Set PlaybackSpeed 1.0
 Hide
 Type `export PS1="$ "`
 Enter
-Type "export SML_FIRECREST_SYSTEM=clariden"
+Type "export SML_SYSTEM=clariden"
 Enter
 Type "export SML_PARTITION=normal"
 Enter

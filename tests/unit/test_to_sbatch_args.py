@@ -42,3 +42,23 @@ def test_to_sbatch_args_reservation_included() -> None:
 def test_to_sbatch_args_no_reservation() -> None:
     sbatch = _make_args().to_sbatch_args()
     assert not any(a.startswith("--reservation") for a in sbatch)
+
+
+def test_to_sbatch_args_begin_included() -> None:
+    sbatch = _make_args(begin="2026-06-19T18:00:00").to_sbatch_args()
+    assert "--begin=2026-06-19T18:00:00" in sbatch
+
+
+def test_to_sbatch_args_no_begin_by_default() -> None:
+    sbatch = _make_args().to_sbatch_args()
+    assert not any(a.startswith("--begin") for a in sbatch)
+
+
+def test_to_sbatch_args_dependency_included() -> None:
+    sbatch = _make_args(dependency="after:12345+600").to_sbatch_args()
+    assert "--dependency=after:12345+600" in sbatch
+
+
+def test_to_sbatch_args_no_dependency_by_default() -> None:
+    sbatch = _make_args().to_sbatch_args()
+    assert not any(a.startswith("--dependency") for a in sbatch)

@@ -10,7 +10,7 @@ from swiss_ai_model_launch.launchers.framework import render_master
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.launcher import Launcher
+from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
@@ -30,6 +30,28 @@ _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.j
 
 _APP_WORKING_DIRECTORY = ".sml"
 
+_FIRECREST_UNKNOWN_TIMES = frozenset({"", "N/A", "Unknown", "None"})
+
+
+def _firecrest_time(value: object) -> str | None:
+    """Normalise a FirecREST/SLURM job time field to a display string or None.
+
+    Handles the shapes seen across API versions: an epoch int/float, SLURM's
+    ``{"set", "infinite", "number"}`` wrapper, or an already-formatted string.
+    """
+    if isinstance(value, dict):
+        if not value.get("set", True) or value.get("infinite"):
+            return None
+        value = value.get("number")
+    if isinstance(value, bool):  # guard: bool is an int subclass
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(int(value)).strftime("%Y-%m-%dT%H:%M:%S") if value > 0 else None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return None if stripped in _FIRECREST_UNKNOWN_TIMES else stripped
+    return None
+
 
 class FirecRESTLauncher(Launcher):
     def __init__(
@@ -41,6 +63,7 @@ class FirecRESTLauncher(Launcher):
         partition: str,
         reservation: str | None = None,
         telemetry_endpoint: str | None = None,
+        ssh_host: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -51,6 +74,10 @@ class FirecRESTLauncher(Launcher):
             telemetry_endpoint=telemetry_endpoint,
         )
         self.client = client
+        # SSH alias/host used to reach the cluster's login node so the TUI can open
+        # a shell on a replica's compute node (FirecREST itself offers no PTY).
+        # None disables the terminal button (it falls back to copying the command).
+        self.ssh_host = ssh_host
 
     @classmethod
     async def from_client(
@@ -61,6 +88,7 @@ class FirecRESTLauncher(Launcher):
         reservation: str | None = None,
         account: str | None = None,
         telemetry_endpoint: str | None = None,
+        ssh_host: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
@@ -71,6 +99,7 @@ class FirecRESTLauncher(Launcher):
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
+            ssh_host=ssh_host,
         )
 
     def _get_user_dir(self) -> str:
@@ -105,7 +134,7 @@ class FirecRESTLauncher(Launcher):
             ),
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
-            use_router=launch_request.use_router,
+            router=launch_request.router,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
@@ -153,9 +182,11 @@ class FirecRESTLauncher(Launcher):
             launch_request.framework,
         )
 
-    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+    async def _prepare_launch_args(self, launch_args: LaunchArgs) -> LaunchArgs:
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
-        launch_args = launch_args.model_copy(update={"environment": remote_env_path})
+        return launch_args.model_copy(update={"environment": remote_env_path})
+
+    async def _submit_one(self, launch_args: LaunchArgs) -> int:
         script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
         job_submission_report = await call_with_firecrest_retry(
             lambda: self.client.submit(
@@ -165,7 +196,12 @@ class FirecRESTLauncher(Launcher):
                 account=self.account,
             )
         )
-        return int(job_submission_report["jobId"]), launch_args.served_model_name
+        return int(job_submission_report["jobId"])
+
+    async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
+        prepared = await self._prepare_launch_args(launch_args)
+        job_id = await self._submit_one(prepared)
+        return job_id, prepared.served_model_name
 
     async def read_job_file(self, job_id: int, filename: str) -> str | None:
         remote_path = Path(self._get_working_dir()) / "logs" / str(job_id) / filename
@@ -219,6 +255,22 @@ class FirecRESTLauncher(Launcher):
         )
         return JobStatus.from_str(str(job_info[0]["status"]["state"]))
 
+    async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:
+        job_info = await call_with_firecrest_retry(
+            lambda: self.client.job_info(
+                system_name=self.system_name,
+                jobid=str(job_id),
+            )
+        )
+        # The v2 job object carries SLURM's `time` block (start/end). Parse
+        # defensively — the field shape varies across API versions — and fall
+        # back to (None, None) so the chain panel just shows its dependency hint.
+        try:
+            time_info = job_info[0].get("time") or {}
+            return _firecrest_time(time_info.get("start")), _firecrest_time(time_info.get("end"))
+        except (AttributeError, TypeError, IndexError, KeyError):
+            return None, None
+
     async def get_job_logs(self, job_id: int) -> tuple[str, str]:
         log_dir = Path(self._get_working_dir()) / "logs" / str(job_id)
 
@@ -259,6 +311,24 @@ class FirecRESTLauncher(Launcher):
 
     def get_tail_hint(self, job_id: int) -> str:
         return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
+
+    def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
+        # FirecREST runs off-cluster (a REST gateway, no PTY), so reach the node by
+        # SSHing into the cluster login host and `srun`-ing from there. `ssh -t`
+        # forces a remote terminal so the interactive `srun --pty` shell works.
+        remote = self._display(self._srun_terminal_argv(job_id, node_host))
+        if not self.ssh_host:
+            return TerminalCommand(
+                argv=[],
+                display=remote,
+                available=False,
+                reason=(
+                    "No cluster SSH host is configured. Set `cluster_ssh_host` via `sml init` "
+                    "(or SML_CLUSTER_SSH_HOST), or SSH into the cluster and run the copied command."
+                ),
+            )
+        argv = ["ssh", "-t", self.ssh_host, remote]
+        return TerminalCommand(argv=argv, display=self._display(argv))
 
     async def cancel_job(self, job_id: int) -> None:
         try:

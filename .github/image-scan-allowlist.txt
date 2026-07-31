@@ -1,0 +1,20 @@
+# Known-benign findings suppressed by .github/scripts/scan_image.py.
+#
+# One rule per line:
+#   raw:<regex>   — suppress findings whose matched secret text matches the regex
+#   path:<glob>   — suppress findings/filenames at in-image paths matching the glob
+#
+# Only add a rule after confirming the finding is a false positive. If in
+# doubt, treat it as real and rotate the credential: once a layer is pushed
+# to the registry it is permanently pullable, even if the file was deleted
+# in a later layer.
+
+# Hugging Face's intentionally-public sandbox CI token, hardcoded upstream in
+# transformers/testing_utils.py ("Not critical, only usable on the sandboxed
+# CI instance"). Ships with every transformers install.
+raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
+
+# Pydantic's URL-type docstrings use example credentialed URIs (e.g.
+# "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
+# placeholder markers.
+path:*/site-packages/pydantic/networks.py

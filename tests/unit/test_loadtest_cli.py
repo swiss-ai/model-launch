@@ -234,9 +234,9 @@ def test_loadtest_cancel_requires_wait() -> None:
         [
             "loadtest",
             "advanced",
-            "--serving-framework",
+            "--framework",
             "sglang",
-            "--slurm-environment",
+            "--environment",
             "/path/to/env.toml",
             "--cancel-after-loadtest",
             "--no-wait-for-loadtest",
