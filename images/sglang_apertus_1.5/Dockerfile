@@ -12,6 +12,7 @@ ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:${PATH} \
     SGLANG_BUILD_RUST_EXTS=none
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         git \
@@ -20,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ADD "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${TARGET_PLATFORM}.sh" /root/miniforge.sh
 
+# hadolint ignore=DL3013
 RUN chmod +x /root/miniforge.sh && \
     bash /root/miniforge.sh -b -p /opt/conda && \
     rm /root/miniforge.sh && \
