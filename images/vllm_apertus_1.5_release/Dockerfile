@@ -114,4 +114,8 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation ".[audio]" \
-    --torch-backend=auto;
+    --torch-backend="${VLLM_PRECOMPILED_WHEEL_VARIANT}";
+    # torch-backend must stay pinned to the image's CUDA variant: `auto`
+    # resolves against the BUILD node's driver, which can pull a newer-CUDA
+    # torch while the earlier-pinned torchaudio stays cu130 — torchaudio then
+    # refuses to import at runtime (mismatched CUDA versions).
