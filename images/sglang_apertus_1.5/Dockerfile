@@ -2,7 +2,10 @@ ARG UBUNTU_VERSION=24.04
 ARG CUDA_VERSION=13.0.0
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
-ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}
+# Digest of the multi-arch manifest list for 13.0.0-cudnn-devel-ubuntu24.04
+# (resolves to the right arch on both clusters). This freezes the whole OS
+# layer, which is why the apt packages below don't need version pins.
+ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}@sha256:c2621d98e7de80c2aec5eb8403b19c67454c8f5b0c929e8588fd3563c9b6558d
 
 FROM ${DEVEL_BASE_IMAGE}
 
@@ -10,22 +13,35 @@ ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:${PATH} \
     SGLANG_BUILD_RUST_EXTS=none
 
+# NOTE: these pins go stale by design. The Ubuntu archive only serves the
+# newest version of each package, so when a security update lands upstream the
+# pinned version 404s and this step fails. That failure is the signal to bump:
+# take the new version from `apt-cache policy <pkg>` in the base image (or
+# /opt/apt-manifest.txt of the last good build) — it must be identical on both
+# the amd64 (archive.ubuntu.com) and arm64 (ports.ubuntu.com) archives.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates=20240203 \
+        ca-certificates=20260601~24.04.1 \
         git=1:2.43.0-1ubuntu7.3 \
         bzip2=1.0.8-5.1build0.1 \
-        curl=8.5.0-2ubuntu10.9 \
+        curl=8.5.0-2ubuntu10.11 \
     && rm -rf /var/lib/apt/lists/*
 
+# Record the deb versions this build resolved, since they can't be pinned as
+# inputs. The file ships inside the image and the cat lands in the CI log.
+RUN dpkg-query -W -f '${Package}=${Version}\n' > /opt/apt-manifest.txt \
+    && cat /opt/apt-manifest.txt
+
 # Download the Miniforge installer matching the build arch so native arm64 and
-# amd64 builds both work from the same Dockerfile.
+# amd64 builds both work from the same Dockerfile. Pinned to a release tag —
+# GitHub release assets are immutable, unlike the releases/latest redirect.
+ARG MINIFORGE_VERSION=26.3.2-3
 RUN set -eux; \
     ARCH="$(uname -m)"; \
     case "${ARCH}" in \
       x86_64|aarch64) ;; \
       *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
     esac; \
-    curl -fL "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" -o /root/miniforge.sh; \
+    curl -fL "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-${MINIFORGE_VERSION}-Linux-${ARCH}.sh" -o /root/miniforge.sh; \
     bash /root/miniforge.sh -b -p /opt/conda; \
     rm /root/miniforge.sh; \
     conda install -y \
