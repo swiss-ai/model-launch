@@ -5,7 +5,7 @@ sml advanced \
   --framework vllm \
   --time 12:00:00 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5_release.toml \
-  --framework-args "--model swiss-ai/Apertus-v1.5-70B \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-v1.5-70B \
     --served-model-name swiss-ai/Apertus-v1.5-70B-vllm-$(whoami) \
     --chat-template-content-format string \
     --tensor-parallel-size 4 \
