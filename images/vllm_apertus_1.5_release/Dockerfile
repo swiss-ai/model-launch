@@ -6,8 +6,10 @@ ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
-ARG SWISS_AI_VLLM_COMMIT=7337ff69a59e60c76c514c7fe2670c24f763b420
-ARG TRANSFORMERS_COMMIT=e66e45540f5b8d1ab4a2621061cf257f99e621a3
+ARG SWISS_AI_VLLM_BRANCH=apertus-1-5
+ARG SWISS_AI_VLLM_COMMIT=b65fae6065decc18108d2324fb47723638d2b2c9
+ARG TRANSFORMERS_BRANCH=add-apertus1p5
+ARG TRANSFORMERS_COMMIT=aa9e3c1a3a80ccbf12577885c9b30f494687d5e4
 ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
 ARG TARGETARCH
 
@@ -37,7 +39,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     bash-completion ca-certificates ccache curl git less vim-tiny \
     build-essential pkgconf \
     libibverbs-dev libnuma1 libnuma-dev \
-    python3 python3-dev python3-venv \
+    python3 python3-dev python3-venv shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv && \
@@ -78,10 +80,10 @@ RUN CUDNN_H="$(find /usr -name cudnn.h -print -quit)" && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+RUN git clone --branch ${SWISS_AI_VLLM_BRANCH} https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
 
-RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/swiss-ai/transformers.git /workspace/transformers && \
+RUN git clone --branch ${TRANSFORMERS_BRANCH} https://github.com/swiss-ai/transformers.git /workspace/transformers && \
     git -C /workspace/transformers checkout ${TRANSFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \

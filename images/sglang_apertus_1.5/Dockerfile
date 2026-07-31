@@ -38,10 +38,10 @@ ARG CUDA_VERSION_PATH
 
 ARG SGLANG_APERTUS_REPOSITORY=https://github.com/swiss-ai/sglang-apertus.git
 ARG SGLANG_APERTUS_BRANCH=apertus-1-5
-ARG SGLANG_APERTUS_COMMIT=925bfcf03b757fa2761a086610e64d4c536ee651
+ARG SGLANG_APERTUS_COMMIT=2eccdc4d86f8221a741caab7b4467a640cf53069
 ARG TRANSFORMERS_REPOSITORY=https://github.com/swiss-ai/transformers.git
-ARG TRANSFORMERS_BRANCH=feature/apertus_1p5_pipeline
-ARG TRANSFORMERS_COMMIT=e66e45540f5b8d1ab4a2621061cf257f99e621a3
+ARG TRANSFORMERS_BRANCH=add-apertus1p5
+ARG TRANSFORMERS_COMMIT=aa9e3c1a3a80ccbf12577885c9b30f494687d5e4
 
 RUN python -m pip install --no-cache-dir \
         --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
