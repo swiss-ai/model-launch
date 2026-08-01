@@ -78,10 +78,10 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
         /opt/conda/include/nccl.h
 
 # Clone the named branches, then detach at their verified branch-head commits.
-RUN git clone --depth 1 --branch "${SGLANG_APERTUS_BRANCH}" \
+RUN git clone --branch "${SGLANG_APERTUS_BRANCH}" \
         "${SGLANG_APERTUS_REPOSITORY}" /workspace/sglang && \
     git -C /workspace/sglang checkout --detach "${SGLANG_APERTUS_COMMIT}" && \
-    git clone --depth 1 --branch "${TRANSFORMERS_BRANCH}" \
+    git clone --branch "${TRANSFORMERS_BRANCH}" \
         "${TRANSFORMERS_REPOSITORY}" /workspace/transformers && \
     git -C /workspace/transformers checkout --detach "${TRANSFORMERS_COMMIT}" 
 
