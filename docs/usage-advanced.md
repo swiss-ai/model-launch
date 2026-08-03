@@ -179,6 +179,8 @@ sml advanced \
 
 Models launched before this flag existed carry no `authorization` label and stay public — nothing changes for them. Unlike [`--disable-opentela`](#when-to-disable-opentela), an authorized model still joins the mesh and is served through the public gateway; the Serving API just refuses callers outside the list.
 
+**Pick a unique `--served-model-name`.** The mesh does not reserve names: if two independent launches serve the same name with *different* authorization labels, the gateway cannot tell whose replica a request would land on, so it refuses to route that name for **everyone** (403 naming the conflict) until one side exits or is relaunched under a unique name or with a matching label. Same-label relaunches (replicas, `--consecutive` handovers, reordered email lists) are not a conflict. `sml preconfigured` avoids this by salting generated names; with `sml advanced` the name is yours to keep unique.
+
 ## When to disable OpenTela
 
 > The [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary ships on-disk as `otela-<arch>` and is referenced via `OPENTELA_BIN`.
