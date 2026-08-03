@@ -14,10 +14,12 @@ from fastmcp import Context
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.authorization import default_authorization, resolve_authorization
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt
+from swiss_ai_model_launch.serving_api import ServingApiError
 
 _POLL_INTERVAL_SECONDS = 10
 _TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
@@ -257,12 +259,25 @@ async def launch_preconfigured_model(
         "the replica peers on the mesh. 'sglang': an in-job SGLang router fronts the replicas "
         "and becomes the served endpoint (needs replicas > 1).",
     ] = "opentela",
+    authorization: Annotated[
+        str | None,
+        "Who may use the model through the Serving API. 'private': only the "
+        "launcher — resolved to their email via the configured CSCS API key before "
+        "submission. 'public': anyone. Or a comma-separated list of user emails. "
+        "Defaults to the SML_AUTHORIZATION env var, else 'private'.",
+    ] = None,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
     Looks up the model in the catalogue by vendor/name and framework, then submits a
     SLURM job using the preconfigured settings (nodes, environment, framework arguments).
     Call `list_preconfigured_models` first to verify the model and framework are available.
+
+    The `authorization` parameter controls who can see and use the model through the
+    Serving API: 'private' (only the launcher), 'public' (anyone), or a comma-separated
+    email list. Omitted, it defaults to the SML_AUTHORIZATION env var, else 'private'.
+    'private' requires a configured CSCS API key so SML can resolve the launcher's
+    email before submission.
 
     While waiting, this tool emits MCP notifications for each new log line (prefixed
     '[stdout]' or '[stderr]') and periodic '[status]' lines with the current job state
@@ -290,17 +305,26 @@ async def launch_preconfigured_model(
             f"Model '{model}' with framework '{framework}' was not found in the catalogue. "
             "Use `list_preconfigured_models` to see available models."
         )
+    config = InitConfig.load()
+    cscs_api_key = config.get_value("cscs_api_key")
+    if authorization is None:
+        # Same default chain as the CLI (env override, else private). Read at
+        # call time, not import time, so a long-running server tracks the env.
+        authorization = default_authorization()
+    try:
+        resolved_authorization = await resolve_authorization(authorization, cscs_api_key or "")
+    except (ServingApiError, ValueError) as e:
+        return f"Cannot resolve the model authorization: {e}"
     request = LaunchRequest.from_catalog_entry(
         entry,
         replicas=replicas,
         time=time,
         served_model_name=f"{model}-{create_salt(4)}",
         router=router,
+        authorization=resolved_authorization,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")
-    config = InitConfig.load()
-    cscs_api_key = config.get_value("cscs_api_key")
     stdout_lines_sent = 0
     stderr_lines_sent = 0
     ever_healthy = False

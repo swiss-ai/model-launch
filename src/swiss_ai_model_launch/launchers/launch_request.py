@@ -2,6 +2,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel
 
+from swiss_ai_model_launch.launchers.authorization import AUTH_PRIVATE
 from swiss_ai_model_launch.launchers.launch_args import ROUTER_OPENTELA, RouterMode
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
@@ -18,6 +19,10 @@ class LaunchRequest(BaseModel):
     pre_launch_cmds: str | None = None
     router: RouterMode = ROUTER_OPENTELA
     model_path: str | None = None
+    # Raw-or-resolved authorization value. Callers (CLI, MCP) resolve it via
+    # authorization.resolve_authorization before handing the request to a
+    # launcher; the LaunchArgs validator rejects an unresolved "private".
+    authorization: str = AUTH_PRIVATE
 
     @classmethod
     def from_catalog_entry(
@@ -28,6 +33,7 @@ class LaunchRequest(BaseModel):
         time: str,
         served_model_name: str | None = None,
         router: RouterMode = ROUTER_OPENTELA,
+        authorization: str = AUTH_PRIVATE,
     ) -> Self:
         return cls(
             model=entry.model,
@@ -41,4 +47,5 @@ class LaunchRequest(BaseModel):
             served_model_name=served_model_name,
             router=router,
             model_path=entry.model_path,
+            authorization=authorization,
         )

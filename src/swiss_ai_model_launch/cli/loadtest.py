@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 import re
+import sys
 from collections.abc import Callable, Coroutine
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import Launcher
+from swiss_ai_model_launch.launchers.authorization import resolve_authorization
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.loadtest.cluster import (
@@ -26,6 +28,7 @@ from swiss_ai_model_launch.loadtest.setup import (
     K6_SCRIPT,
     resolve_prompts_file,
 )
+from swiss_ai_model_launch.serving_api import ServingApiError
 
 _DEFAULT_LOADTEST_SERVER_URL = "https://api.swissai.svc.cscs.ch"
 _DEFAULT_LOADTEST_READY_TIMEOUT_SECONDS = 1000000
@@ -63,6 +66,7 @@ class _BuildLaunchArgsFromAdvanced(Protocol):
         account: str,
         partition: str,
         telemetry_endpoint: str | None = None,
+        authorization: str = "",
     ) -> LaunchArgs: ...
 
 
@@ -479,6 +483,13 @@ async def _run_loadtest_preconfigured(
     launcher = await create_launcher(config, args)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_request = await get_launch_request(launcher, args)
+    try:
+        launch_request = launch_request.model_copy(
+            update={"authorization": await resolve_authorization(launch_request.authorization, cscs_api_key)}
+        )
+    except (ServingApiError, ValueError) as e:
+        print(f"Cannot resolve the model authorization: {e}", file=sys.stderr)
+        return
     await _prompt_loadtest_scenario(args)
     loadtest_config = make_loadtest_config(args)
 
@@ -504,11 +515,17 @@ async def _run_loadtest_advanced(
     config = InitConfig.load()
     launcher = await create_launcher(config, args, True)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
+    try:
+        authorization = await resolve_authorization(args.authorization, cscs_api_key)
+    except (ServingApiError, ValueError) as e:
+        print(f"Cannot resolve --authorization: {e}", file=sys.stderr)
+        return
     launch_args = build_launch_args_from_advanced(
         args,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
+        authorization=authorization,
     )
     loadtest_config = make_loadtest_config(args)
 

@@ -26,6 +26,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
 | `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
 | `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. |
+| `--authorization`           | `SML_AUTHORIZATION`  | Who may use the model: `private` (default — only you), `public`, or comma-separated emails                                     |
 | `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
 | `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
 | `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
@@ -162,6 +163,22 @@ After a real (non-`--output-script`) submission, the same rank scripts also land
 
 > **`master.sh` is self-contained.** Rank scripts are embedded as `cat`-heredocs and extracted at job start to `$HOME/.sml/job-${SLURM_JOB_ID}/` — shared FS, so every compute node `srun` reaches can read them. The sibling `head.sh` / `follower.sh` / `router.sh` from `--output-script` are inspection-only and never read at runtime; to hand-tune, edit the heredoc bodies inside `master.sh`.
 
+## Controlling who may use the model (`--authorization`)
+
+Every launch carries an `authorization` label on the mesh that the Serving API uses to decide who can see the model in `/v1/models` and send requests to it. Three forms are accepted (flag or `SML_AUTHORIZATION` env var):
+
+- `private` — **the default.** Only you. Before submission SML resolves this to your email by asking the Serving API who owns your configured CSCS API key; if that lookup fails (no key, bad key, no network), the launch aborts instead of submitting with the wrong audience.
+- `public` — anyone with a Serving API key (and anonymous `/v1/models` listings) can use the model.
+- `user1@epfl.ch,user2@ethz.ch` — a comma-separated email list restricting the model to those users. SML normalises the list (whitespace stripped, lowercased, duplicates dropped) before launch.
+
+```bash
+sml advanced \
+  ... \
+  --authorization "user1@epfl.ch,user2@ethz.ch"
+```
+
+Models launched before this flag existed carry no `authorization` label and stay public — nothing changes for them. Unlike [`--disable-opentela`](#when-to-disable-opentela), an authorized model still joins the mesh and is served through the public gateway; the Serving API just refuses callers outside the list.
+
 ## When to disable OpenTela
 
 > The [OpenTela project](https://github.com/swiss-ai/opentela)'s client binary ships on-disk as `otela-<arch>` and is referenced via `OPENTELA_BIN`.
@@ -171,7 +188,7 @@ By default, every replica joins the OpenTela p2p mesh at startup. That registrat
 Pass `--disable-opentela` when:
 
 - **You're benchmarking max throughput.** OpenTela adds a hop on the request path; disabling it gives you the framework's raw numbers. See [Benchmarking](benchmarking.md).
-- **You want the model kept private.** With OpenTela disabled, the replica never registers with the mesh — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for private fine-tunes or in-flight experiments.
+- **You want the model kept off the mesh entirely.** With OpenTela disabled, the replica never registers — so serving-api can't find it and it isn't reachable from outside the cluster. Useful for in-flight experiments. If you just want to keep the model to yourself (or a short list of users) while still serving it through the gateway, prefer `--authorization` (previous section).
 - **You're running at scale and the mesh is in the way.** If you've stood up your own routing in front of N replicas (or you're driving load directly from another cluster job), OpenTela registration is just overhead.
 
 If you disable it, you're responsible for reaching the model yourself — usually directly via its host:port from another job on the same cluster.

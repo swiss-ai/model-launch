@@ -94,6 +94,11 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
         f"served_model_name={launch_args.served_model_name}",
         f"framework_args={framework_args_normalised}",
     ]
+    if launch_args.authorization:
+        # Empty means no label at all: the Serving API treats an absent
+        # authorization label as public, which keeps pre-feature launches
+        # (and scripts that never pass --authorization) working unchanged.
+        user_input.append(f"authorization={launch_args.authorization}")
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     seconds = time_str_to_seconds(launch_args.time)
     return (

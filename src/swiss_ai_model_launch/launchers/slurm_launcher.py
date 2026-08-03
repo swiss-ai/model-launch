@@ -94,6 +94,7 @@ class SlurmLauncher(Launcher):
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
             router=launch_request.router,
+            authorization=launch_request.authorization,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:

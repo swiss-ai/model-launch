@@ -103,6 +103,31 @@ def test_opentela_labels_include_framework_args():
     assert "--label 'framework_args=--port 8080 --model /path/to/model --tp 4'" in head
 
 
+def test_opentela_labels_include_authorization_when_set():
+    args = _make_args(
+        authorization="user1@epfl.ch,user2@ethz.ch",
+        topology=Topology(replicas=1, nodes_per_replica=2),
+    )
+    scripts = render_rank_scripts(args)
+    # Head and follower carry the same labels, so the Serving API can filter
+    # pending/follower peers identically to the head.
+    for s in (scripts["head.sh"], scripts["follower.sh"]):
+        assert "--label authorization=user1@epfl.ch,user2@ethz.ch" in s
+
+
+def test_opentela_labels_include_authorization_public():
+    args = _make_args(authorization="public", topology=Topology(replicas=1, nodes_per_replica=1))
+    head = render_rank_scripts(args)["head.sh"]
+    assert "--label authorization=public" in head
+
+
+def test_opentela_labels_omit_authorization_when_empty():
+    # No label at all = public on the Serving API side (backward compat).
+    args = _make_args(topology=Topology(replicas=1, nodes_per_replica=1))
+    head = render_rank_scripts(args)["head.sh"]
+    assert "authorization" not in head
+
+
 def test_opentela_labels_framework_args_whitespace_normalised():
     args = _make_args(
         framework_args="--model /m     --tp 4\n    --max-len 8192",

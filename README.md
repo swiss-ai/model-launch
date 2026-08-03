@@ -45,7 +45,7 @@ Prefer a script you can copy? Browse [`examples/`](examples/) and run any of the
 | [Getting Started](docs/getting-started.md)         | First time here                                  |
 | [Initialization](docs/initialization.md)           | Setting up credentials, FirecREST vs SLURM       |
 | [Using SML](docs/usage-sml.md)                     | Day-to-day launches via the interactive CLI      |
-| [Advanced Usage](docs/usage-advanced.md)           | Full SLURM/framework control                     |
+| [Advanced Usage](docs/usage-advanced.md)           | Full SLURM/framework control, `--authorization`  |
 | [How to Size a Model](docs/sizing.md)              | Picking replica/node layout for a given model    |
 | [Benchmarking](docs/benchmarking.md)               | Measuring throughput and latency                 |
 | [MCP Server](docs/mcp.md)                          | Driving SML from Claude Desktop / Cursor         |

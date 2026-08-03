@@ -12,25 +12,28 @@ After [initialization](initialization.md):
 sml
 ```
 
-You'll be prompted for: target system (FirecREST only), partition, SLURM reservation (optional, blank to skip), SLURM account (optional, blank for your default group), model, framework, replica count, routing strategy (only when replica count > 1), and time limit. SML submits the job and the TUI takes over.
+You'll be prompted for: target system (FirecREST only), partition, SLURM reservation (optional, blank to skip), SLURM account (optional, blank for your default group), model, framework, replica count, routing strategy (only when replica count > 1), time limit, and who may use the model (authorization). SML submits the job and the TUI takes over.
 
 ## Skipping the prompts
 
 You can pre-fill any prompt with a CLI flag or environment variable. Whatever you don't supply, SML asks for.
 
-| Argument        | Environment Variable | Description                                              |
-| --------------- | -------------------- | -------------------------------------------------------- |
-| `--system`      | `SML_SYSTEM`         | Target system (required if launcher is `firecrest`)      |
-| `--partition`   | `SML_PARTITION`      | SLURM partition                                          |
-| `--reservation` | `SML_RESERVATION`    | SLURM reservation (optional)                             |
-| `--account`     | `SML_ACCOUNT`        | SLURM account used for job submission (optional)         |
-| `--model`       |                      | Model to launch (`<vendor>/<model>`)                     |
-| `--framework`   |                      | Inference framework                                      |
-| `--replicas`    |                      | Number of replicas                                       |
-| `--router`      |                      | Routing strategy across replicas (`opentela` / `sglang`) |
-| `--time`        |                      | Job time limit (`HH:MM:SS`)                              |
+| Argument          | Environment Variable | Description                                              |
+| ----------------- | -------------------- | -------------------------------------------------------- |
+| `--system`        | `SML_SYSTEM`         | Target system (required if launcher is `firecrest`)      |
+| `--partition`     | `SML_PARTITION`      | SLURM partition                                          |
+| `--reservation`   | `SML_RESERVATION`    | SLURM reservation (optional)                             |
+| `--account`       | `SML_ACCOUNT`        | SLURM account used for job submission (optional)         |
+| `--model`         |                      | Model to launch (`<vendor>/<model>`)                     |
+| `--framework`     |                      | Inference framework                                      |
+| `--replicas`      |                      | Number of replicas                                       |
+| `--router`        |                      | Routing strategy across replicas (`opentela` / `sglang`) |
+| `--time`          |                      | Job time limit (`HH:MM:SS`)                              |
+| `--authorization` | `SML_AUTHORIZATION`  | Who may use the model (`private` / `public` / emails)    |
 
 CLI flags take precedence over environment variables.
+
+`--authorization` controls who can see and use the model through the Serving API. `private` (the default) restricts it to you — SML resolves it to your email via your CSCS API key before submission. See [Controlling who may use the model](usage-advanced.md#controlling-who-may-use-the-model-authorization).
 
 > The guided `sml` flow submits a single job, so `--time` must fit within the
 > 12 h SLURM cap. To keep a model up longer, use

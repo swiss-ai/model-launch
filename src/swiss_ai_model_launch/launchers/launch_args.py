@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from swiss_ai_model_launch.launchers.authorization import AUTH_PRIVATE, AUTH_PUBLIC, normalize_email_list
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
@@ -88,6 +89,13 @@ class LaunchArgs(BaseModel):
     previous_job_id: int | None = None
     environment: str
 
+    # RESOLVED authorization label value: "public", a comma-separated email
+    # list, or "" to emit no label at all (legacy behavior — the Serving API
+    # treats a missing label as public). The raw "private" must be resolved to
+    # the launcher's email (see authorization.resolve_authorization) before a
+    # LaunchArgs is built; the validator below enforces that.
+    authorization: str = ""
+
     framework: str
     framework_args: str = ""
     pre_launch_cmds: str = ""
@@ -107,6 +115,16 @@ class LaunchArgs(BaseModel):
     def _validate(self) -> "LaunchArgs":
         if not self.disable_metrics and not self.metrics_remote_write_url:
             raise ValueError("Metrics require a remote write URL when metrics are enabled.")
+        if self.authorization == AUTH_PRIVATE:
+            # Reaching this point with the raw "private" means resolution was
+            # skipped — emitting it would make the model unusable for everyone.
+            raise ValueError(
+                "authorization must be resolved before building LaunchArgs; "
+                "the literal 'private' means resolve_authorization was skipped."
+            )
+        if self.authorization and self.authorization != AUTH_PUBLIC:
+            # Raises with an actionable message when it isn't a valid email list.
+            normalize_email_list(self.authorization)
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

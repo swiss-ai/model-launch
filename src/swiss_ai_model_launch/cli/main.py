@@ -26,6 +26,13 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.authorization import (
+    AUTH_PRIVATE,
+    AUTH_PUBLIC,
+    default_authorization,
+    is_valid_authorization,
+    resolve_authorization,
+)
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -43,6 +50,7 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
+from swiss_ai_model_launch.serving_api import ServingApiError
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 
@@ -159,6 +167,16 @@ def _make_launch_request_config(
                 validator=lambda v: bool(re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)),
                 default="03:00:00",
             ),
+            TextConfiguration(
+                name="authorization",
+                prompt=(
+                    f"Who may use the model: '{AUTH_PRIVATE}' (only you), "
+                    f"'{AUTH_PUBLIC}' (anyone), or comma-separated emails."
+                ),
+                validator=is_valid_authorization,
+                default=AUTH_PRIVATE,
+                env_var="SML_AUTHORIZATION",
+            ),
         ],
     )
 
@@ -257,6 +275,18 @@ def _add_advanced_launch_arguments(
         dest="served_model_name",
         default=None,
         help="Name under which the model will be served. Auto-generated if omitted.",
+    )
+    advanced_parser.add_argument(
+        "--authorization",
+        dest="authorization",
+        default=default_authorization(),
+        metavar="WHO",
+        help=(
+            f"Who may use the model through the Serving API (env: SML_AUTHORIZATION). "
+            f"'{AUTH_PRIVATE}' (default): only you — resolved to your email via your "
+            f"CSCS API key before submission. '{AUTH_PUBLIC}': anyone. Or a "
+            f"comma-separated list of user emails."
+        ),
     )
     advanced_parser.add_argument(
         "--router",
@@ -578,6 +608,9 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=f"{model}-{create_salt(4)}",
         router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
+        # Still raw here ("private" / "public" / emails) — the launch commands
+        # resolve it before handing the request to the launcher.
+        authorization=launch_req_config.get_non_none_value("authorization"),
     )
 
 
@@ -759,6 +792,13 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     launcher = await _create_launcher(config, args)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_request = await _get_launch_request(launcher, args)
+    try:
+        launch_request = launch_request.model_copy(
+            update={"authorization": await resolve_authorization(launch_request.authorization, cscs_api_key)}
+        )
+    except (ServingApiError, ValueError) as e:
+        print(f"Cannot resolve the model authorization: {e}", file=sys.stderr)
+        return
     launch_coro = launcher.launch_model(launch_request)
     if args.tui:
         await _run_monitor(
@@ -782,11 +822,16 @@ def build_launch_args_from_advanced(
     account: str,
     partition: str,
     telemetry_endpoint: str | None = None,
+    authorization: str = "",
 ) -> LaunchArgs:
     """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
     Tests can drive this directly to validate that example shell scripts produce
     a valid LaunchArgs without going through the launcher / InitConfig.
+
+    ``authorization`` is the already-RESOLVED label value (the caller runs
+    resolve_authorization on ``args.authorization`` first — this stays sync);
+    "" emits no label.
     """
     if args.served_model_name:
         served_model_name = args.served_model_name
@@ -835,6 +880,7 @@ def build_launch_args_from_advanced(
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
+        authorization=authorization,
     )
 
 
@@ -847,11 +893,18 @@ async def _run_advanced(args: argparse.Namespace) -> None:
     launcher = await _create_launcher(config, args, non_interactive=True)
     cscs_api_key = config.get_non_none_value("cscs_api_key")
 
+    try:
+        authorization = await resolve_authorization(args.authorization, cscs_api_key)
+    except (ServingApiError, ValueError) as e:
+        print(f"Cannot resolve --authorization: {e}", file=sys.stderr)
+        return
+
     launch_args = build_launch_args_from_advanced(
         args,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=TELEMETRY_ENDPOINT,
+        authorization=authorization,
     )
 
     # Decide single vs. consecutive chain. --time is the total uptime; a job is
