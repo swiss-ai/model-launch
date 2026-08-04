@@ -18,3 +18,4 @@ class ModelCatalogEntry(BaseModel):
     # Marks the entry as part of the lightweight CI matrix; underscore-prefixed in
     # models.json to keep it visually apart from the launch fields.
     include_in_lightweight_ci: bool = Field(default=False, alias="_include_in_lightweight_ci")
+    servekit_optims: bool = False
