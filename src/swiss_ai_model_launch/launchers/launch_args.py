@@ -102,11 +102,17 @@ class LaunchArgs(BaseModel):
     dcgm_exporter_binary: str = "/capstor/store/cscs/swissai/infra01/opentela-share/dcgm-exporter"
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
+    servekit_optims: bool = False
 
     @model_validator(mode="after")
     def _validate(self) -> "LaunchArgs":
         if not self.disable_metrics and not self.metrics_remote_write_url:
             raise ValueError("Metrics require a remote write URL when metrics are enabled.")
+        if self.servekit_optims and self.framework != "sglang":
+            raise ValueError(
+                "--servekit-optims is only supported with --framework sglang "
+                "(servekit's fast weight loading does not yet support vLLM)."
+            )
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

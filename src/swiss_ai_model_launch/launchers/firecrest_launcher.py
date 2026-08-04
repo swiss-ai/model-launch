@@ -113,6 +113,8 @@ class FirecRESTLauncher(Launcher):
         self,
         launch_request: LaunchRequest,
     ) -> LaunchArgs:
+        if launch_request.servekit_optims:
+            raise ValueError("servekit_optims is only supported with the direct SLURM launcher, not FirecREST.")
         model = launch_request.model
         job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
         served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
@@ -184,6 +186,8 @@ class FirecRESTLauncher(Launcher):
         )
 
     async def _prepare_launch_args(self, launch_args: LaunchArgs) -> LaunchArgs:
+        if launch_args.servekit_optims:
+            raise ValueError("servekit_optims is only supported with the direct SLURM launcher, not FirecREST.")
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
         return launch_args.model_copy(update={"environment": remote_env_path})
 

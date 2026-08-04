@@ -11,3 +11,4 @@ class ModelCatalogEntry(BaseModel):
     framework_args: str | None = None
     pre_launch_cmds: str | None = None
     model_path: str | None = None
+    servekit_optims: bool = False
