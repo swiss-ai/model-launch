@@ -310,6 +310,16 @@ def _add_advanced_launch_arguments(
         help="Disable the DCGM exporter.",
     )
     advanced_parser.add_argument(
+        "--servekit-optims",
+        dest="servekit_optims",
+        action="store_true",
+        help=(
+            "Wrap the engine command with `servekit launch` for fast weight "
+            "loading from Lustre (capstor/iopsstor). sglang only; requires "
+            "servekit to be installed in the job's environment."
+        ),
+    )
+    advanced_parser.add_argument(
         "--disable-metrics",
         dest="disable_metrics",
         action="store_true",
@@ -834,6 +844,7 @@ def build_launch_args_from_advanced(
         dev=getattr(args, "dev", False),
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
+        servekit_optims=args.servekit_optims,
         telemetry_endpoint=telemetry_endpoint,
     )
 

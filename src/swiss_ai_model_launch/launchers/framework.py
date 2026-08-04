@@ -83,6 +83,13 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
     return f"--port {FRAMEWORK_PORT} {launch_args.framework_args}".strip()
 
 
+def _entrypoint(framework: Framework, launch_args: LaunchArgs) -> str:
+    if not launch_args.servekit_optims:
+        return framework.entrypoint
+    # No --out: we can use it for .json phase breakdown. 
+    return f"servekit launch -- {framework.entrypoint}"
+
+
 def _opentela_labels(launch_args: LaunchArgs) -> str:
     # Users often write framework_args with bash line-continuations + indented
     # follow-on lines, which collapse to runs of whitespace inside the quoted
@@ -179,16 +186,17 @@ def _render_sglang_head(launch_args: LaunchArgs, framework: Framework) -> str:
     pre = _shebang_and_setup(framework, launch_args.pre_launch_cmds)
     use_opentela = not launch_args.disable_opentela
 
+    entrypoint = _entrypoint(framework, launch_args)
     if npr == 1:
         # Singular: one rank per replica, the head IS the only rank.
         # ``$1`` is replica_head_ip (passed by master, unused here but kept
         # for signature symmetry with the multi-node case).
         body_args = '# shellcheck disable=SC2034\nreplica_head_ip="$1"\n'
-        cmd = f"{framework.entrypoint} {args}"
+        cmd = f"{entrypoint} {args}"
     else:
         body_args = 'replica_head_ip="$1"\n# Multi-node head: --node-rank is always 0\n'
         cmd = (
-            f"{framework.entrypoint} \\\n"
+            f"{entrypoint} \\\n"
             f'    --dist-init-addr "$replica_head_ip:{SGLANG_DIST_INIT_PORT}" \\\n'
             f"    --nnodes {npr} \\\n"
             f"    --node-rank 0 \\\n"
@@ -214,8 +222,9 @@ def _render_sglang_follower(launch_args: LaunchArgs, framework: Framework) -> st
     # Both are word-split-safe and intentionally left unquoted here so the same
     # cmd string works both directly (disable_opentela path) and inside the OpenTela
     # --subprocess "..." wrap without nested-quote shellcheck warnings.
+    entrypoint = _entrypoint(framework, launch_args)
     cmd = (
-        f"{framework.entrypoint} \\\n"
+        f"{entrypoint} \\\n"
         f"    --dist-init-addr $replica_head_ip:{SGLANG_DIST_INIT_PORT} \\\n"
         f"    --nnodes {npr} \\\n"
         f"    --node-rank $node_rank \\\n"
