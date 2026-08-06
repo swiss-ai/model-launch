@@ -62,7 +62,7 @@ A framework-side load balancer (e.g. `sglang-router`) inserted in front of N rep
 
 ## Served-model name
 
-The name a client uses to request the model from the public gateway. SML namespaces it under your cluster username — `<username>/<vendor>/<model>`, e.g. `alice/swiss-ai/Apertus-8B-Instruct-2509` — so two people launching the same model never collide, and the name is predictable rather than randomly salted.
+The name a client uses to request the model from the public gateway. SML namespaces it under your cluster username — `<username>/<vendor>/<model>`, e.g. `alice/swiss-ai/Apertus-8B-Instruct-2509` — so two people launching the same model never collide.
 
 Set via `--served-model-name`. A name passed without a namespace (`swiss-ai/Apertus-8B-Instruct-2509`) gets your username prepended for you; a name already under your own username is left alone; a name under someone *else's* username is rejected before submission. Omit the flag in `sml preconfigured` and the model id is used.
 
