@@ -17,6 +17,15 @@ _KEYRING_SERVICE = "swiss_ai_model_launch"
 _KEYRING_PLACEHOLDER = "__keyring__"
 
 
+def migrate_keyring_entry(old_name: str, new_name: str) -> None:
+    """Copy a stored secret over to the new name after a configuration key rename."""
+    if keyring.get_password(_KEYRING_SERVICE, new_name) is not None:
+        return
+    secret = keyring.get_password(_KEYRING_SERVICE, old_name)
+    if secret is not None:
+        keyring.set_password(_KEYRING_SERVICE, new_name, secret)
+
+
 class _Configuration(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 

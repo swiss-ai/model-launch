@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 _REQUIRED_ENV_VARS_FOR_SML_CONFIG = [
-    "SML_CSCS_API_KEY",
+    "SML_SWISSAI_RESEARCH_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
     "SML_FIRECREST_TOKEN_URI",
@@ -37,7 +37,7 @@ def sml_config_dir() -> Iterator[Path]:
     config.set_value("firecrest_token_uri", os.environ["SML_FIRECREST_TOKEN_URI"])
     config.set_value("firecrest_client_id", os.environ["SML_FIRECREST_CLIENT_ID"])
     config.set_value("firecrest_client_secret", os.environ["SML_FIRECREST_CLIENT_SECRET"])
-    config.set_value("cscs_api_key", os.environ["SML_CSCS_API_KEY"])
+    config.set_value("swissai_research_api_key", os.environ["SML_SWISSAI_RESEARCH_API_KEY"])
     config.save()
 
     yield _BOOTSTRAP_DIR

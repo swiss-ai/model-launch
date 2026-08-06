@@ -33,7 +33,7 @@ _EXAMPLE_SCRIPTS = [
 ]
 
 _REQUIRED_ENV_VARS = [
-    "SML_CSCS_API_KEY",
+    "SML_SWISSAI_RESEARCH_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
     "SML_SYSTEM",
@@ -107,7 +107,7 @@ async def test_cli_example_launches_and_health(
     try:
         await wait_for_job_running(cancel_launcher, job_id, _LAUNCH_TIMEOUT_MIN)
         await wait_for_model_healthy(
-            cancel_launcher, job_id, served_model_name, env["SML_CSCS_API_KEY"], _HEALTH_TIMEOUT_MIN
+            cancel_launcher, job_id, served_model_name, env["SML_SWISSAI_RESEARCH_API_KEY"], _HEALTH_TIMEOUT_MIN
         )
     finally:
         await cancel_launcher.cancel_job(job_id)

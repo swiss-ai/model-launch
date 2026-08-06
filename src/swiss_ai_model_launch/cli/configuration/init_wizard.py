@@ -12,11 +12,31 @@ from swiss_ai_model_launch.cli.configuration.models import (
     OptionsConfiguration,
     PasswordConfiguration,
     TextConfiguration,
+    migrate_keyring_entry,
 )
 
 _ENV_CONFIG_DIR = os.environ.get("SML_CONFIG_DIR")
 _CONFIG_DIR = Path(_ENV_CONFIG_DIR) if _ENV_CONFIG_DIR else Path.home() / ".sml"
 _CONFIG_FILE = _CONFIG_DIR / "config.yml"
+
+# Configuration nodes renamed after release, old name -> new name. Configs written
+# by an earlier version still carry the old names, so `load` rewrites them (and
+# carries the keyring secret across) instead of failing with a KeyError.
+_RENAMED_KEYS = {"cscs_api_key": "swissai_research_api_key"}
+
+
+def _rename_legacy_keys(data: Any, renamed: set[str]) -> Any:
+    """Return `data` with legacy node names replaced, recording which ones were hit."""
+    if isinstance(data, list):
+        return [_rename_legacy_keys(item, renamed) for item in data]
+    if not isinstance(data, dict):
+        return data
+    node = {key: _rename_legacy_keys(value, renamed) for key, value in data.items()}
+    name = node.get("name")
+    if isinstance(name, str) and name in _RENAMED_KEYS:
+        renamed.add(name)
+        node["name"] = _RENAMED_KEYS[name]
+    return node
 
 
 class InitConfig(ChainConfiguration):
@@ -90,13 +110,13 @@ class InitConfig(ChainConfiguration):
                     },
                 ),
                 PasswordConfiguration(
-                    name="cscs_api_key",
-                    prompt="What is your CSCS Serving API Key?",
+                    name="swissai_research_api_key",
+                    prompt="What is your Swiss AI Research API Key?",
                     intro=(
-                        "\nThe CSCS Serving API Key is used for health checks against your served model.\n"
+                        "\nThe Swiss AI Research API Key is used for health checks against your served model.\n"
                         "Get one at: https://serving.swissai.svc.cscs.ch  (log in -> View API Keys)\n"
                     ),
-                    env_var="SML_CSCS_API_KEY",
+                    env_var="SML_SWISSAI_RESEARCH_API_KEY",
                     expose_as_arg=False,
                 ),
             ],
@@ -111,6 +131,12 @@ class InitConfig(ChainConfiguration):
     def load(cls) -> "InitConfig":
         with _CONFIG_FILE.open() as f:
             data: dict[str, Any] = yaml.safe_load(f)
+        renamed: set[str] = set()
+        data = _rename_legacy_keys(data, renamed)
+        # Secrets are keyed by node name in the keyring, so migrate them before
+        # validation reads them back.
+        for old_name in renamed:
+            migrate_keyring_entry(old_name, _RENAMED_KEYS[old_name])
         return cls.model_validate(data)
 
     def save(self) -> None:

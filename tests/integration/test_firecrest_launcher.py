@@ -71,7 +71,7 @@ _STD_LAUNCH_REQUESTS = [
 ]
 
 _REQUIRED_ENV_VARS = [
-    "SML_CSCS_API_KEY",
+    "SML_SWISSAI_RESEARCH_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
     "SML_SYSTEM",
@@ -116,14 +116,14 @@ async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
-def cscs_api_key(env: dict[str, str]) -> str:
-    return env["SML_CSCS_API_KEY"]
+def swissai_research_api_key(env: dict[str, str]) -> str:
+    return env["SML_SWISSAI_RESEARCH_API_KEY"]
 
 
 @pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS + _STD_LAUNCH_REQUESTS)  # type: ignore[misc]
 async def test_launch_apertus_and_health(
     launcher: FirecRESTLauncher,
-    cscs_api_key: str,
+    swissai_research_api_key: str,
     launch_request: LaunchRequest,
 ) -> None:
     job_id, served_model_name = await launcher.launch_model(launch_request)
@@ -133,7 +133,7 @@ async def test_launch_apertus_and_health(
 
     try:
         await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
-        await wait_for_model_healthy(launcher, job_id, served_model_name, cscs_api_key, _HEALTH_TIMEOUT)
+        await wait_for_model_healthy(launcher, job_id, served_model_name, swissai_research_api_key, _HEALTH_TIMEOUT)
         # For multi-replica launches the e2e check only proves *one* replica
         # answers, so additionally confirm every replica is healthy.
         if launch_request.replicas > 1:

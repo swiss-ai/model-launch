@@ -57,7 +57,7 @@ mcp = fastmcp.FastMCP(
         "   TIMEOUT, or UNKNOWN), `get_job_logs` to stream its stdout/stderr, and `cancel_job`\n"
         "   to stop it.\n\n"
         "## Health monitoring\n\n"
-        "When CSCS_API_KEY is configured, `launch_preconfigured_model` actively polls the\n"
+        "When SWISSAI_RESEARCH_API_KEY is configured, `launch_preconfigured_model` actively polls the\n"
         "inference endpoint and returns as soon as the model is HEALTHY. Without the key,\n"
         "health checks are skipped and the tool only returns when the job terminates — so for\n"
         "long-running servers you may want to cancel the tool call and query job status manually.\n\n"
@@ -274,7 +274,7 @@ async def launch_preconfigured_model(
     - the job reaches a terminal state (TIMEOUT or UNKNOWN) — returns the job ID and
       final status.
 
-    If CSCS_API_KEY is not configured, health checks are skipped and the tool only
+    If SWISSAI_RESEARCH_API_KEY is not configured, health checks are skipped and the tool only
     returns on job termination. For long-running inference servers without the key,
     cancel this call and use `get_job_status` / `get_job_logs` to monitor manually.
     """
@@ -302,7 +302,7 @@ async def launch_preconfigured_model(
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")
     config = InitConfig.load()
-    cscs_api_key = config.get_value("cscs_api_key")
+    swissai_research_api_key = config.get_value("swissai_research_api_key")
     stdout_lines_sent = 0
     stderr_lines_sent = 0
     ever_healthy = False
@@ -321,8 +321,8 @@ async def launch_preconfigured_model(
             await ctx.info(f"[stderr] {line}")
         stdout_lines_sent = len(stdout_lines)
         stderr_lines_sent = len(stderr_lines)
-        if cscs_api_key:
-            health = await check_model_health(served, cscs_api_key)
+        if swissai_research_api_key:
+            health = await check_model_health(served, swissai_research_api_key)
             if health == ModelHealth.NOT_RESPONDING and not ever_healthy:
                 health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or health == ModelHealth.HEALTHY

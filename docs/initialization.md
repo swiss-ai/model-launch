@@ -25,21 +25,21 @@ If you're not sure, start with `firecrest` — it's what most users run.
 
 ## Initialization options
 
-| CLI Argument            | Environment Variable          | Description                                                    |
-| ----------------------- | ----------------------------- | -------------------------------------------------------------- |
-| `--launcher`            |                               | Job submission method (`firecrest` or `slurm`)                 |
-| `--firecrest-url`       |                               | FirecREST API URL (default: CSCS endpoint)                     |
-| `--firecrest-token-uri` |                               | FirecREST token URI (default: CSCS auth endpoint)              |
-|                         | `SML_FIRECREST_CLIENT_ID`     | FirecREST client ID                                            |
-|                         | `SML_FIRECREST_CLIENT_SECRET` | FirecREST client secret                                        |
-|                         | `SML_CSCS_API_KEY`            | CSCS Serving API Key (used for health checks of served model)  |
+| CLI Argument            | Environment Variable             | Description                                                        |
+| ----------------------- | -------------------------------- | ------------------------------------------------------------------ |
+| `--launcher`            |                                  | Job submission method (`firecrest` or `slurm`)                     |
+| `--firecrest-url`       |                                  | FirecREST API URL (default: CSCS endpoint)                         |
+| `--firecrest-token-uri` |                                  | FirecREST token URI (default: CSCS auth endpoint)                  |
+|                         | `SML_FIRECREST_CLIENT_ID`        | FirecREST client ID                                                |
+|                         | `SML_FIRECREST_CLIENT_SECRET`    | FirecREST client secret                                            |
+|                         | `SML_SWISSAI_RESEARCH_API_KEY`   | Swiss AI Research API Key (used for health checks of served model) |
 
-The FirecREST fields are only required when `--launcher firecrest`. `SML_CSCS_API_KEY` is required regardless of launcher.
+The FirecREST fields are only required when `--launcher firecrest`. `SML_SWISSAI_RESEARCH_API_KEY` is required regardless of launcher.
 
 ## Where credentials come from
 
 - **FirecREST client ID / secret** — Acquire from the [CSCS Developer Portal](https://developer.svc.cscs.ch/devportal/apis). See the [FirecREST docs](https://docs.cscs.ch/services/devportal/#manage-your-applications) for the full walkthrough.
-- **CSCS Serving API Key** — Log in at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) with your institutional account, then go to **View API Keys**.
+- **Swiss AI Research API Key** — Log in at [serving.swissai.svc.cscs.ch](https://serving.swissai.svc.cscs.ch/) with your institutional account, then go to **View API Keys**.
 
 ## Config file shape
 
@@ -68,7 +68,7 @@ chain:
           - {name: firecrest_client_secret, type: password, value: __keyring__}
           - {name: cluster_ssh_host, type: text, value: null}
       slurm: null
-  - {name: cscs_api_key, type: password, value: __keyring__}
+  - {name: swissai_research_api_key, type: password, value: __keyring__}
 ```
 
 The `value: __keyring__` entries are placeholders; the actual secrets live in your OS keyring, not in this file. Treat both the file and your keyring as sensitive. Don't commit the file.

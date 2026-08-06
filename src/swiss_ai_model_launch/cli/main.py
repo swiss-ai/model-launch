@@ -664,7 +664,7 @@ async def _as_single_chain(coro: Coroutine[Any, Any, tuple[int, str]]) -> list[S
 async def _run_monitor(
     launcher: Launcher,
     submit_coro: Coroutine[Any, Any, list[ScheduledJob]],
-    cscs_api_key: str,
+    swissai_research_api_key: str,
     *,
     expected_replicas: int,
     router: RouterMode = ROUTER_OPENTELA,
@@ -682,7 +682,7 @@ async def _run_monitor(
         ever_healthy = False
         while True:
             await asyncio.sleep(5)
-            model_health = await check_model_health(served, cscs_api_key)
+            model_health = await check_model_health(served, swissai_research_api_key)
             if model_health == ModelHealth.NOT_RESPONDING and not ever_healthy:
                 model_health = ModelHealth.NOT_DEPLOYED
             ever_healthy = ever_healthy or model_health == ModelHealth.HEALTHY
@@ -758,14 +758,14 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher = await _create_launcher(config, args)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_request = await _get_launch_request(launcher, args)
     launch_coro = launcher.launch_model(launch_request)
     if args.tui:
         await _run_monitor(
             launcher,
             _as_single_chain(launch_coro),
-            cscs_api_key,
+            swissai_research_api_key,
             expected_replicas=launch_request.replicas,
             router=launch_request.router,
         )
@@ -858,7 +858,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher = await _create_launcher(config, args, non_interactive=True)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
 
     launch_args = build_launch_args_from_advanced(
         args,
@@ -937,7 +937,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         await _run_monitor(
             launcher,
             submit_coro,
-            cscs_api_key,
+            swissai_research_api_key,
             expected_replicas=launch_args.topology.replicas,
             router=launch_args.router,
         )

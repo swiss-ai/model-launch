@@ -368,7 +368,7 @@ async def _run_loadtest_for_submitted_job(
     launcher: Launcher,
     job_id: int,
     served_model_name: str,
-    cscs_api_key: str,
+    swissai_research_api_key: str,
     args: argparse.Namespace,
     loadtest_config: LoadtestConfig,
     loadtest_reservation: str | None = None,
@@ -377,7 +377,7 @@ async def _run_loadtest_for_submitted_job(
         if args.wait_until_healthy:
             await _wait_until_model_healthy(
                 served_model_name,
-                cscs_api_key,
+                swissai_research_api_key,
                 timeout_seconds=args.loadtest_ready_timeout,
                 poll_interval_seconds=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
             )
@@ -386,7 +386,7 @@ async def _run_loadtest_for_submitted_job(
         results_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         summary_path = results_dir / f"summary_{loadtest_config.scenario}_{timestamp}.json"
-        server = _make_loadtest_server(args, cscs_api_key, served_model_name)
+        server = _make_loadtest_server(args, swissai_research_api_key, served_model_name)
         await _run_k6_on_cluster(
             launcher=launcher,
             server=server,
@@ -405,7 +405,7 @@ async def _submit_and_run_loadtest(
     *,
     launcher: Launcher,
     launch_coro: Coroutine[Any, Any, tuple[int, str]],
-    cscs_api_key: str,
+    swissai_research_api_key: str,
     args: argparse.Namespace,
     loadtest_config: LoadtestConfig,
     loadtest_reservation: str | None = None,
@@ -419,7 +419,7 @@ async def _submit_and_run_loadtest(
         launcher=launcher,
         job_id=job_id,
         served_model_name=served,
-        cscs_api_key=cscs_api_key,
+        swissai_research_api_key=swissai_research_api_key,
         args=args,
         loadtest_config=loadtest_config,
         loadtest_reservation=loadtest_reservation,
@@ -435,7 +435,7 @@ async def _run_loadtest_against_existing_model(
         raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
 
     config = InitConfig.load()
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     loadtest_model = args.loadtest_model
     request_model = loadtest_model or ""
     loadtest_config = make_loadtest_config(args)
@@ -444,7 +444,7 @@ async def _run_loadtest_against_existing_model(
     if args.wait_until_healthy and loadtest_model:
         await _wait_until_model_healthy(
             loadtest_model,
-            cscs_api_key,
+            swissai_research_api_key,
             timeout_seconds=args.loadtest_ready_timeout,
             poll_interval_seconds=_DEFAULT_LOADTEST_READY_POLL_SECONDS,
         )
@@ -456,7 +456,7 @@ async def _run_loadtest_against_existing_model(
     results_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     summary_path = results_dir / f"summary_{loadtest_config.scenario}_{timestamp}.json"
-    server = _make_loadtest_server(args, cscs_api_key, request_model)
+    server = _make_loadtest_server(args, swissai_research_api_key, request_model)
     await _run_k6_on_cluster(
         launcher=launcher,
         server=server,
@@ -478,7 +478,7 @@ async def _run_loadtest_preconfigured(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_request = await get_launch_request(launcher, args)
     await _prompt_loadtest_scenario(args)
     loadtest_config = make_loadtest_config(args)
@@ -486,7 +486,7 @@ async def _run_loadtest_preconfigured(
     await _submit_and_run_loadtest(
         launcher=launcher,
         launch_coro=launcher.launch_model(launch_request),
-        cscs_api_key=cscs_api_key,
+        swissai_research_api_key=swissai_research_api_key,
         args=args,
         loadtest_config=loadtest_config,
     )
@@ -504,7 +504,7 @@ async def _run_loadtest_advanced(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args, True)
-    cscs_api_key = config.get_non_none_value("cscs_api_key")
+    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_args = build_launch_args_from_advanced(
         args,
         username=launcher.username,
@@ -517,7 +517,7 @@ async def _run_loadtest_advanced(
     await _submit_and_run_loadtest(
         launcher=launcher,
         launch_coro=launcher.launch_with_args(launch_args),
-        cscs_api_key=cscs_api_key,
+        swissai_research_api_key=swissai_research_api_key,
         args=args,
         loadtest_config=loadtest_config,
     )

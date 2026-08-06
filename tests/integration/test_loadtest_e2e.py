@@ -15,7 +15,7 @@ _LOADTEST_RUNNING_TIMEOUT_MIN = 20
 _LOADTEST_SERVER_URL = "https://api.swissai.svc.cscs.ch"
 
 _REQUIRED_ENV_VARS = [
-    "SML_CSCS_API_KEY",
+    "SML_SWISSAI_RESEARCH_API_KEY",
     "SML_FIRECREST_CLIENT_ID",
     "SML_FIRECREST_CLIENT_SECRET",
     "SML_SYSTEM",
@@ -71,7 +71,7 @@ async def test_submit_cluster_loadtest_starts_cluster_job(
         launcher=launcher,
         server=ServerConfig(
             url=os.environ.get("SML_LOADTEST_SERVER_URL", _LOADTEST_SERVER_URL),
-            api_key=env["SML_CSCS_API_KEY"],
+            api_key=env["SML_SWISSAI_RESEARCH_API_KEY"],
             model=env["SML_LOADTEST_MODEL"],
             is_swissai=True,
         ),

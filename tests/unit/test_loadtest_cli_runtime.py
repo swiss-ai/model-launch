@@ -138,7 +138,7 @@ async def test_run_k6_on_cluster_requires_packaged_script(tmp_path, monkeypatch:
 
 class DummyConfig:
     def get_non_none_value(self, name: str) -> str:
-        return {"cscs_api_key": "secret"}[name]
+        return {"swissai_research_api_key": "secret"}[name]
 
 
 class DummyLauncher(Launcher):
@@ -210,7 +210,7 @@ async def test_run_loadtest_for_submitted_job_cancels_after_loadtest(
         launcher=launcher,
         job_id=123,
         served_model_name="served-model",
-        cscs_api_key="secret",
+        swissai_research_api_key="secret",
         args=args,
         loadtest_config=LoadtestConfig(scenario="throughput", think_time="0", max_tokens="16"),
         loadtest_reservation="reservation",
