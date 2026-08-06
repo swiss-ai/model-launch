@@ -25,7 +25,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
 | `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
 | `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
-| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. |
+| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. Namespaced under your username automatically — see the note below. |
 | `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
 | `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
 | `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
@@ -47,12 +47,12 @@ sml advanced \
   --framework sglang \
   --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 \
     --enable-metrics"
 ```
 
-> **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running. The `--served-model-name` suffix avoids name collisions with shared deployments.
+> **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running — but you won't collide with it. SML prepends your cluster username, so the example above is served as `<your-username>/swiss-ai/Apertus-8B-Instruct-2509`, and that is the id to send in the `model` field. Write the name without a namespace and let SML add it; passing a name under another user's namespace is rejected before the job is submitted.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
 
@@ -71,7 +71,7 @@ sml advanced \
   --time 36:00:00 \
   --consecutive \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 --enable-metrics"
 ```
 
@@ -130,7 +130,7 @@ sml advanced \
   --framework sglang \
   --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-$(whoami) \
+    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 --enable-metrics" \
   --output-script /tmp/debug
 ```

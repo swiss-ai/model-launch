@@ -6,5 +6,5 @@ sml advanced \
   --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/allenai/Olmo-3.1-32B-Instruct \
     --host 0.0.0.0 \
-    --served-model-name allenai/Olmo-3.1-32B-Instruct-$(whoami) \
+    --served-model-name allenai/Olmo-3.1-32B-Instruct \
     --tp-size 4"

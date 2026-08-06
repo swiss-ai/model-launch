@@ -6,7 +6,7 @@ sml advanced \
   --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --pre-launch-cmds "pip install librosa audioread" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
-    --served-model-name Qwen/Qwen3-ASR-1.7B-$(whoami) \
+    --served-model-name Qwen/Qwen3-ASR-1.7B \
     --data-parallel-size 4 \
     --tensor-parallel-size 1 \
     --host 0.0.0.0 \

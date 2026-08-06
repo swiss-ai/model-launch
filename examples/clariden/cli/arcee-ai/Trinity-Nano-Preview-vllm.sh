@@ -5,6 +5,6 @@ sml advanced \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/arcee-ai/Trinity-Nano-Preview \
-    --served-model-name arcee-ai/Trinity-Nano-Preview-$(whoami) \
+    --served-model-name arcee-ai/Trinity-Nano-Preview \
     --host 0.0.0.0 \
     "

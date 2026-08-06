@@ -27,13 +27,13 @@ def _minimal_advanced_args(*extra: str):
 
 def test_advanced_default_leaves_bootstrap_addr_unset():
     args = _minimal_advanced_args()
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.opentela_bootstrap_addr is None
 
 
 def test_advanced_dev_flag_selects_dev_bootstrap_addr():
     args = _minimal_advanced_args("--dev")
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.opentela_bootstrap_addr == OPENTELA_BOOTSTRAP_ADDR_DEV
 
 
@@ -41,26 +41,26 @@ def test_advanced_router_defaults_to_opentela():
     # Default routing strategy is OpenTela (mesh load-balancing) -> no SGLang router.
     args = _minimal_advanced_args()
     assert args.router == "opentela"
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.router == "opentela"
 
 
 def test_advanced_router_sglang_enables_router():
     args = _minimal_advanced_args("--router", "sglang")
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.router == "sglang"
 
 
 def test_advanced_router_is_case_insensitive():
     args = _minimal_advanced_args("--router", "SgLaNg")
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.router == "sglang"
 
 
 def test_advanced_explicit_addr_overrides_dev():
     custom = "/ip4/10.0.0.42/tcp/43905/p2p/QmCustomPeerXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     args = _minimal_advanced_args("--dev", "--opentela-bootstrap-addr", custom)
-    la = build_launch_args_from_advanced(args, account="proj01", partition="normal")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert la.opentela_bootstrap_addr == custom
 
 

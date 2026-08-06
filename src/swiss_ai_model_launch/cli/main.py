@@ -40,6 +40,7 @@ from swiss_ai_model_launch.launchers.launch_args import (
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import ScheduledJob
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
@@ -576,7 +577,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         catalogue_entry,
         replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
-        served_model_name=f"{model}-{create_salt(4)}",
+        served_model_name=namespace_served_model_name(model, launcher.username),
         router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
     )
 
@@ -779,6 +780,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
 def build_launch_args_from_advanced(
     args: argparse.Namespace,
     *,
+    username: str,
     account: str,
     partition: str,
     telemetry_endpoint: str | None = None,
@@ -788,16 +790,27 @@ def build_launch_args_from_advanced(
     Tests can drive this directly to validate that example shell scripts produce
     a valid LaunchArgs without going through the launcher / InitConfig.
     """
+    framework_args = args.framework_args or ""
     if args.served_model_name:
-        served_model_name = args.served_model_name
+        requested_name = args.served_model_name
     else:
-        match = re.search(r"--served-model-name\s+(\S+)", args.framework_args or "")
+        match = re.search(r"--served-model-name\s+(\S+)", framework_args)
         if not match:
             raise ValueError(
                 "--served-model-name must be provided either as a direct argument "
                 "or via --served-model-name inside --framework-args"
             )
-        served_model_name = match.group(1)
+        requested_name = match.group(1)
+    served_model_name = namespace_served_model_name(requested_name, username)
+    # The framework is what actually advertises the name to OpenTela, so the
+    # copy inside --framework-args has to carry the namespace too — otherwise
+    # the mesh serves the un-namespaced id while our labels claim the
+    # namespaced one, and the gateway refuses the mismatch.
+    framework_args = re.sub(
+        r"(--served-model-name\s+)\S+",
+        lambda m: m.group(1) + served_model_name,
+        framework_args,
+    )
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
     opentela_bootstrap_addr: str | None
@@ -825,7 +838,7 @@ def build_launch_args_from_advanced(
         time=args.time,
         environment=args.slurm_environment,
         framework=args.framework,
-        framework_args=args.framework_args,
+        framework_args=framework_args,
         pre_launch_cmds=args.pre_launch_cmds,
         router=args.router,
         router_args=args.router_args,
@@ -849,6 +862,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
     launch_args = build_launch_args_from_advanced(
         args,
+        username=launcher.username,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=TELEMETRY_ENDPOINT,

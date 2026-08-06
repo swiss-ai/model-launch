@@ -65,6 +65,7 @@ def test_example_renders_valid_bash(tmp_path: Path, example_path: str):
     args = _parse_sml_advanced_script(full_path.read_text())
     launch_args = build_launch_args_from_advanced(
         args,
+        username="alice",
         account="proj01-test",
         partition="normal",
     )
@@ -92,6 +93,7 @@ def test_example_passes_shellcheck(tmp_path: Path, example_path: str):
     args = _parse_sml_advanced_script(full_path.read_text())
     launch_args = build_launch_args_from_advanced(
         args,
+        username="alice",
         account="proj01-test",
         partition="normal",
     )

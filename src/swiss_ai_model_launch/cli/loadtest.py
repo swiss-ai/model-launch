@@ -60,6 +60,7 @@ class _BuildLaunchArgsFromAdvanced(Protocol):
         self,
         args: argparse.Namespace,
         *,
+        username: str,
         account: str,
         partition: str,
         telemetry_endpoint: str | None = None,
@@ -506,6 +507,7 @@ async def _run_loadtest_advanced(
     cscs_api_key = config.get_non_none_value("cscs_api_key")
     launch_args = build_launch_args_from_advanced(
         args,
+        username=launcher.username,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),

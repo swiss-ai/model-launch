@@ -12,6 +12,7 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     call_with_firecrest_retry,
@@ -114,7 +115,7 @@ class FirecRESTLauncher(Launcher):
     ) -> LaunchArgs:
         model = launch_request.model
         job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
-        served_model_name = launch_request.served_model_name or f"{model}-{create_salt(4)}"
+        served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
         return LaunchArgs(
             job_name=job_name,
             account=self.account,

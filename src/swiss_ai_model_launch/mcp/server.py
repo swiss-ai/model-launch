@@ -17,7 +17,8 @@ from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLa
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt
+from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry
 
 _POLL_INTERVAL_SECONDS = 10
 _TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
@@ -48,9 +49,10 @@ mcp = fastmcp.FastMCP(
         "   parameters. The tool submits the SLURM job, then streams live stdout/stderr and\n"
         "   periodic [status] lines as MCP notifications while you wait. It returns only when\n"
         "   the model is healthy or the job reaches a terminal state. The return value includes\n"
-        "   the served_model_name — a unique identifier (e.g. 'swiss-ai/Apertus-70B-a1b2')\n"
-        "   that you pass as the 'model' field when sending inference requests to the cluster\n"
-        "   API endpoint.\n\n"
+        "   the served_model_name — your launch's identifier, namespaced under the cluster\n"
+        "   username that submitted the job (e.g. 'alice/swiss-ai/Apertus-70B') — that you\n"
+        "   pass as the 'model' field when sending inference requests to the cluster API\n"
+        "   endpoint.\n\n"
         "5. **Operate** — use `get_job_status` to poll a running job (returns PENDING, RUNNING,\n"
         "   TIMEOUT, or UNKNOWN), `get_job_logs` to stream its stdout/stderr, and `cancel_job`\n"
         "   to stop it.\n\n"
@@ -267,7 +269,7 @@ async def launch_preconfigured_model(
     While waiting, this tool emits MCP notifications for each new log line (prefixed
     '[stdout]' or '[stderr]') and periodic '[status]' lines with the current job state
     and health. It returns when:
-    - the model is HEALTHY — returns the served_model_name (e.g. 'swiss-ai/Apertus-70B-a1b2')
+    - the model is HEALTHY — returns the served_model_name (e.g. 'alice/swiss-ai/Apertus-70B')
       and job ID. Pass the served_model_name as the 'model' field in inference requests.
     - the job reaches a terminal state (TIMEOUT or UNKNOWN) — returns the job ID and
       final status.
@@ -294,7 +296,7 @@ async def launch_preconfigured_model(
         entry,
         replicas=replicas,
         time=time,
-        served_model_name=f"{model}-{create_salt(4)}",
+        served_model_name=namespace_served_model_name(model, launcher.username),
         router=router,
     )
     job_id, served = await launcher.launch_model(request)

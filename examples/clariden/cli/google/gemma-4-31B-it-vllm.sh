@@ -5,6 +5,6 @@ sml advanced \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/google/gemma-4-31B-it \
-    --served-model-name google/gemma-4-31B-it-$(whoami) \
+    --served-model-name google/gemma-4-31B-it \
     --host 0.0.0.0 \
     --tensor-parallel-size 4"
