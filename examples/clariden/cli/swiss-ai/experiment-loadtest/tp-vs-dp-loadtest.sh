@@ -35,7 +35,7 @@ OUT_1=$(sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model-path $MODEL \
-    --served-model-name $SERVED_1 \
+    --served-model-name $USER/$SERVED_1 \
     --host 0.0.0.0 --port 8080 \
     --tp-size 4 \
     --enable-metrics")
@@ -51,7 +51,7 @@ OUT_2=$(sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model-path $MODEL \
-    --served-model-name $SERVED_2 \
+    --served-model-name $USER/$SERVED_2 \
     --host 0.0.0.0 --port 8080 \
     --tp-size 1 --dp-size 4 \
     --enable-metrics")

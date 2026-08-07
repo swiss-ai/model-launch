@@ -79,10 +79,17 @@ async def test_launch_apertus_and_health(
     swissai_research_api_key: str,
     launch_request: LaunchRequest,
 ) -> None:
+    # Name the model explicitly rather than relying on SML to prepend the
+    # namespace: this is the form users are told to write, so CI should launch
+    # it that way. The launcher resolves the account from FirecREST, which is
+    # the only namespace it will accept.
+    expected_name = f"{launcher.username}/{launch_request.model}"
+    launch_request = launch_request.model_copy(update={"served_model_name": expected_name})
+
     job_id, served_model_name = await launcher.launch_model(launch_request)
 
     assert isinstance(job_id, int)
-    assert served_model_name
+    assert served_model_name == expected_name
 
     try:
         await wait_for_job_running(launcher, job_id, _LAUNCH_TIMEOUT)
