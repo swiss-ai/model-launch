@@ -3,11 +3,13 @@ launch, the label it puts on the mesh, and the served-name conflict guard."""
 
 import argparse
 import asyncio
+import importlib
 
 import pytest
 
 from swiss_ai_model_launch.cli import authorization as cli_authorization
 from swiss_ai_model_launch.cli.authorization import (
+    is_valid_authorization,
     requested_from_args,
     resolve_authorization,
     warn_or_refuse_conflict,
@@ -64,6 +66,17 @@ def test_policy_ignores_order_case_and_spacing():
     assert policy_of("public") is None
     assert policy_of("") is None
     assert policy_of("a@x.ch") != policy_of("a@x.ch,b@y.ch")
+
+
+def test_is_valid_authorization_is_the_prompts_predicate():
+    """The interactive prompt needs a bool, not an exception — a bad answer
+    must re-prompt rather than crash the wizard."""
+    assert is_valid_authorization("public")
+    assert is_valid_authorization("private")
+    assert is_valid_authorization("a@epfl.ch,b@ethz.ch")
+    assert not is_valid_authorization("not-an-email")
+    assert not is_valid_authorization("")
+    assert not is_valid_authorization("public,a@epfl.ch")
 
 
 def test_predicates_and_description():
@@ -274,6 +287,61 @@ def test_namespace_makes_cross_user_collisions_impossible():
     alice = namespace_served_model_name("swiss-ai/Apertus-70B", "alice")
     bob = namespace_served_model_name("swiss-ai/Apertus-70B", "bob")
     assert alice != bob
+
+
+def test_run_advanced_labels_the_launch_with_the_resolved_policy(monkeypatch):
+    """End to end through the real `sml advanced` path: the flag is resolved,
+    reaches the launch, and is what the conflict check is asked about."""
+    # `swiss_ai_model_launch.cli.main` also names the CLI entry-point
+    # *function* re-exported from the package, so a plain import binds that
+    # instead of the module. Monkeypatching needs the module object.
+    main_module = importlib.import_module("swiss_ai_model_launch.cli.main")
+
+    # Parse before stubbing InitConfig: _build_parser() consults the real one.
+    args = _advanced_args("--authorization", "private")
+    seen = {}
+
+    class _Config:
+        @classmethod
+        def exists(cls):
+            return True
+
+        @classmethod
+        def load(cls):
+            return cls()
+
+        def get_non_none_value(self, name):
+            return "sk-rc-key"
+
+    class _Launcher:
+        username = "alice"
+        account = "proj01"
+        partition = "normal"
+        reservation = None
+
+    async def fake_create_launcher(config, args, non_interactive=False):
+        return _Launcher()
+
+    async def fake_conflict_check(api_key, served_model_name, authorization):
+        seen["served"] = served_model_name
+        seen["authorization"] = authorization
+        raise SystemExit("stop-before-submit")
+
+    async def fake_whoami(api_key):
+        return "Alice@EPFL.ch"
+
+    monkeypatch.setattr(main_module, "InitConfig", _Config)
+    monkeypatch.setattr(main_module, "_create_launcher", fake_create_launcher)
+    monkeypatch.setattr(main_module, "warn_or_refuse_conflict", fake_conflict_check)
+    monkeypatch.setattr(cli_authorization, "whoami", fake_whoami)
+
+    with pytest.raises(SystemExit, match="stop-before-submit"):
+        _run(main_module._run_advanced(args))
+
+    # 'private' became the launcher's own email, and the name it guards is the
+    # namespaced one the job will actually advertise.
+    assert seen["authorization"] == "alice@epfl.ch"
+    assert seen["served"] == "alice/swiss-ai/Apertus-70B"
 
 
 def test_loadtest_advanced_applies_the_policy_too(monkeypatch, tmp_path):
