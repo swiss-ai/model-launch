@@ -48,7 +48,7 @@ from swiss_ai_model_launch.launchers.launch_args import (
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import ScheduledJob
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.served_name import derive_served_model_name, namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
@@ -601,7 +601,7 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         catalogue_entry,
         replicas=int(launch_req_config.get_non_none_value("replicas")),
         time=launch_req_config.get_non_none_value("time"),
-        served_model_name=namespace_served_model_name(model, launcher.username),
+        served_model_name=derive_served_model_name(model, framework, launcher.username),
         router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
         # Still raw here ("public" / "private" / emails): resolving `private`
         # needs the API key, which only the launch commands hold.

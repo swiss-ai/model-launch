@@ -15,8 +15,15 @@ each other's names; it is not an ownership guarantee.
 Namespacing replaces the random salt that used to disambiguate served names:
 two users launching the same model no longer collide, and a name is now
 predictable from who launched what. Two launches by the SAME user of the same
-model do share a name — deliberately, since they carry identical labels and
-OpenTela simply load-balances across them as extra replicas.
+model *on the same framework* do share a name — deliberately, since they carry
+identical labels and OpenTela simply load-balances across them as extra
+replicas.
+
+The framework is part of a derived name (``derive_served_model_name``) because
+it is not part of the model id but does change what is being served: without
+it, one user running the same model on sglang and on vllm would put two
+different engines on the mesh under a single id, and OpenTela would balance
+across them. The salt used to hide that; nothing else does.
 """
 
 # A name with fewer than this many segments predates namespacing (bare
@@ -67,3 +74,17 @@ def namespace_served_model_name(served_model_name: str, username: str) -> str:
             f"{username}/{name.split('/', 1)[1]} or drop the namespace and let SML add it."
         )
     return name
+
+
+def derive_served_model_name(model: str, framework: str, username: str) -> str:
+    """The served name for a launch that did not choose one.
+
+    ``<username>/<model id>-<framework>``. The framework suffix keeps a user's
+    sglang and vllm deployments of one model apart; see the module docstring
+    for why that matters. Callers that DO pass an explicit name get it
+    verbatim (namespaced) — this is only the default.
+    """
+    framework = framework.strip()
+    if not framework:
+        raise ValueError("Cannot derive a served model name without a framework.")
+    return namespace_served_model_name(f"{model.strip()}-{framework}", username)

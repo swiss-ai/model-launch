@@ -19,7 +19,7 @@ from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.served_name import derive_served_model_name
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry
 from swiss_ai_model_launch.serving_api import ServingApiError, whoami
 
@@ -53,7 +53,8 @@ mcp = fastmcp.FastMCP(
         "   periodic [status] lines as MCP notifications while you wait. It returns only when\n"
         "   the model is healthy or the job reaches a terminal state. The return value includes\n"
         "   the served_model_name — your launch's identifier, namespaced under the cluster\n"
-        "   username that submitted the job (e.g. 'alice/swiss-ai/Apertus-70B') — that you\n"
+        "   username that submitted the job and suffixed with the framework\n"
+        "   (e.g. 'alice/swiss-ai/Apertus-70B-sglang') — that you\n"
         "   pass as the 'model' field when sending inference requests to the cluster API\n"
         "   endpoint.\n\n"
         "5. **Operate** — use `get_job_status` to poll a running job (returns PENDING, RUNNING,\n"
@@ -324,7 +325,7 @@ async def launch_preconfigured_model(
         entry,
         replicas=replicas,
         time=time,
-        served_model_name=namespace_served_model_name(model, launcher.username),
+        served_model_name=derive_served_model_name(model, framework, launcher.username),
         router=router,
         authorization=resolved_authorization,
     )

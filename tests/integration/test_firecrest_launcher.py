@@ -79,11 +79,17 @@ async def test_launch_apertus_and_health(
     swissai_research_api_key: str,
     launch_request: LaunchRequest,
 ) -> None:
-    # Name the model explicitly rather than relying on SML to prepend the
-    # namespace: this is the form users are told to write, so CI should launch
-    # it that way. The launcher resolves the account from FirecREST, which is
-    # the only namespace it will accept.
-    expected_name = f"{launcher.username}/{launch_request.model}"
+    # Name the model explicitly rather than relying on SML to derive one: this
+    # is the form users are told to write, and the launcher only accepts its
+    # own account as the namespace.
+    #
+    # The name has to be unique per parametrization or the suite collides with
+    # itself — these run in parallel and a served name is a mesh-wide id.
+    # Framework separates the lightweight pair (one model, sglang + vllm);
+    # replicas/router separate the std matrix, which launches the same
+    # model+framework in three topologies.
+    topology = f"{launch_request.replicas}r" + ("-router" if launch_request.router == "sglang" else "")
+    expected_name = f"{launcher.username}/{launch_request.model}-{launch_request.framework}-{topology}"
     launch_request = launch_request.model_copy(update={"served_model_name": expected_name})
 
     job_id, served_model_name = await launcher.launch_model(launch_request)
