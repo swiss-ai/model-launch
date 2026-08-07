@@ -92,6 +92,10 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
     user_input = [
         f"framework={launch_args.framework}",
         f"served_model_name={launch_args.served_model_name}",
+        # The gateway's access-control input: "public" or an email list. It is
+        # shlex-quoted like the other user-supplied labels because an email
+        # list is one comma-separated argument.
+        f"authorization={launch_args.authorization}",
         f"framework_args={framework_args_normalised}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
