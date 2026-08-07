@@ -25,14 +25,14 @@ async def main() -> None:
 
     args = LaunchArgs(
         job_name=f"sml_apertus_8b_{username}",
-        served_model_name=f"swiss-ai/Apertus-8B-Instruct-2509-{username}",
+        served_model_name=f"{username}/swiss-ai/Apertus-8B-Instruct-2509",
         account=account,
         partition="normal",
         environment="src/swiss_ai_model_launch/assets/envs/sglang.toml",
         framework="sglang",
         framework_args=(
             "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
-            f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-{username} "
+            f"--served-model-name {username}/swiss-ai/Apertus-8B-Instruct-2509 "
             "--host 0.0.0.0 "
             "--enable-metrics"
         ),

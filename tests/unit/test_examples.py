@@ -21,6 +21,13 @@ from swiss_ai_model_launch.launchers.framework import render_master, render_rank
 _HAS_SHELLCHECK = shutil.which("shellcheck") is not None
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# The examples namespace their served name as "$USER/<vendor>/<model>". A real
+# invocation goes through a shell, which expands $USER before sml sees it;
+# shlex.split does not, so the parse helper below expands it to this name and
+# the tests build LaunchArgs under the same one. Without that, the literal
+# "$USER" would read as somebody else's namespace and be rejected.
+_TEST_USERNAME = "alice"
+
 
 def _parse_sml_advanced_script(content: str):
     """Extract the `sml advanced` flags from an example shell script.
@@ -30,6 +37,7 @@ def _parse_sml_advanced_script(content: str):
     argparse Namespace.
     """
     text = content
+    text = text.replace("${USER}", _TEST_USERNAME).replace("$USER", _TEST_USERNAME)
     text = re.sub(r"\\\n", " ", text)  # collapse line continuations
     text = re.sub(r"^\s*#.*$", "", text, flags=re.MULTILINE)  # strip comments
     tokens = shlex.split(text)
@@ -65,7 +73,7 @@ def test_example_renders_valid_bash(tmp_path: Path, example_path: str):
     args = _parse_sml_advanced_script(full_path.read_text())
     launch_args = build_launch_args_from_advanced(
         args,
-        username="alice",
+        username=_TEST_USERNAME,
         account="proj01-test",
         partition="normal",
     )
@@ -93,7 +101,7 @@ def test_example_passes_shellcheck(tmp_path: Path, example_path: str):
     args = _parse_sml_advanced_script(full_path.read_text())
     launch_args = build_launch_args_from_advanced(
         args,
-        username="alice",
+        username=_TEST_USERNAME,
         account="proj01-test",
         partition="normal",
     )

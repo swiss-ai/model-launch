@@ -2,9 +2,15 @@
 
 Every model SML puts on the mesh is served under ``<username>/<vendor>/<model>``,
 where ``username`` is the cluster account that submitted the SLURM job — the
-same value the job advertises as the OpenTela ``launched_by`` label. The
-gateway cross-checks the two (see the serving-api authorization service), so
-the namespace must be the launcher's own username and nothing else.
+same value the job advertises as the OpenTela ``launched_by`` label. Callers are
+expected to write the namespace out (the examples use ``$USER/...``); we still
+prepend it when it is missing so pre-namespacing scripts keep working, and we
+refuse a name under anyone else's username.
+
+That refusal is ours, not the gateway's: the gateway only requires three
+non-empty segments before it will list an id, and does not check the namespace
+against ``launched_by``. So this stops users from accidentally publishing under
+each other's names; it is not an ownership guarantee.
 
 Namespacing replaces the random salt that used to disambiguate served names:
 two users launching the same model no longer collide, and a name is now

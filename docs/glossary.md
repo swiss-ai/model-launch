@@ -70,9 +70,9 @@ A framework-side load balancer (e.g. `sglang-router`) inserted in front of N rep
 
 The name a client uses to request the model from the public gateway. SML namespaces it under your cluster username — `<username>/<vendor>/<model>`, e.g. `alice/swiss-ai/Apertus-8B-Instruct-2509` — so two people launching the same model never collide.
 
-Set via `--served-model-name`. A name passed without a namespace (`swiss-ai/Apertus-8B-Instruct-2509`) gets your username prepended for you; a name already under your own username is left alone; a name under someone *else's* username is rejected before submission. Omit the flag in `sml preconfigured` and the model id is used.
+Set via `--served-model-name`, with the namespace spelled out — the examples write `$USER/<vendor>/<model>`. A name already under your own username is used as-is; a name under someone *else's* username is rejected before submission; a name passed without a namespace still gets your username prepended, so older scripts keep working. Omit the flag in `sml preconfigured` and the model id is used.
 
-The gateway cross-checks the namespace against the job's `launched_by` label and refuses to list or route a peer serving under a username that isn't its own.
+The gateway lists only ids of the form `<namespace>/<vendor>/<model>` (three non-empty segments) from peers running a recent enough OpenTela. It does **not** currently verify that the namespace matches the job's `launched_by` label, so the namespace is a convention that prevents accidental collisions, not an ownership claim it enforces.
 
 ## serving-api
 
