@@ -5,6 +5,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from swiss_ai_model_launch.launchers.authorization import (
+    PRIVATE,
+    PUBLIC,
+    is_private,
+    normalize_authorization,
+)
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
@@ -88,6 +94,11 @@ class LaunchArgs(BaseModel):
     previous_job_id: int | None = None
     environment: str
 
+    # Who may list and use the model once it is on the mesh: "public" or a
+    # comma-separated email list. "private" is resolved to the launcher's own
+    # email by the CLI before we get here — see the validator below.
+    authorization: str = PUBLIC
+
     framework: str
     framework_args: str = ""
     pre_launch_cmds: str = ""
@@ -107,6 +118,20 @@ class LaunchArgs(BaseModel):
     def _validate(self) -> "LaunchArgs":
         if not self.disable_metrics and not self.metrics_remote_write_url:
             raise ValueError("Metrics require a remote write URL when metrics are enabled.")
+        if is_private(self.authorization):
+            # A guardrail, not a user-facing error: every CLI path resolves
+            # `private` to the launcher's email via /v1/whoami before building
+            # LaunchArgs. Reaching here means a code path skipped that, and
+            # emitting the literal label would silently publish the model to
+            # everyone — the gateway has no "private" in its grammar.
+            raise ValueError(
+                f"authorization={PRIVATE!r} must be resolved to the launcher's email before launch; "
+                f"the mesh label only understands {PUBLIC!r} or an email list."
+            )
+        # Normalizing here (rather than only in the CLI) keeps the label
+        # canonical for launches built programmatically — tests, the MCP
+        # server, and the example scripts all construct LaunchArgs directly.
+        self.authorization = normalize_authorization(self.authorization)
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

@@ -13,6 +13,12 @@ from typing import Any, cast
 
 import firecrest as f7t
 
+from swiss_ai_model_launch.cli.authorization import (
+    is_valid_authorization,
+    requested_from_args,
+    resolve_authorization,
+    warn_or_refuse_conflict,
+)
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.configuration.models import (
     ChainConfiguration,
@@ -26,6 +32,7 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.authorization import PRIVATE, PUBLIC, describe
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -50,6 +57,26 @@ _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], 
 # Shared so the OpenTela router description isn't duplicated across the static
 # parser config and the interactive option factories.
 _OPENTELA_ROUTER_DESC = "OpenTela load-balances across the replica peers on the mesh"
+
+_AUTHORIZATION_HELP = (
+    "Who may list and use the model on the Serving API. "
+    f"'{PUBLIC}' (default): everyone. "
+    f"'{PRIVATE}': only you — SML resolves this to your own email via the Serving API's "
+    "/v1/whoami before submitting, so it needs your Swiss AI Research API key. "
+    "Or a comma-separated email list, e.g. 'user1@epfl.ch,user2@ethz.ch' "
+    "(the list is literal: it does NOT implicitly include you). "
+    f"Env: SML_AUTHORIZATION."
+)
+
+
+def _add_authorization_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--authorization",
+        dest="authorization",
+        default=os.environ.get("SML_AUTHORIZATION", PUBLIC),
+        metavar="POLICY",
+        help=_AUTHORIZATION_HELP,
+    )
 
 
 def _make_firecrest_launcher_config(
@@ -160,6 +187,15 @@ def _make_launch_request_config(
                 validator=lambda v: bool(re.fullmatch(r"[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]", v)),
                 default="03:00:00",
             ),
+            TextConfiguration(
+                name="authorization",
+                prompt=(
+                    f"Who may use the model: '{PUBLIC}' (anyone), '{PRIVATE}' (only you), or comma-separated emails."
+                ),
+                validator=is_valid_authorization,
+                default=PUBLIC,
+                env_var="SML_AUTHORIZATION",
+            ),
         ],
     )
 
@@ -259,6 +295,7 @@ def _add_advanced_launch_arguments(
         default=None,
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
+    _add_authorization_argument(advanced_parser)
     advanced_parser.add_argument(
         "--router",
         dest="router",
@@ -579,6 +616,9 @@ async def _get_launch_request(launcher: Launcher, args: argparse.Namespace | Non
         time=launch_req_config.get_non_none_value("time"),
         served_model_name=namespace_served_model_name(model, launcher.username),
         router=cast(RouterMode, launch_req_config.get_non_none_value("router")),
+        # Still raw here ("public" / "private" / emails): resolving `private`
+        # needs the API key, which only the launch commands hold.
+        authorization=launch_req_config.get_non_none_value("authorization"),
     )
 
 
@@ -760,6 +800,14 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     launcher = await _create_launcher(config, args)
     swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_request = await _get_launch_request(launcher, args)
+    authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
+    launch_request = launch_request.model_copy(update={"authorization": authorization})
+    await warn_or_refuse_conflict(
+        swissai_research_api_key,
+        cast(str, launch_request.served_model_name),
+        authorization,
+    )
+    print(f"Authorization: {describe(authorization)}")
     launch_coro = launcher.launch_model(launch_request)
     if args.tui:
         await _run_monitor(
@@ -784,6 +832,7 @@ def build_launch_args_from_advanced(
     account: str,
     partition: str,
     telemetry_endpoint: str | None = None,
+    authorization: str = PUBLIC,
 ) -> LaunchArgs:
     """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
@@ -848,6 +897,7 @@ def build_launch_args_from_advanced(
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
+        authorization=authorization,
     )
 
 
@@ -860,13 +910,24 @@ async def _run_advanced(args: argparse.Namespace) -> None:
     launcher = await _create_launcher(config, args, non_interactive=True)
     swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
 
+    authorization = await resolve_authorization(requested_from_args(args), swissai_research_api_key)
     launch_args = build_launch_args_from_advanced(
         args,
         username=launcher.username,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=TELEMETRY_ENDPOINT,
+        authorization=authorization,
     )
+    if not args.output_script:
+        # --output-script only renders scripts; nothing joins the mesh, so
+        # there is no collision to check for (and no reason to need network).
+        await warn_or_refuse_conflict(
+            swissai_research_api_key,
+            launch_args.served_model_name,
+            authorization,
+        )
+        print(f"Authorization: {describe(authorization)}")
 
     # Decide single vs. consecutive chain. --time is the total uptime; a job is
     # capped at --max-job-time, so anything longer needs --consecutive and is

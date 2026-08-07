@@ -56,6 +56,12 @@ One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-
 
 A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the normal queue. Set via `--reservation` (advanced) or `--reservation` (interactive). Optional.
 
+## Model authorization
+
+Who may list and use a served model. Set at launch via `--authorization`: `public` (the default — anyone), `private` (only you), or a comma-separated email list (exactly those users — it does not implicitly include you). It travels to the mesh as an OpenTela peer label and is enforced by the Serving API, which hides unauthorized models from `/v1/models` and answers `403` on inference routes.
+
+`private` never reaches the mesh: the gateway has no idea who launched a job, so SML resolves it to your own email via the Serving API's `/v1/whoami` before submitting. Because OpenTela load-balances a [served-model name](#served-model-name) across every peer advertising it, two launches sharing a name with *different* policies make that name unroutable for everyone — SML refuses such a launch up front. See [Model authorization](usage-advanced.md#model-authorization).
+
 ## Router
 
 A framework-side load balancer (e.g. `sglang-router`) inserted in front of N replicas inside one SLURM job. Enabled via `--router sglang` (the default `--router opentela` skips it and lets OpenTela balance across the replica peers). Orthogonal to [OpenTela](#opentela): the router shapes traffic *within* the job; OpenTela picks *which* job/peer a request lands on.
