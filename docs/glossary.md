@@ -56,6 +56,12 @@ One independent copy of the model (a [DP](sizing.md#parallelism-dp-tp-pp-ep-and-
 
 A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the normal queue. Set via `--reservation` (advanced) or `--reservation` (interactive). Optional.
 
+## Launch labels
+
+Facts about a launch that SML attaches to its [OpenTela](#opentela) peer, which the gateway reads back — visible per model in `/v1/models_detailed`. Set at peer start and fixed for the job's life:
+
+`launched_by`, `slurm_job_id`, `slurm_partition`, `worker_group_id`, `framework`, `framework_args`, `served_model_name`, `started_at`, `expires_at`, [`authorization`](#model-authorization), and `sml_version` — the version of SML that rendered the launch script, resolved on the submitting machine (SML isn't installed on the compute node). It answers "which SML launched this?" when a running model behaves unexpectedly, e.g. whether it predates a fix.
+
 ## Model authorization
 
 Who may list and use a served model. Set at launch via `--authorization`: `public` (the default — anyone), `private` (only you), or a comma-separated email list (exactly those users — it does not implicitly include you). It travels to the mesh as an OpenTela peer label and is enforced by the Serving API, which hides unauthorized models from `/v1/models` and answers `403` on inference routes.
