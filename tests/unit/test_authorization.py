@@ -409,3 +409,41 @@ def test_argparse_namespace_without_the_flag_defaults_to_public():
     """Callers that build a Namespace by hand (tests, example scripts) must
     not accidentally launch with no policy at all."""
     assert _run(resolve_authorization(requested_from_args(argparse.Namespace()), "sk-rc-key")) == "public"
+
+
+# ── launch provenance ───────────────────────────────────────────────────────
+
+
+def test_labels_record_the_sml_version():
+    """Which SML built a launch is the first question when one misbehaves —
+    the label carries it onto the mesh alongside the policy."""
+    import importlib.metadata
+
+    from swiss_ai_model_launch.launchers.framework import _sml_version
+
+    labels = _opentela_labels(_launch_args())
+    assert f"--label sml_version={_sml_version()}" in labels
+    assert _sml_version() == importlib.metadata.version("swiss-ai-model-launch")
+
+
+def test_sml_version_is_baked_in_not_resolved_on_the_node():
+    """SML isn't installed on the compute node, so a $(...) here would render
+    an empty label. The value must be a literal in the script."""
+    labels = _opentela_labels(_launch_args())
+    version_line = next(line for line in labels.splitlines() if "sml_version=" in line)
+    assert "$" not in version_line and "`" not in version_line
+
+
+def test_sml_version_falls_back_when_the_package_is_not_installed(monkeypatch):
+    """Running from an uninstalled source checkout must not fail the launch
+    over a provenance label."""
+    import importlib.metadata
+
+    from swiss_ai_model_launch.launchers import framework as framework_module
+
+    def missing(_name):
+        raise importlib.metadata.PackageNotFoundError(_name)
+
+    monkeypatch.setattr(framework_module.importlib.metadata, "version", missing)
+    assert framework_module._sml_version() == "unknown"
+    assert "--label sml_version=unknown" in framework_module._opentela_labels(_launch_args())
