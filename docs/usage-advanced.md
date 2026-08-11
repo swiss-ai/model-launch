@@ -25,7 +25,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
 | `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
 | `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
-| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. Namespaced under your username automatically — see the note below. |
+| `--served-model-name`       |                      | Required: here, or `--served-model-name <name>` inside `--framework-args`. Namespaced — see the note below.                    |
 | `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
 | `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
 | `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
