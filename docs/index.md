@@ -24,6 +24,7 @@ That's it — the second command `sml init` sets up credentials, the third launc
 - Setting up credentials? → [Initialization](initialization.md)
 - Just want a script to run? → browse [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples) on GitHub
 - Sizing questions? → [How to size a model](sizing.md)
+- Model not supported yet? → [Adding a New Model](adding-models.md)
 - Hooking up Claude Desktop? → [MCP Server](mcp.md)
 - Always-on hosting / general questions? → [FAQ](faq.md)
 

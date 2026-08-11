@@ -31,6 +31,7 @@ nav:
       - Replica is the Orchestration Unit: adrs/0001-replica-is-the-orchestration-unit.md
   - Developers:
       - Development: development.md
+      - Adding a New Model: adding-models.md
       - Building Container Images: building-images.md
       - CI/CD: ci-cd.md
   - FAQ: faq.md
