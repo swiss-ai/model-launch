@@ -212,6 +212,7 @@ The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry pay
 
 ## Next
 
+- [Porting a raw command](porting-commands.md) — turning an sglang/vLLM command into `sml advanced`
 - [How to size a model](sizing.md) — picking the right replica/node layout
 - [Benchmarking](benchmarking.md) — throughput and latency measurement
 - [Architecture](architecture.md) — how `sml advanced` fits with the serving stack
