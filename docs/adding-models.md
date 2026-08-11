@@ -79,6 +79,6 @@ Narrow the failure before filing an issue:
 
 ## Filing it
 
-The SML team can't take a "please add my model" request for every checkpoint that lands on Hugging Face. Work the steps above first; if you're still stuck, open an issue with the [adding-new-model template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md), including the failing command, the trailing 50 lines of logs, and what you've already ruled out.
+New checkpoints appear on Hugging Face faster than the SML team can add them one by one, so please try the steps above first — most models work without any changes to SML. If you're still stuck, we're happy to help: open an issue using the [adding-new-model template](https://github.com/swiss-ai/model-launch/blob/main/.github/ISSUE_TEMPLATE/adding-new-model-to-sml.md) and include the failing command, the trailing 50 lines of logs, and what you've already ruled out. That context lets us get to an answer much faster.
 
 For PRs: keep them focused, make sure pre-commit hooks pass, and expect [CI](ci-cd.md) to run static checks and integration tests. See [Development](development.md) for the dev environment.
