@@ -1,0 +1,93 @@
+# -----------------------------------------------------------------------------
+# CONTROL arm: NCCL over TCP sockets (default pod network, no Slingshot).
+#
+# Same image, same script, same GPUs as bench-hsn.yaml. The ONLY differences:
+#   * no hostNetwork / no /dev/cxi / no /opt/cray mounts
+#   * NCCL_NET_PLUGIN disabled and NCCL_NET=Socket  -> forces the socket path
+# This is the "before" number the Slingshot run must beat.
+#
+#   kubectl --context breithorn-oidc -n rob-poc create configmap nccl-bench-src --from-file=allreduce_bench.py
+#   kubectl --context breithorn-oidc -n rob-poc apply -f bench-tcp.yaml
+#   kubectl --context breithorn-oidc -n rob-poc logs -f bench-tcp-master
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: bench-tcp
+  namespace: rob-poc
+spec:
+  clusterIP: None
+  selector:
+    app: bench-tcp
+    role: master
+  ports:
+    - name: rdzv
+      port: 29500
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bench-tcp-master
+  namespace: rob-poc
+  labels: { app: bench-tcp, role: master }
+spec:
+  restartPolicy: OnFailure
+  affinity:
+    podAntiAffinity: # keep the two ranks on different nodes
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: { matchLabels: { app: bench-tcp } }
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: bench
+      image: ghcr.io/swiss-ai/vllm_cxi:latest
+      command: ["python3", "/src/allreduce_bench.py"]
+      env:
+        - { name: RANK, value: "0" }
+        - { name: WORLD_SIZE, value: "2" }
+        - { name: LOCAL_RANK, value: "0" }
+        - { name: MASTER_ADDR, value: "0.0.0.0" }
+        - { name: MASTER_PORT, value: "29500" }
+        - { name: NCCL_NET, value: "Socket" } # force TCP transport
+        - { name: NCCL_NET_PLUGIN, value: "none" } # do not load aws-ofi-nccl
+        - { name: NCCL_SOCKET_IFNAME, value: "eth0" }
+        - { name: NCCL_DEBUG, value: "INFO" } # prints selected transport
+        - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET" }
+      resources: { limits: { nvidia.com/gpu: 1 } }
+      volumeMounts: [{ name: src, mountPath: /src }]
+  volumes:
+    - name: src
+      configMap: { name: nccl-bench-src }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bench-tcp-worker
+  namespace: rob-poc
+  labels: { app: bench-tcp, role: worker }
+spec:
+  restartPolicy: OnFailure
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector: { matchLabels: { app: bench-tcp } }
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: bench
+      image: ghcr.io/swiss-ai/vllm_cxi:latest
+      command: ["python3", "/src/allreduce_bench.py"]
+      env:
+        - { name: RANK, value: "1" }
+        - { name: WORLD_SIZE, value: "2" }
+        - { name: LOCAL_RANK, value: "0" }
+        - { name: MASTER_ADDR, value: "bench-tcp.rob-poc.svc.cluster.local" }
+        - { name: MASTER_PORT, value: "29500" }
+        - { name: NCCL_NET, value: "Socket" }
+        - { name: NCCL_NET_PLUGIN, value: "none" }
+        - { name: NCCL_SOCKET_IFNAME, value: "eth0" }
+        - { name: NCCL_DEBUG, value: "INFO" }
+        - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET" }
+      resources: { limits: { nvidia.com/gpu: 1 } }
+      volumeMounts: [{ name: src, mountPath: /src }]
+  volumes:
+    - name: src
+      configMap: { name: nccl-bench-src }

@@ -85,9 +85,16 @@ def _build_slurm_script(
             podman logout ghcr.io 2>/dev/null || true
             podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
-            rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
+            rm -rf "${{XDG_RUNTIME_DIR}}" "${{PODMAN_STORE}}" 2>/dev/null || true
         }}
         trap cleanup EXIT
+
+        # Log in before building: some images use a private ghcr.io base
+        # (e.g. vllm_cxi's `FROM ghcr.io/swiss-ai/vllm_cuda13`), and the base
+        # pull during `podman build` must be authenticated. Public-base images
+        # are unaffected by an early login.
+        echo "=== Logging in to GHCR ==="
+        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         # --format docker: honor SHELL instructions (OCI format silently
@@ -95,7 +102,6 @@ def _build_slurm_script(
         podman build --format docker -t "${{IMAGE_TAG}}" .
 
         echo "=== Pushing to GHCR ==="
-        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
         podman push "${{IMAGE_TAG}}" "{ghcr_image}"
 
         echo "=== Converting to sqsh ==="
