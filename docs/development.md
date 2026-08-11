@@ -133,6 +133,10 @@ uv run pytest tests/unit/test_rendered_scripts_lint.py -q
 
 `tests/unit/test_examples.py` also renders six real example scripts through the production CLI parser, so adding a flag that breaks one of those will fail there.
 
+## Container images
+
+The containers models run in are built from `images/<name>/Dockerfile` — on the cluster, by CI. See [Building Container Images](building-images.md) for how to add or change one.
+
 ## CI / CD
 
 See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → image build → integration tests; each stage gates the next.
