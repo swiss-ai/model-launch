@@ -88,6 +88,9 @@ RUN git clone --branch apertus-in-tree-parsers https://github.com/swiss-ai/vllm.
     git -C /workspace/benchmark-audio-tokenizer checkout f8fe507212aa672a067baddb157b92ba3cfe9467 && \
     git -C /workspace/benchmark-audio-tokenizer submodule update --init --recursive
 
+# VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE trips DL3064 on the "TOKEN" substring.
+# It is a path to the audio *tokenizer* checkout, not a credential.
+# hadolint ignore=DL3064
 ENV VLLM_REPO=/workspace/vllm \
     EMU35=/workspace/Emu3.5 \
     VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE=/workspace/benchmark-audio-tokenizer \
