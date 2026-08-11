@@ -80,10 +80,17 @@ async def test_cli_example_launches_and_health(
     cancel_launcher: FirecRESTLauncher,
     env: dict[str, str],
 ) -> None:
+    # The examples name their model "$USER/<vendor>/<model>", which a real
+    # user's shell expands to their cluster account. On a CI runner $USER is
+    # the runner's account (or unset), and SML rejects a served name namespaced
+    # under anyone but the submitting user — so pin it to the account FirecREST
+    # says we are, which is exactly what the launch will be submitted as.
+    script_env = {**os.environ, "USER": cancel_launcher.username}
     proc = await asyncio.create_subprocess_exec(
         "bash",
         str(script),
         cwd=_REPO_ROOT,
+        env=script_env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -103,6 +110,14 @@ async def test_cli_example_launches_and_health(
     served_match = re.search(r"Served model name:\s*(\S+)", stdout)
     assert served_match, f"{script.name}: no 'Served model name: <name>' line in output\n---\n{stdout}"
     served_model_name = served_match.group(1)
+    # The gateway only advertises three-segment ids, and the namespace has to
+    # be the launching account — assert the example produced one.
+    assert served_model_name.startswith(f"{cancel_launcher.username}/"), (
+        f"{script.name}: served name {served_model_name!r} is not namespaced under {cancel_launcher.username!r}"
+    )
+    assert len(served_model_name.split("/")) == 3, (
+        f"{script.name}: served name {served_model_name!r} is not <user>/<vendor>/<model>"
+    )
 
     try:
         await wait_for_job_running(cancel_launcher, job_id, _LAUNCH_TIMEOUT_MIN)

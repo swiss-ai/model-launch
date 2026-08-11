@@ -14,11 +14,13 @@ from fastmcp import Context
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.authorization import PUBLIC, is_private, normalize_authorization
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
-from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.served_name import derive_served_model_name
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry
+from swiss_ai_model_launch.serving_api import ServingApiError, whoami
 
 _POLL_INTERVAL_SECONDS = 10
 _TERMINAL_STATUSES = {JobStatus.TIMEOUT, JobStatus.UNKNOWN}
@@ -50,7 +52,8 @@ mcp = fastmcp.FastMCP(
         "   periodic [status] lines as MCP notifications while you wait. It returns only when\n"
         "   the model is healthy or the job reaches a terminal state. The return value includes\n"
         "   the served_model_name — your launch's identifier, namespaced under the cluster\n"
-        "   username that submitted the job (e.g. 'alice/swiss-ai/Apertus-70B') — that you\n"
+        "   username that submitted the job and suffixed with the framework\n"
+        "   (e.g. 'alice/swiss-ai/Apertus-70B-sglang') — that you\n"
         "   pass as the 'model' field when sending inference requests to the cluster API\n"
         "   endpoint.\n\n"
         "5. **Operate** — use `get_job_status` to poll a running job (returns PENDING, RUNNING,\n"
@@ -259,6 +262,14 @@ async def launch_preconfigured_model(
         "the replica peers on the mesh. 'sglang': an in-job SGLang router fronts the replicas "
         "and becomes the served endpoint (needs replicas > 1).",
     ] = "opentela",
+    authorization: Annotated[
+        str,
+        "Who may list and use the model on the Serving API. 'public' (default): everyone. "
+        "'private': only the launching user — resolved to their email via the Serving API's "
+        "/v1/whoami, which needs SWISSAI_RESEARCH_API_KEY to be configured. Or a "
+        "comma-separated email list, e.g. 'user1@epfl.ch,user2@ethz.ch' (literal: it does "
+        "not implicitly include the launcher).",
+    ] = PUBLIC,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -292,17 +303,33 @@ async def launch_preconfigured_model(
             f"Model '{model}' with framework '{framework}' was not found in the catalogue. "
             "Use `list_preconfigured_models` to see available models."
         )
+    config = InitConfig.load()
+    swissai_research_api_key = config.get_value("swissai_research_api_key")
+    try:
+        resolved_authorization = normalize_authorization(authorization)
+        if is_private(resolved_authorization):
+            # The mesh label has no "private": it must become the launcher's
+            # own email before the job is submitted.
+            if not swissai_research_api_key:
+                return (
+                    "authorization='private' needs SWISSAI_RESEARCH_API_KEY to resolve your "
+                    "email via the Serving API. Configure it with `sml init`, or pass an "
+                    "explicit email list."
+                )
+            resolved_authorization = normalize_authorization(await whoami(swissai_research_api_key))
+    except (ValueError, ServingApiError) as e:
+        return f"Could not apply authorization={authorization!r}: {e}"
+
     request = LaunchRequest.from_catalog_entry(
         entry,
         replicas=replicas,
         time=time,
-        served_model_name=namespace_served_model_name(model, launcher.username),
+        served_model_name=derive_served_model_name(model, framework, launcher.username),
         router=router,
+        authorization=resolved_authorization,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")
-    config = InitConfig.load()
-    swissai_research_api_key = config.get_value("swissai_research_api_key")
     stdout_lines_sent = 0
     stderr_lines_sent = 0
     ever_healthy = False

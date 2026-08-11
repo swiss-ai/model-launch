@@ -10,7 +10,7 @@ sml advanced \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-8b-stage2_notools_nothink_1606_260it \
-    --served-model-name swiss-ai/Apertus-1.5-8B-rl-step260 \
+    --served-model-name $USER/swiss-ai/Apertus-1.5-8B-rl-step260 \
     --tokenizer /capstor/store/cscs/swissai/infra01/hf_tokenizers/tokenizers/Apertus-v1p5-tool_output_toks-think_toks \
     --tensor-parallel-size 4 \
     --host 0.0.0.0 \
