@@ -36,6 +36,8 @@ If you're not sure, start with `firecrest` — it's what most users run.
 
 The FirecREST fields are only required when `--launcher firecrest`. `SML_SWISSAI_RESEARCH_API_KEY` is required regardless of launcher.
 
+Setting `SML_FIRECREST_API_KEY` in the environment overrides the configured client credentials: the key is sent as an `X-API-Key` header instead of a bearer token, which also requires `--firecrest-url` to point at the matching PAT gateway. This is how CI authenticates as a service account; `sml init` does not ask for it.
+
 ## Where credentials come from
 
 - **FirecREST client ID / secret** — Acquire from the [CSCS Developer Portal](https://developer.svc.cscs.ch/devportal/apis). See the [FirecREST docs](https://docs.cscs.ch/services/devportal/#manage-your-applications) for the full walkthrough.

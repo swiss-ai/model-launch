@@ -1,10 +1,27 @@
 import asyncio
+import os
 
 import pytest
 
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launcher import Launcher
+
+# A run authenticates either with a service-account API key or with a personal
+# account's client credentials, so neither set can be required outright. Whichever
+# is present is passed through to the client builder, which rejects the case where
+# nothing usable is set.
+FIRECREST_AUTH_ENV_VARS = (
+    "SML_FIRECREST_API_KEY",
+    "SML_FIRECREST_CLIENT_ID",
+    "SML_FIRECREST_CLIENT_SECRET",
+    "SML_FIRECREST_TOKEN_URI",
+)
+
+
+def firecrest_auth_env() -> dict[str, str]:
+    """Return whichever FirecREST credentials the environment carries."""
+    return {name: os.environ[name] for name in FIRECREST_AUTH_ENV_VARS if os.environ.get(name)}
 
 
 def _tail(text: str, lines: int = 50) -> str:

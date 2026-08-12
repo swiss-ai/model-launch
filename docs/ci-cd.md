@@ -117,13 +117,15 @@ Deletes the three GHCR tags (`pr-N`, `pr-N-arm64`, `pr-N-amd64`) for every image
 
 | Name | Kind | Used for |
 | --- | --- | --- |
-| `SML_FIRECREST_CLIENT_ID` / `_SECRET` / `_TOKEN_URI` | secret | FireCREST auth (shared across clusters) |
+| `SML_FIRECREST_API_KEY` | secret | FireCREST service-account API key (shared across clusters) |
 | `SML_SWISSAI_RESEARCH_API_KEY` | secret | Integration tests |
 | `SML_FIRECREST_URL`, `SML_SYSTEM`, `SML_PARTITION`, `SML_RESERVATION` | variable | arm64 cluster |
 | `SML_FIRECREST_URL_AMD64`, `SML_SYSTEM_AMD64`, `SML_PARTITION_AMD64` | variable | amd64 cluster (no reservation) |
 | `GITHUB_TOKEN` | automatic | GHCR push/read, manifest merge |
 | `GHCR_DELETE_TOKEN` | secret (optional) | PR cleanup |
 | `SONAR_TOKEN` | secret | SonarCloud (skipped for forked PRs) |
+
+CI authenticates as a **service account**, not a personal account: the key is sent as an `X-API-Key` header, so both `SML_FIRECREST_URL` variables must point at the PAT gateway (e.g. `https://f7t-pat.api.svc.cscs.ch/mlp`) rather than the Developer Portal endpoint. Everything the jobs touch — the home directory build contexts under `/users/<service-account>/.sml`, the capstor images directory, and any SLURM reservation — must be writable/usable by that account.
 
 ## When something fails
 

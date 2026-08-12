@@ -13,7 +13,7 @@ from typing import Any, cast
 
 import firecrest as f7t
 
-from swiss_ai_model_launch.cli.configuration import InitConfig
+from swiss_ai_model_launch.cli.configuration import InitConfig, optional_value
 from swiss_ai_model_launch.cli.configuration.models import (
     ChainConfiguration,
     GetValueFn,
@@ -26,6 +26,7 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -401,29 +402,15 @@ async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
     print("SML is configured and ready to use! Please restart the program.")
 
 
-def _optional_init_value(config: InitConfig, name: str) -> str | None:
-    """Read an optional init-config value, tolerating older configs that lack it.
-
-    Newly-added settings (e.g. ``cluster_ssh_host``) won't be present in configs
-    written before they existed, so ``get_value`` raises ``KeyError`` — treat that,
-    and an empty string, as "unset".
-    """
-    try:
-        value = config.get_value(name)
-    except KeyError:
-        return None
-    return value or None
-
-
 def _get_firecrest_client_from_init_config(config: InitConfig) -> f7t.v2.AsyncFirecrest:
-    return f7t.v2.AsyncFirecrest(
-        firecrest_url=config.get_non_none_value("firecrest_url"),
-        authorization=f7t.ClientCredentialsAuth(
-            client_id=config.get_non_none_value("firecrest_client_id"),
-            client_secret=config.get_non_none_value("firecrest_client_secret"),
-            token_uri=config.get_non_none_value("firecrest_token_uri"),
-            min_token_validity=90,
-        ),
+    # The API key is environment-only: it belongs to a service account (CI), while
+    # `sml init` configures the personal client credentials a human has.
+    return build_client(
+        config.get_non_none_value("firecrest_url"),
+        api_key=os.environ.get("SML_FIRECREST_API_KEY"),
+        client_id=optional_value(config, "firecrest_client_id"),
+        client_secret=optional_value(config, "firecrest_client_secret"),
+        token_uri=optional_value(config, "firecrest_token_uri"),
     )
 
 
@@ -600,7 +587,7 @@ async def _create_launcher(
         # SSH host for the TUI's node-terminal button: an explicit override
         # (env or init config) wins; otherwise it's auto-derived from the
         # selected FirecREST system inside the helper below.
-        ssh_host_override = os.environ.get("SML_CLUSTER_SSH_HOST") or _optional_init_value(config, "cluster_ssh_host")
+        ssh_host_override = os.environ.get("SML_CLUSTER_SSH_HOST") or optional_value(config, "cluster_ssh_host")
         return cast(
             Launcher,
             await _get_firecrest_launcher_with_client(

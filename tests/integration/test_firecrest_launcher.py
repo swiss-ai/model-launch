@@ -3,13 +3,18 @@ import json
 import os
 from collections.abc import AsyncIterator
 
-import firecrest as f7t
 import pytest
 
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from tests.integration.utils import wait_for_all_replicas_healthy, wait_for_job_running, wait_for_model_healthy
+from tests.integration.utils import (
+    firecrest_auth_env,
+    wait_for_all_replicas_healthy,
+    wait_for_job_running,
+    wait_for_model_healthy,
+)
 
 # Timeouts in minutes. Overridable via env so a failing run can be made to time
 # out quickly for debugging (e.g. SML_TEST_REPLICA_TIMEOUT=5) without changing
@@ -72,10 +77,7 @@ _STD_LAUNCH_REQUESTS = [
 
 _REQUIRED_ENV_VARS = [
     "SML_SWISSAI_RESEARCH_API_KEY",
-    "SML_FIRECREST_CLIENT_ID",
-    "SML_FIRECREST_CLIENT_SECRET",
     "SML_SYSTEM",
-    "SML_FIRECREST_TOKEN_URI",
     "SML_FIRECREST_URL",
     "SML_PARTITION",
     "SML_RESERVATION",
@@ -90,20 +92,12 @@ def env() -> dict[str, str]:
             "Missing required environment variables: " + ", ".join(missing),
             pytrace=False,
         )
-    return {v: os.environ[v] for v in _REQUIRED_ENV_VARS}
+    return {v: os.environ[v] for v in _REQUIRED_ENV_VARS} | firecrest_auth_env()
 
 
 @pytest.fixture(scope="function")  # type: ignore[misc]
 async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
-    client = f7t.v2.AsyncFirecrest(
-        firecrest_url=env["SML_FIRECREST_URL"],
-        authorization=f7t.ClientCredentialsAuth(
-            client_id=env["SML_FIRECREST_CLIENT_ID"],
-            client_secret=env["SML_FIRECREST_CLIENT_SECRET"],
-            token_uri=env["SML_FIRECREST_TOKEN_URI"],
-            min_token_validity=90,
-        ),
-    )
+    client = build_client_from_env(env["SML_FIRECREST_URL"], env)
     try:
         yield await FirecRESTLauncher.from_client(
             client=client,

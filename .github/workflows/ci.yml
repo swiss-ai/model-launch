@@ -107,9 +107,8 @@ jobs:
         arch: [arm64, amd64]
       fail-fast: false
     env:
-      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
-      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
-      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+      # Service-account API key, sent as X-API-Key to the PAT gateway.
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
       # arm64 (Grace) cluster — base vars.
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_SYSTEM: ${{ vars.SML_SYSTEM }}
@@ -249,10 +248,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SML_SWISSAI_RESEARCH_API_KEY: ${{ secrets.SML_SWISSAI_RESEARCH_API_KEY }}
-      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
-      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
       SML_SYSTEM: ${{ vars.SML_SYSTEM }}
-      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
       SML_RESERVATION: ${{ vars.SML_RESERVATION }}
@@ -275,10 +272,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SML_SWISSAI_RESEARCH_API_KEY: ${{ secrets.SML_SWISSAI_RESEARCH_API_KEY }}
-      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
-      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
       SML_SYSTEM: ${{ vars.SML_SYSTEM }}
-      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
       SML_RESERVATION: ${{ vars.SML_RESERVATION }}
@@ -300,10 +295,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SML_SWISSAI_RESEARCH_API_KEY: ${{ secrets.SML_SWISSAI_RESEARCH_API_KEY }}
-      SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
-      SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
       SML_SYSTEM: ${{ vars.SML_SYSTEM }}
-      SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
       SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
       SML_PARTITION: ${{ vars.SML_PARTITION }}
       SML_RESERVATION: ${{ vars.SML_RESERVATION }}

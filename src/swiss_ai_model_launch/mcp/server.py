@@ -11,9 +11,10 @@ import fastmcp
 import firecrest as f7t
 from fastmcp import Context
 
-from swiss_ai_model_launch.cli.configuration import InitConfig
+from swiss_ai_model_launch.cli.configuration import InitConfig, optional_value
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
@@ -72,14 +73,14 @@ mcp = fastmcp.FastMCP(
 
 
 def _build_firecrest_client(config: InitConfig) -> f7t.v2.AsyncFirecrest:
-    return f7t.v2.AsyncFirecrest(
-        firecrest_url=config.get_non_none_value("firecrest_url"),
-        authorization=f7t.ClientCredentialsAuth(
-            client_id=config.get_non_none_value("firecrest_client_id"),
-            client_secret=config.get_non_none_value("firecrest_client_secret"),
-            token_uri=config.get_non_none_value("firecrest_token_uri"),
-            min_token_validity=90,
-        ),
+    # The API key is environment-only: it belongs to a service account (CI), while
+    # `sml init` configures the personal client credentials a human has.
+    return build_client(
+        config.get_non_none_value("firecrest_url"),
+        api_key=os.environ.get("SML_FIRECREST_API_KEY"),
+        client_id=optional_value(config, "firecrest_client_id"),
+        client_secret=optional_value(config, "firecrest_client_secret"),
+        token_uri=optional_value(config, "firecrest_token_uri"),
     )
 
 

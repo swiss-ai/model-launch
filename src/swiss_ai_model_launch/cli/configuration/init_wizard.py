@@ -143,3 +143,17 @@ class InitConfig(ChainConfiguration):
         _CONFIG_DIR.mkdir(exist_ok=True)
         with _CONFIG_FILE.open("w") as f:
             yaml.dump(self.model_dump(mode="json"), f)
+
+
+def optional_value(config: InitConfig, name: str) -> str | None:
+    """Read an optional init-config value, tolerating older configs that lack it.
+
+    Newly-added settings (e.g. ``cluster_ssh_host``) won't be present in configs
+    written before they existed, so ``get_value`` raises ``KeyError`` — treat that,
+    and an empty string, as "unset".
+    """
+    try:
+        value = config.get_value(name)
+    except KeyError:
+        return None
+    return value or None

@@ -11,6 +11,8 @@ from textwrap import dedent
 
 import firecrest as f7t
 
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
+
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
 _RELEASE_CHANNEL = "latest"
 # Anything outside this set lands in a filesystem path and a registry tag, so
@@ -159,11 +161,6 @@ def _arch_env(base_key: str, arch: str) -> str | None:
 
 
 async def main(image_name: str, arch: str, channel: str) -> int:
-    # Shared across both clusters.
-    client_id = os.environ["SML_FIRECREST_CLIENT_ID"]
-    client_secret = os.environ["SML_FIRECREST_CLIENT_SECRET"]
-    token_uri = os.environ["SML_FIRECREST_TOKEN_URI"]
-
     # Per-arch: different cluster reached via a different FireCREST endpoint.
     firecrest_url = _arch_env("SML_FIRECREST_URL", arch)
     system_name = _arch_env("SML_SYSTEM", arch)
@@ -189,8 +186,9 @@ async def main(image_name: str, arch: str, channel: str) -> int:
     ghcr_token = os.environ["GHCR_TOKEN"]
     ghcr_actor = os.environ["GHCR_ACTOR"]
 
-    auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri, min_token_validity=90)
-    client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
+    # Credentials (service-account API key, or client ID/secret) are shared
+    # across both clusters and read from the environment.
+    client = build_client_from_env(firecrest_url)
 
     user_info = await client.userinfo(system_name)
     username = user_info["user"]["name"]

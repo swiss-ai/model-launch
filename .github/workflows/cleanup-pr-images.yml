@@ -47,9 +47,7 @@ jobs:
       - name: Delete capstor sqsh directory and build contexts
         continue-on-error: true
         env:
-          SML_FIRECREST_CLIENT_ID: ${{ secrets.SML_FIRECREST_CLIENT_ID }}
-          SML_FIRECREST_CLIENT_SECRET: ${{ secrets.SML_FIRECREST_CLIENT_SECRET }}
-          SML_FIRECREST_TOKEN_URI: ${{ secrets.SML_FIRECREST_TOKEN_URI }}
+          SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
           SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
           SML_SYSTEM: ${{ vars.SML_SYSTEM }}
         run: python .github/scripts/cleanup_pr_images.py "${CHANNEL}"

@@ -218,6 +218,13 @@ class PasswordConfiguration(_ResolvableConfiguration):
     def _get_question(self) -> Question:
         return questionary.password(self.prompt or self.name)
 
+    def set_value(self, name: str, value: str) -> None:
+        super().set_value(name, value)
+        # The YAML only ever holds a placeholder, so a secret set programmatically
+        # has to reach the keyring the same way an answered prompt does — otherwise
+        # it is lost the moment the config is saved and loaded back.
+        self._on_answer()
+
     def _on_answer(self) -> None:
         if self.value is not None:
             keyring.set_password(_KEYRING_SERVICE, self.name, self.value)

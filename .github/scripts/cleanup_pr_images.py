@@ -7,6 +7,8 @@ import sys
 import firecrest as f7t
 from build_image import _CAPSTOR_IMAGES, _CHANNEL_RE, _RELEASE_CHANNEL
 
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
+
 
 async def _rm(client: f7t.v2.AsyncFirecrest, system_name: str, account: str, path: str) -> None:
     print(f"Removing {path}")
@@ -19,14 +21,10 @@ async def _rm(client: f7t.v2.AsyncFirecrest, system_name: str, account: str, pat
 
 
 async def main(channel: str) -> int:
-    client_id = os.environ["SML_FIRECREST_CLIENT_ID"]
-    client_secret = os.environ["SML_FIRECREST_CLIENT_SECRET"]
-    token_uri = os.environ["SML_FIRECREST_TOKEN_URI"]
     firecrest_url = os.environ["SML_FIRECREST_URL"]
     system_name = os.environ["SML_SYSTEM"]
 
-    auth = f7t.ClientCredentialsAuth(client_id, client_secret, token_uri, min_token_validity=90)
-    client = f7t.v2.AsyncFirecrest(firecrest_url, authorization=auth)
+    client = build_client_from_env(firecrest_url)
 
     user_info = await client.userinfo(system_name)
     username = user_info["user"]["name"]
