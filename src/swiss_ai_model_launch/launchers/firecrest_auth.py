@@ -41,7 +41,9 @@ def _api_key_hook(api_key: str, firecrest_url: str) -> Callable[[httpx.Request],
     """Return an httpx request hook that swaps bearer auth for the API key."""
     firecrest_host = httpx.URL(firecrest_url).host
 
-    async def hook(request: httpx.Request) -> None:
+    # Awaits nothing, but must stay `async`: httpx's AsyncClient awaits every request
+    # event hook, so a plain function raises "object NoneType can't be awaited".
+    async def hook(request: httpx.Request) -> None:  # NOSONAR
         # Uploads and downloads reuse this session to talk to presigned S3 URLs,
         # which carry their own credentials in the query string. Only rewrite
         # requests that actually go to FirecREST.
