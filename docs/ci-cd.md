@@ -77,6 +77,8 @@ Each arch builds natively on its own cluster via a different FireCREST endpoint:
 
 On the cluster: `podman build --format docker` → push `:<channel>-<arch>` → `enroot import` to squashfs → copy to capstor via `.tmp` + atomic `mv`. An `EXIT` trap cleans up the local image, scratch sqsh, and podman runtime dir.
 
+**Podman storage.** The job writes its own `storage.conf` (`CONTAINERS_STORAGE_CONF`) putting graphroot and runroot on node-local tmpfs under `/dev/shm/$USER/podman-$SLURM_JOB_ID`, with `mount_program` set to fuse-overlayfs. Rootless podman ignores the graphroot in `/etc/containers/storage.conf` and defaults to `$HOME/.local/share/containers/storage`; home is NFS, which has no user xattrs, so the build dies on the first pulled layer with `lsetxattr ...: operation not supported`. Personal accounts have this in `~/.config/containers/storage.conf`, the service account does not — so the job can't rely on it. Cleanup is `podman system reset --force`: layers are owned by mapped subuids behind fuse mounts, and a plain `rm -rf` leaves them in the node's RAM.
+
 **Caching.** Each leg has a sentinel keyed on channel, image, arch, and `hashFiles('images/<image>/**')`; a hit skips the build entirely. The channel is in the key because a PR build only proves the `pr-<N>` artifacts exist — otherwise merging an already-built PR would hit the cache and never publish `:latest`.
 
 ## Stage 4: secret scan

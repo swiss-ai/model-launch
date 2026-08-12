@@ -64,6 +64,20 @@ podman build --format docker -t my_image:dev .
 enroot import -o "$SCRATCH/my_image.sqsh" "podman://my_image:dev"
 ```
 
+This needs `~/.config/containers/storage.conf` pointing podman's storage at tmpfs — without it, rootless podman stores layers under `$HOME/.local/share/containers` on NFS and the first pulled layer fails with `lsetxattr ...: operation not supported`:
+
+```toml
+[storage]
+driver = "overlay"
+graphroot = "/dev/shm/<your-username>/root"
+runroot = "/dev/shm/<your-username>/runroot"
+
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs-1.13"
+```
+
+`/dev/shm` is the node's RAM, so clear it out (`podman system reset`) when a build tree is no longer needed. CI does the equivalent per job — see [CI/CD](ci-cd.md#stage-3-image-builds).
+
 Then point an env toml at `$SCRATCH/my_image.sqsh`. A laptop `docker build` catches syntax and dependency errors but won't reproduce the CUDA/NCCL/libfabric environment or the arm64 path.
 
 ## Updating an image

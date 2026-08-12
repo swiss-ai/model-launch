@@ -80,14 +80,77 @@ def _build_slurm_script(
         export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
         mkdir -p "${{XDG_RUNTIME_DIR}}"
 
+        # Rootless podman ignores graphroot/runroot from /etc/containers/storage.conf
+        # and falls back to $HOME/.local/share/containers/storage. Home is NFS, which
+        # has no user xattrs, so even pulling the base image dies with
+        # "lsetxattr ...: operation not supported". Personal accounts have a
+        # ~/.config/containers/storage.conf pointing at tmpfs; the CI service account
+        # has none, so the job writes its own. tmpfs has no user xattrs either below
+        # kernel 6.6, hence fuse-overlayfs rather than the kernel overlay driver.
+        PODMAN_STORAGE="/dev/shm/${{USER}}/podman-${{SLURM_JOB_ID}}"
+        mkdir -p "${{PODMAN_STORAGE}}/root" "${{PODMAN_STORAGE}}/runroot"
+
+        FUSE_OVERLAYFS=""
+        for candidate in \
+            /usr/local/vs-ce-podman/fuse-overlayfs \
+            /usr/bin/fuse-overlayfs-1.13 \
+            "$(command -v fuse-overlayfs || true)"; do
+            if [ -x "${{candidate}}" ]; then
+                FUSE_OVERLAYFS="${{candidate}}"
+                break
+            fi
+        done
+        if [ -z "${{FUSE_OVERLAYFS}}" ]; then
+            echo "ERROR: no fuse-overlayfs on $(hostname); podman storage on tmpfs needs it"
+            exit 1
+        fi
+
+        # Kept outside PODMAN_STORAGE: the cleanup below still needs a valid
+        # config to tear that directory down.
+        export CONTAINERS_STORAGE_CONF="${{XDG_RUNTIME_DIR}}/storage.conf"
+        cat > "${{CONTAINERS_STORAGE_CONF}}" <<EOF
+        [storage]
+        driver = "overlay"
+        graphroot = "${{PODMAN_STORAGE}}/root"
+        runroot = "${{PODMAN_STORAGE}}/runroot"
+
+        [storage.options.overlay]
+        mount_program = "${{FUSE_OVERLAYFS}}"
+        EOF
+
+        # Seed the same config in this account's home, the way personal accounts
+        # have it, so podman run outside this script (interactive debugging, a
+        # future script that forgets the env var) also lands on tmpfs. The
+        # per-job CONTAINERS_STORAGE_CONF above still wins for this build: two
+        # builds can share a node, and a fixed home-level graphroot would have
+        # them trampling each other's layers and cleanup.
+        HOME_STORAGE_CONF="${{HOME}}/.config/containers/storage.conf"
+        if [ ! -e "${{HOME_STORAGE_CONF}}" ]; then
+            mkdir -p "$(dirname "${{HOME_STORAGE_CONF}}")"
+            cat > "${{HOME_STORAGE_CONF}}" <<EOF
+        [storage]
+        driver = "overlay"
+        graphroot = "/dev/shm/${{USER}}/root"
+        runroot = "/dev/shm/${{USER}}/runroot"
+
+        [storage.options.overlay]
+        mount_program = "${{FUSE_OVERLAYFS}}"
+        EOF
+            echo "Seeded ${{HOME_STORAGE_CONF}}"
+        fi
+
         IMAGE_TAG="{image_name}-{arch}-{channel}:${{SLURM_JOB_ID}}"
         SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}-{channel}.sqsh"
 
         cleanup() {{
             podman logout ghcr.io 2>/dev/null || true
-            podman rmi "${{IMAGE_TAG}}" 2>/dev/null || true
+            # Storage is job-scoped, so a full reset is safe and is the only
+            # thing that reliably empties it: layers are owned by mapped subuids
+            # and sit behind fuse mounts, so a plain rm hits "Permission denied"
+            # / "Device or resource busy". Left behind they occupy the node's RAM.
+            podman system reset --force 2>/dev/null || true
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
-            rm -rf "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
+            rm -rf "${{PODMAN_STORAGE}}" "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
         }}
         trap cleanup EXIT
 
