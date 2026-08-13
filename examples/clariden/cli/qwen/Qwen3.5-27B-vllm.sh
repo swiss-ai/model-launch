@@ -1,0 +1,13 @@
+#!/bin/bash
+sml advanced \
+  --system clariden \
+  --partition normal \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.5-27B \
+    --host 0.0.0.0 \
+    --served-model-name Qwen/Qwen3.5-27B \
+    --data-parallel-size 2 \
+    --tensor-parallel-size 2 \
+    --max-model-len 65536 \
+    --reasoning-parser qwen3"

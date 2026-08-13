@@ -176,6 +176,13 @@
     "pre_launch_cmds": "pip install librosa audioread"
   },
   {
+    "model": "Qwen/Qwen3.5-27B",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_replica": 1,
+    "framework_args": "--data-parallel-size 2 --tensor-parallel-size 2 --max-model-len 65536 --reasoning-parser qwen3"
+  },
+  {
     "model": "Qwen/Qwen3.6-27B",
     "framework": "vllm",
     "environment": null,
