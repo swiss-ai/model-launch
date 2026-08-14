@@ -18,6 +18,7 @@ class LaunchRequest(BaseModel):
     pre_launch_cmds: str | None = None
     router: RouterMode = ROUTER_OPENTELA
     model_path: str | None = None
+    servekit_optims: bool = False
 
     @classmethod
     def from_catalog_entry(
@@ -41,4 +42,5 @@ class LaunchRequest(BaseModel):
             served_model_name=served_model_name,
             router=router,
             model_path=entry.model_path,
+            servekit_optims=entry.servekit_optims,
         )
