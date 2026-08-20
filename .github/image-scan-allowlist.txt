@@ -18,3 +18,18 @@ raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
 # "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
 # placeholder markers.
 path:*/site-packages/pydantic/networks.py
+
+# Python test function names, matched by TruffleHog's Lob detector. Its pattern
+# is \b((live|test)_[a-zA-Z0-9_]{35})\b -- the character class includes the
+# underscore, so any test function whose name is exactly 35 characters after
+# "test_" is a hit (e.g. jsonschema's test_shallower_errors_are_better_matches).
+#
+# These arrive marked VERIFIED, which fails the scan regardless of detector.
+# The verifier POSTs an empty body to api.lob.com/v1/us_verifications and treats
+# the resulting 422 -- documented in its own source as "key is active but
+# request body is invalid" -- as proof of a live key, so a body-validation
+# rejection is indistinguishable from a successful auth. Any image shipping
+# third-party Python test suites trips this, in the hundreds.
+#
+# Scoped to test_ so a live_ match is still reported.
+raw:^test_[a-zA-Z0-9_]{35}$
