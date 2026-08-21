@@ -1,6 +1,6 @@
 import os
 import tempfile
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -31,7 +31,12 @@ if (_HAS_API_KEY or _HAS_CLIENT_CREDENTIALS) and all(os.environ.get(v) for v in 
     _BOOTSTRAP_DIR = Path(tempfile.mkdtemp(prefix="sml-cfg-"))
     os.environ["SML_CONFIG_DIR"] = str(_BOOTSTRAP_DIR)
 
+# Imported after the bootstrap above: `tests.integration.utils` pulls in the CLI
+# package, whose init wizard snapshots SML_CONFIG_DIR at import time.
 from swiss_ai_model_launch.cli.configuration import InitConfig  # noqa: E402
+from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env  # noqa: E402
+from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher  # noqa: E402
+from tests.integration.utils import firecrest_auth_env  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)  # type: ignore[misc]
@@ -51,3 +56,44 @@ def sml_config_dir() -> Iterator[Path]:
     config.save()
 
     yield _BOOTSTRAP_DIR
+
+
+# Every FirecREST-backed test needs these; the launcher fixture below turns them
+# into a ready client, so a test only asks for `launcher`.
+_REQUIRED_ENV_VARS = [
+    "SML_SWISSAI_RESEARCH_API_KEY",
+    "SML_SYSTEM",
+    "SML_FIRECREST_URL",
+    "SML_PARTITION",
+    "SML_RESERVATION",
+]
+
+
+@pytest.fixture(scope="function")  # type: ignore[misc]
+def env() -> dict[str, str]:
+    missing = [v for v in _REQUIRED_ENV_VARS if os.environ.get(v) is None]
+    if missing:
+        pytest.fail(
+            "Missing required environment variables: " + ", ".join(missing),
+            pytrace=False,
+        )
+    return {v: os.environ[v] for v in _REQUIRED_ENV_VARS} | firecrest_auth_env()
+
+
+@pytest.fixture(scope="function")  # type: ignore[misc]
+async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
+    client = build_client_from_env(env["SML_FIRECREST_URL"], env)
+    try:
+        yield await FirecRESTLauncher.from_client(
+            client=client,
+            system_name=env["SML_SYSTEM"],
+            partition=env["SML_PARTITION"],
+            reservation=env["SML_RESERVATION"] or None,
+        )
+    finally:
+        await client.close_session()
+
+
+@pytest.fixture(scope="function")  # type: ignore[misc]
+def swissai_research_api_key(env: dict[str, str]) -> str:
+    return env["SML_SWISSAI_RESEARCH_API_KEY"]

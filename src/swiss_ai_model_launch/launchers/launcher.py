@@ -4,6 +4,7 @@ import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from swiss_ai_model_launch.launchers.job_status import JobStatus
@@ -15,6 +16,7 @@ from swiss_ai_model_launch.launchers.launch_args import (
 )
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
+from swiss_ai_model_launch.launchers.utils import MODEL_REGISTRY, resolve_model_path
 
 if TYPE_CHECKING:
     from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport
@@ -80,6 +82,7 @@ class Launcher(ABC):
         partition: str,
         reservation: str | None = None,
         telemetry_endpoint: str | None = None,
+        model_registry: Path = MODEL_REGISTRY,
     ):
         self.system_name = system_name
         self.username = username
@@ -87,9 +90,23 @@ class Launcher(ABC):
         self.partition = partition
         self.reservation = reservation
         self.telemetry_endpoint = telemetry_endpoint
+        self.model_registry = model_registry
 
     @abstractmethod
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]: ...
+
+    def model_path_of(self, entry: ModelCatalogEntry) -> str:
+        """Where ``entry``'s weights live on this launcher's cluster."""
+        return resolve_model_path(entry.model, self.model_registry, entry.model_path)
+
+    async def list_dir(self, path: str) -> list[str] | None:
+        """Entry names in ``path``, or ``None`` if it doesn't exist or can't be read.
+
+        Used by the catalog path check to confirm a model directory is still
+        there before a launch discovers it isn't. Overridden by launchers that
+        can reach the cluster filesystem.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def launch_model(self, launch_request: LaunchRequest) -> tuple[int, str]: ...

@@ -68,6 +68,14 @@ Only needed if the model should appear in interactive `sml`. Add an object to `m
 
 Entries carry no system field, so the env toml you reference has to work on whichever cluster the user launches from.
 
+### The path is checked in CI
+
+Every entry's weights directory is listed over FirecREST — on each PR as part of the integration tier, and daily afterwards ([CI/CD](ci-cd.md#model-path-checks)). An entry fails once its directory disappears or holds no `config.json` (or `params.json`), which is what happens to checkpoints left on scratch. The same check reads the `--model` / `--model-path` / `--tokenizer` paths out of every `examples/clariden` recipe, so a recipe rots no more quietly than a catalog entry. So:
+
+- **Prefer the registry.** `/capstor/store/cscs/swissai/infra01/hf_models/models/<vendor>/<model>` is backed up and shared; a path into someone's `$SCRATCH` or personal directory will break, and the check will tell you when it does.
+- **Spell the path out** in a recipe, or assign it to a plain shell variable (`MODEL="/capstor/…"`). CI expands those; it can't expand `$HOME` or a command substitution, and a unit test fails when a recipe hides its path that way.
+- **Reproduce locally** with `make test-paths` (or `uv run pytest -m paths`) before opening the PR.
+
 ## When it doesn't serve
 
 Narrow the failure before filing an issue:
