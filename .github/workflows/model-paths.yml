@@ -1,0 +1,32 @@
+name: Model Paths
+
+# Catalog entries and example recipes point at weights on shared storage, and
+# those move or get cleaned up long after the entry was merged. PRs get this via
+# the integration tiers (the `paths` cases are also marked
+# lightweight/std/comprehensive); this run is what catches a path that rotted
+# while nobody touched the repo.
+on:
+  schedule:
+    # 05:30 UTC daily — before European working hours, so a model that vanished
+    # overnight is known before someone tries to launch it.
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-paths:
+    name: Validate models.json and example paths over FirecREST
+    runs-on: ubuntu-latest
+    env:
+      SML_SWISSAI_RESEARCH_API_KEY: ${{ secrets.SML_SWISSAI_RESEARCH_API_KEY }}
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
+      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
+      SML_PARTITION: ${{ vars.SML_PARTITION }}
+      SML_RESERVATION: ${{ vars.SML_RESERVATION }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - run: make _test-paths
+        timeout-minutes: 15

@@ -13,12 +13,11 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
+    MODEL_REGISTRY,
     create_salt,
     decode_log,
     resolve_model_path,
 )
-
-_REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
 _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
 _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
@@ -55,7 +54,7 @@ class SlurmLauncher(Launcher):
         account: str,
         partition: str,
         reservation: str | None = None,
-        model_registry: Path = _REMOTE_MODEL_REGISTRY,
+        model_registry: Path = MODEL_REGISTRY,
         telemetry_endpoint: str | None = None,
     ):
         super().__init__(
@@ -65,8 +64,8 @@ class SlurmLauncher(Launcher):
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
+            model_registry=model_registry,
         )
-        self.model_registry = model_registry
 
     def _get_working_dir(self) -> Path:
         return Path.home() / _APP_WORKING_DIRECTORY
@@ -143,6 +142,12 @@ class SlurmLauncher(Launcher):
         try:
             return decode_log(path.read_bytes())
         except FileNotFoundError:
+            return None
+
+    async def list_dir(self, path: str) -> list[str] | None:
+        try:
+            return await asyncio.to_thread(os.listdir, path)
+        except OSError:
             return None
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:

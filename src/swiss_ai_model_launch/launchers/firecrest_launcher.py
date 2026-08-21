@@ -15,14 +15,13 @@ from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntr
 from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
+    MODEL_REGISTRY,
     call_with_firecrest_retry,
     create_salt,
     decode_log,
     render_sbatch_header,
     resolve_model_path,
 )
-
-_REMOTE_MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 
 _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
 _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
@@ -65,6 +64,7 @@ class FirecRESTLauncher(Launcher):
         reservation: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
+        model_registry: Path = MODEL_REGISTRY,
     ):
         super().__init__(
             system_name=system_name,
@@ -73,6 +73,7 @@ class FirecRESTLauncher(Launcher):
             partition=partition,
             reservation=reservation,
             telemetry_endpoint=telemetry_endpoint,
+            model_registry=model_registry,
         )
         self.client = client
         # SSH alias/host used to reach the cluster's login node so the TUI can open
@@ -129,7 +130,7 @@ class FirecRESTLauncher(Launcher):
             framework=launch_request.framework,
             served_model_name=served_model_name,
             framework_args=(
-                f"--model {resolve_model_path(model, _REMOTE_MODEL_REGISTRY, launch_request.model_path)} "
+                f"--model {resolve_model_path(model, self.model_registry, launch_request.model_path)} "
                 f"--served-model-name {served_model_name} "
                 "--host 0.0.0.0 " + (launch_request.framework_args if launch_request.framework_args else "")
             ),
@@ -221,6 +222,21 @@ class FirecRESTLauncher(Launcher):
                 return decode_log(target_path.read_bytes())
             except (FileNotFoundError, f7t.FirecrestException):
                 return None
+
+    async def list_dir(self, path: str) -> list[str] | None:
+        try:
+            listing = await call_with_firecrest_retry(
+                lambda: self.client.list_files(
+                    system_name=self.system_name,
+                    path=path,
+                    # Model directories are often symlinks into another tree; report
+                    # on what they point at, not on the link itself.
+                    dereference=True,
+                )
+            )
+        except (FileNotFoundError, f7t.FirecrestException):
+            return None
+        return [str(item["name"]) for item in listing]
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]

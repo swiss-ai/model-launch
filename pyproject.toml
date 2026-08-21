@@ -70,6 +70,7 @@ plugins = ["pydantic.mypy"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
+  "paths: models.json and examples/clariden path validation over FirecREST (also part of every tier)",
   "lightweight: lightweight integration tests (triggered automatically)",
   "std: full models.json matrix (triggered on label)",
   "comprehensive: std + examples/cli/*.sh scripts (triggered on label)",

@@ -1,16 +1,13 @@
 import importlib.resources
 import json
 import os
-from collections.abc import AsyncIterator
 
 import pytest
 
-from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
 from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from tests.integration.utils import (
-    firecrest_auth_env,
     wait_for_all_replicas_healthy,
     wait_for_job_running,
     wait_for_model_healthy,
@@ -74,44 +71,6 @@ _STD_LAUNCH_REQUESTS = [
     for config_id, replicas, use_router in _STD_CONFIGS
     if not (entry["framework"] == "vllm" and use_router)
 ]
-
-_REQUIRED_ENV_VARS = [
-    "SML_SWISSAI_RESEARCH_API_KEY",
-    "SML_SYSTEM",
-    "SML_FIRECREST_URL",
-    "SML_PARTITION",
-    "SML_RESERVATION",
-]
-
-
-@pytest.fixture(scope="function")  # type: ignore[misc]
-def env() -> dict[str, str]:
-    missing = [v for v in _REQUIRED_ENV_VARS if os.environ.get(v) is None]
-    if missing:
-        pytest.fail(
-            "Missing required environment variables: " + ", ".join(missing),
-            pytrace=False,
-        )
-    return {v: os.environ[v] for v in _REQUIRED_ENV_VARS} | firecrest_auth_env()
-
-
-@pytest.fixture(scope="function")  # type: ignore[misc]
-async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
-    client = build_client_from_env(env["SML_FIRECREST_URL"], env)
-    try:
-        yield await FirecRESTLauncher.from_client(
-            client=client,
-            system_name=env["SML_SYSTEM"],
-            partition=env["SML_PARTITION"],
-            reservation=env["SML_RESERVATION"] or None,
-        )
-    finally:
-        await client.close_session()
-
-
-@pytest.fixture(scope="function")  # type: ignore[misc]
-def swissai_research_api_key(env: dict[str, str]) -> str:
-    return env["SML_SWISSAI_RESEARCH_API_KEY"]
 
 
 @pytest.mark.parametrize("launch_request", _LAUNCH_REQUESTS + _STD_LAUNCH_REQUESTS)  # type: ignore[misc]

@@ -12,6 +12,11 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 
 _T = TypeVar("_T")
 
+# Shared storage holding the models the catalog refers to by HF repo id. Both
+# launchers resolve `<vendor>/<model>` under it unless an entry overrides the
+# location with its own `model_path`.
+MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
+
 _FIRECREST_RETRY_DELAYS_SEC: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0)
 
 

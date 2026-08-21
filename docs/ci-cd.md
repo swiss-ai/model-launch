@@ -26,6 +26,7 @@ Integration tests branch off `build` directly — they need the images to exist,
 | `docs.yml` | `docs/`, `mkdocs.yml`, `pyproject.toml` changes | `mkdocs build --strict`; deploys Pages from `main` |
 | `sonar.yml` | push to `main`, PRs | Unit tests + coverage → SonarCloud |
 | `cleanup-pr-images.yml` | PR closed | Deletes that PR's pre-release artifacts |
+| `model-paths.yml` | daily at 05:30 UTC, dispatch | Checks every `models.json` and example path still holds a model |
 
 ## Triggers
 
@@ -111,6 +112,21 @@ Comprehensive wins over std, which wins over the default. All tiers gate on `nee
 
 Locally, use the non-underscore targets (`make test-lightweight`) — they source `.test.sh` for credentials. See [Development](development.md#test-environment).
 
+### Model path checks
+
+The `paths`-marked cases list each weights directory over FireCREST — no SLURM job, seconds for both suites:
+
+| Test | Covers | Resolved from |
+| --- | --- | --- |
+| `test_catalog_paths.py` | every `models.json` entry | `model_path`, else `<registry>/<vendor>/<model>` |
+| `test_example_paths.py` | every `--model` / `--model-path` / `--tokenizer` in `examples/clariden/**/*.sh` | the flag value, with literal shell variables expanded |
+
+A case fails if the directory is gone or unreadable, or if it holds none of its marker files — `config.json` or `params.json` (Mistral's native layout) for a model, `tokenizer.json` or `tokenizer_config.json` for a tokenizer. An emptied checkpoint directory still exists, so presence alone proves nothing.
+
+Example references are deduplicated by path, so a directory shared by several recipes is listed once and a failure names all of them. Only `examples/clariden` is covered: the beverin/bristen recipes target clusters CI's credentials don't reach.
+
+These carry the `lightweight`, `std` and `comprehensive` marks as well, so every tier runs them: the launch tests only cover the models they launch, and only the comprehensive tier runs the examples at all. `model-paths.yml` runs the same target (`make _test-paths`) daily, which is what catches a path that rotted while nobody touched the repo.
+
 ## Cleanup on PR close
 
 Deletes the three GHCR tags (`pr-N`, `pr-N-arm64`, `pr-N-amd64`) for every image plus the `pr-N` capstor directory. Tag matching is exact — a prefix match on `pr-4` would also delete `pr-42`. Both steps are `continue-on-error`; leftover artifacts never fail the workflow. Uses `GHCR_DELETE_TOKEN` when the default token lacks package admin.
@@ -140,3 +156,5 @@ CI authenticates as a **service account**, not a personal account: the key is se
 | `Missing FireCREST config for arch 'amd64'` | An `_AMD64` variable is unset; no fallback by design |
 | Build "succeeded", image unchanged | Sentinel cache hit — nothing under `images/<name>/` changed |
 | Merge skipped after a green build | The other arch failed, or a scan failed |
+| `path does not exist or is not readable` | A catalog entry's or recipe's weights moved or were deleted — repoint it or drop it |
+| `no model path extracted from: …` | An example's model flag isn't in a shape the extractor reads — see `tests/example_paths.py` |

@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-lightweight _test-std _test-comprehensive test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-paths _test-lightweight _test-std _test-comprehensive test-paths test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
 
 install-dev:
 	uv sync --python 3.12
@@ -51,6 +51,9 @@ static: lint mypy shellcheck markdownlint dockerlint tomlfmt prettier
 test:
 	uv run --frozen pytest tests/unit/ --cov=src --cov-report=term-missing
 
+_test-paths:
+	uv run --frozen pytest -m paths --cov --cov-report=term-missing -n 8
+
 _test-lightweight:
 	uv run --frozen pytest -m lightweight --cov --cov-report=term-missing -n 2
 
@@ -59,6 +62,9 @@ _test-std:
 
 _test-comprehensive:
 	uv run --frozen pytest -m comprehensive --cov --cov-report=term-missing -n 28
+
+test-paths:
+	. ./.test.sh && $(MAKE) _test-paths
 
 test-lightweight:
 	. ./.test.sh && $(MAKE) _test-lightweight
