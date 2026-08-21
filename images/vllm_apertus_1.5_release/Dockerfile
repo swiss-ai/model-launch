@@ -6,7 +6,9 @@ ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
-ARG SWISS_AI_VLLM_COMMIT=a601a9d998ddeb488f0c17e8512874b116aa7658
+ARG SWISS_AI_VLLM_BRANCH=apertus-1-5
+ARG SWISS_AI_VLLM_COMMIT=e5fb4b48380a82859f7e568160b340055a310ff4
+ARG TRANSFORMERS_BRANCH=apertusv1p5-release-pre-upstream
 ARG TRANSFORMERS_COMMIT=3797303dda74844e3d1f8977ff5518bb91f818b4
 ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
 ARG TARGETARCH
@@ -37,7 +39,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     bash-completion ca-certificates ccache curl git less vim-tiny \
     build-essential pkgconf \
     libibverbs-dev libnuma1 libnuma-dev \
-    python3 python3-dev python3-venv \
+    python3 python3-dev python3-venv shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv && \
@@ -78,10 +80,10 @@ RUN CUDNN_H="$(find /usr -name cudnn.h -print -quit)" && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+RUN git clone --branch ${SWISS_AI_VLLM_BRANCH} https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
 
-RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/swiss-ai/transformers.git /workspace/transformers && \
+RUN git clone --branch ${TRANSFORMERS_BRANCH} https://github.com/swiss-ai/transformers.git /workspace/transformers && \
     git -C /workspace/transformers checkout ${TRANSFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \
@@ -112,4 +114,8 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation ".[audio]" \
-    --torch-backend=auto;
+    --torch-backend="${VLLM_PRECOMPILED_WHEEL_VARIANT}";
+    # torch-backend must stay pinned to the image's CUDA variant: `auto`
+    # resolves against the BUILD node's driver, which can pull a newer-CUDA
+    # torch while the earlier-pinned torchaudio stays cu130 — torchaudio then
+    # refuses to import at runtime (mismatched CUDA versions).

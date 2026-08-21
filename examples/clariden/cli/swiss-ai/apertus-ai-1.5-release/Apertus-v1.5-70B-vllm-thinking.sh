@@ -5,12 +5,12 @@ sml advanced \
   --framework vllm \
   --time 12:00:00 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5_release.toml \
-  --framework-args "--model swiss-ai/Apertus-v1.5-70B \
-    --served-model-name swiss-ai/Apertus-v1.5-70B \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-v1.5-70B \
+    --served-model-name swiss-ai/Apertus-v1.5-70B-vllm-thinking-$(whoami) \
     --chat-template-content-format string \
     --tensor-parallel-size 4 \
     --gpu-memory-utilization 0.8 \
     --max-model-len 262144 \
-    --enable-auto-tool-choice \
-    --tool-call-parser apertus \
+    --reasoning-parser apertus \
+    --default-chat-template-kwargs.enable_thinking true \
     --compilation-config.pass_config.fuse_allreduce_rms false"

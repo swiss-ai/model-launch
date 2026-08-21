@@ -10,31 +10,31 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 
 ## Arguments
 
-| Argument                    | Environment Variable | Description                                                                                                                    |
-| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                              |
-| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                |
-| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                          |
-| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                   |
-| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                          |
-| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                      |
-| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                 |
-| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                              |
-| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                               |
-| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                  |
-| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
-| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
-| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
-| `--served-model-name`       |                      | Required: here, or `--served-model-name <name>` inside `--framework-args`. Namespaced — see the note below.                    |
-| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
-| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
-| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
-| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
-| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
-| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                   |
-| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                              |
-| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                              |
-| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                  |
+| Argument                    | Environment Variable | Description                                                                                                                                                                                       |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                                                                                                 |
+| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                                                                                   |
+| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                                                                                             |
+| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                                                                                      |
+| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                                                                                             |
+| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                                                                                         |
+| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                                                                                    |
+| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                                                                                                 |
+| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                                                                                                  |
+| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                                                                                     |
+| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                                                                                                 |
+| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                                                                                        |
+| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                                                                                           |
+| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. Namespaced under your username automatically — see the note below. |
+| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                                                                                           |
+| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                                                                                             |
+| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                                                                                          |
+| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                                                                                             |
+| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                                                                                     |
+| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                                                                                      |
+| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                                                                                                 |
+| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                                                                                                 |
+| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                                                                                     |
 
 > Total nodes is `--replicas × --nodes-per-replica`. The framework HTTP port is **8080**.
 
