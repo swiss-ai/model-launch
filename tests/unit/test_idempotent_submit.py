@@ -23,8 +23,9 @@ def _status_error(code: int) -> UnexpectedStatusException:
 
 class FakeClient:
     """FirecREST with a script: submit() answers each call from `submit_outcomes`
-    (an int job id, or an exception to raise); job_info(name=...) lists
-    whatever `jobs` holds."""
+    (an int job id, or an exception to raise); job_info() lists whatever
+    `jobs` holds -- the launcher matches names itself, since FirecREST's own
+    name filter needs API >= 2.6 and CSCS runs 2.5."""
 
     def __init__(self, submit_outcomes, jobs=None):
         self.submit_outcomes = list(submit_outcomes)
@@ -96,7 +97,7 @@ def test_named_launch_adopts_the_job_a_failed_submit_created() -> None:
     assert job_id == 4242
     assert served == "alice/swiss-ai/Apertus-8B-Instruct-2509"
     assert client.submits == 1  # no second sbatch
-    assert client.lookups == ["evalsvc-abc123"]
+    assert len(client.lookups) == 1
 
 
 def test_named_launch_retries_when_no_job_exists_yet() -> None:
@@ -107,7 +108,7 @@ def test_named_launch_retries_when_no_job_exists_yet() -> None:
 
     assert job_id == 777
     assert client.submits == 3
-    assert client.lookups == ["evalsvc-def456", "evalsvc-def456"]
+    assert len(client.lookups) == 2  # one per failed submit
 
 
 def test_waits_before_looking_the_job_up(monkeypatch) -> None:
@@ -134,6 +135,19 @@ def test_waits_before_looking_the_job_up(monkeypatch) -> None:
     assert events == ["sleep 10", "lookup"]
 
 
+def test_the_job_is_picked_out_of_the_full_list() -> None:
+    client = FakeClient(
+        submit_outcomes=[_status_error(503)],
+        jobs=[
+            {"jobId": 1, "name": "someone-else", "status": {"state": "RUNNING"}},
+            {"jobId": 2, "name": "evalsvc-mine", "status": {"state": "PENDING"}},
+        ],
+    )
+    job_id, _ = asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-mine")))
+    assert job_id == 2
+    assert client.lookups == [None]  # no server-side name filter (API 2.5)
+
+
 def test_finished_job_with_our_name_is_not_adopted() -> None:
     client = FakeClient(
         submit_outcomes=[_status_error(503), 555],
@@ -156,8 +170,7 @@ def test_unnamed_launch_gets_a_unique_name_and_still_checks_by_it() -> None:
     launcher = _launcher(client)
     job_id, _ = asyncio.run(launcher.launch_model(_request()))
     assert job_id == 31337
-    (looked_up,) = set(client.lookups)
-    assert looked_up.startswith("swiss-ai_Apertus-8B-Instruct-2509_alice_")
+    assert len(client.lookups) == 1
 
 
 def test_find_job_reports_live_jobs_only() -> None:
