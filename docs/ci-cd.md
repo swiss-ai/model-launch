@@ -157,4 +157,5 @@ CI authenticates as a **service account**, not a personal account: the key is se
 | Build "succeeded", image unchanged | Sentinel cache hit — nothing under `images/<name>/` changed |
 | Merge skipped after a green build | The other arch failed, or a scan failed |
 | `path does not exist or is not readable` | A catalog entry's or recipe's weights moved or were deleted — repoint it or drop it |
+| `UnexpectedStatusException: last request: 408 …` / `500 …` in a path test | FirecREST couldn't list the directory (command timeout, backend error) even after retries — the path itself is fine; re-run the job |
 | `no model path extracted from: …` | An example's model flag isn't in a shape the extractor reads — see `tests/example_paths.py` |

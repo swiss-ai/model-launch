@@ -26,14 +26,21 @@ _FIRECREST_RETRY_DELAYS_SEC: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0)
 _RETRYABLE_STATUSES = frozenset({408, 429})
 
 
+def firecrest_status(exc: BaseException) -> int | None:
+    """HTTP status of the FirecREST response behind ``exc``, if it carries one."""
+    if not isinstance(exc, f7t.UnexpectedStatusException):
+        return None
+    try:
+        return int(exc.responses[-1].status_code)
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return None
+
+
 def is_firecrest_retryable(exc: BaseException) -> bool:
     """Whether a failed FirecREST call may be retried (transient error)."""
-    if isinstance(exc, f7t.UnexpectedStatusException):
-        try:
-            status = exc.responses[-1].status_code
-        except (AttributeError, IndexError):
-            return False
-        return status in _RETRYABLE_STATUSES or bool(500 <= status < 600)
+    status = firecrest_status(exc)
+    if status is not None:
+        return status in _RETRYABLE_STATUSES or 500 <= status < 600
     return isinstance(exc, httpx.HTTPError)
 
 

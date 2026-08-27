@@ -19,9 +19,14 @@ from swiss_ai_model_launch.launchers.utils import (
     call_with_firecrest_retry,
     create_salt,
     decode_log,
+    firecrest_status,
     render_sbatch_header,
     resolve_model_path,
 )
+
+# FirecREST's ls answers: 404 for "No such file or directory", 403 for
+# "Permission denied". Only these mean the path itself is unreachable.
+_PATH_UNREACHABLE_STATUSES = frozenset({403, 404})
 
 _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
 _VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
@@ -235,8 +240,15 @@ class FirecRESTLauncher(Launcher):
                     dereference=True,
                 )
             )
-        except (FileNotFoundError, f7t.FirecrestException):
-            return None
+        except f7t.UnexpectedStatusException as exc:
+            # FirecREST turns ls's "No such file or directory" into 404 and
+            # "Permission denied" into 403 — both are verdicts on the path.
+            # Anything else (408 command timeout, 5xx that outlived the
+            # retries, ...) says nothing about the path, so it propagates
+            # rather than masquerading as a missing directory.
+            if firecrest_status(exc) in _PATH_UNREACHABLE_STATUSES:
+                return None
+            raise
         return [str(item["name"]) for item in listing]
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:

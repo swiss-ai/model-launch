@@ -13,7 +13,7 @@ import pytest
 from firecrest import UnexpectedStatusException
 
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, JobStatus, LaunchRequest
-from swiss_ai_model_launch.launchers.utils import is_firecrest_retryable
+from swiss_ai_model_launch.launchers.utils import firecrest_status, is_firecrest_retryable
 
 
 def _status_error(code: int) -> UnexpectedStatusException:
@@ -82,6 +82,13 @@ def test_408_and_429_count_as_transient() -> None:
     assert is_firecrest_retryable(_status_error(503))
     assert not is_firecrest_retryable(_status_error(400))
     assert not is_firecrest_retryable(ValueError("nope"))
+
+
+def test_firecrest_status_reads_the_last_response() -> None:
+    assert firecrest_status(_status_error(404)) == 404
+    # Not a FirecREST status error at all, or one that carries no response.
+    assert firecrest_status(httpx.ConnectError("down")) is None
+    assert firecrest_status(UnexpectedStatusException([], 200)) is None
 
 
 def test_named_launch_adopts_the_job_a_failed_submit_created() -> None:
