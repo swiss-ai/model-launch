@@ -19,7 +19,10 @@ API_KEY_HEADER = "X-API-Key"
 # pyfirecrest always sets an Authorization header before sending; the hook drops it,
 # so the value below never leaves the process.
 _UNUSED_TOKEN = "unused-api-key-auth"  # noqa: S105
-_MIN_TOKEN_VALIDITY = 90
+# FirecREST rejects a token with < 30 s left by *its* clock (401 "Access token
+# expires too soon"); pyfirecrest measures the remaining life by ours. Leave a
+# margin that survives a couple of minutes of clock skew between the two.
+_MIN_TOKEN_VALIDITY = 180
 
 
 class ApiKeyAuth:
