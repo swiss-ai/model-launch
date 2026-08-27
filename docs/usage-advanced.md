@@ -129,9 +129,7 @@ a second job.
 So submission is idempotent when you give the launch a name of your own:
 
 ```python
-job_id, served = await launcher.launch_model(
-    LaunchRequest(..., job_name="myservice-run-1234")
-)
+job_id, served = await launcher.launch_model(LaunchRequest(..., job_name="myservice-run-1234"))
 ```
 
 On a transient error the launcher looks the job up by name
