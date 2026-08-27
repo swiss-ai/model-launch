@@ -18,6 +18,12 @@ class LaunchRequest(BaseModel):
     pre_launch_cmds: str | None = None
     router: RouterMode = ROUTER_OPENTELA
     model_path: str | None = None
+    # Optional SLURM job name. Set it to something deterministic (an id of
+    # your own) and the launch becomes idempotent: if FirecREST reports an
+    # error after the sbatch actually went through, the launcher finds the
+    # job by this name and returns it instead of submitting a second one.
+    # Unset, a unique random name is generated.
+    job_name: str | None = None
 
     @classmethod
     def from_catalog_entry(

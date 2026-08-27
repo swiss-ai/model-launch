@@ -119,6 +119,30 @@ replicas are marked `STALE` rather than left showing a frozen `HEALTHY`.
 > predecessor hits the 12 h wall, the model is briefly down until it starts.
 > Raise `--handover-time` to widen the overlap if your partition is contended.
 
+## Idempotent launches (`job_name`)
+
+FirecREST can report an error for an `sbatch` that actually went through —
+a 5xx, or a `408 Command execution timeout limit exceeded` when its own SSH
+command to the cluster times out. A retry that does not check first allocates
+a second job.
+
+So submission is idempotent when you give the launch a name of your own:
+
+```python
+job_id, served = await launcher.launch_model(
+    LaunchRequest(..., job_name="myservice-run-1234")
+)
+```
+
+On a transient error the launcher looks the job up by name
+(`launcher.find_job(name)` → `(job_id, status)` for a pending/running job,
+via FirecREST's `job_info(name=…)`, or `squeue --name` on the SLURM launcher)
+and adopts it instead of resubmitting; only if nothing exists does it retry,
+with backoff. 408 and 429 count as transient, like 5xx. Without `job_name` a
+unique random name is generated, and the same check still applies within the
+launcher's own retries. The name must be unique per logical launch — reuse it
+only for the *same* launch (e.g. derive it from your run id).
+
 ## Inspecting what would be submitted (`--output-script DIR`)
 
 `--output-script DIR` writes the rendered submission scripts into the given directory and exits without submitting:

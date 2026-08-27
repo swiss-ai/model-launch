@@ -72,7 +72,7 @@ class SlurmLauncher(Launcher):
 
     def _get_launch_args_from_request(self, launch_request: LaunchRequest) -> LaunchArgs:
         model = launch_request.model
-        job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
+        job_name = launch_request.job_name or f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
         served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
         return LaunchArgs(
             job_name=job_name,
@@ -180,6 +180,28 @@ class SlurmLauncher(Launcher):
 
         job_id = await self._sbatch(launch_args)
         return job_id, launch_args.served_model_name
+
+    async def find_job(self, job_name: str) -> tuple[int, JobStatus] | None:
+        proc = await asyncio.create_subprocess_exec(
+            "squeue",
+            "--me",
+            "--name",
+            job_name,
+            "-h",
+            "-o",
+            "%i %T",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        for line in stdout.decode().splitlines():
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            status = JobStatus.from_str(parts[1])
+            if status in (JobStatus.PENDING, JobStatus.RUNNING):
+                return int(parts[0]), status
+        return None
 
     async def get_job_status(self, job_id: int) -> JobStatus:
         proc = await asyncio.create_subprocess_exec(

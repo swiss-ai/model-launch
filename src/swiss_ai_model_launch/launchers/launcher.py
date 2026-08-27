@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import shlex
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,7 +18,7 @@ from swiss_ai_model_launch.launchers.launch_args import (
 )
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.utils import MODEL_REGISTRY, resolve_model_path
+from swiss_ai_model_launch.launchers.utils import MODEL_REGISTRY, is_firecrest_retryable, resolve_model_path
 
 if TYPE_CHECKING:
     from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport
@@ -208,6 +210,43 @@ class Launcher(ABC):
 
     @abstractmethod
     async def get_job_status(self, job_id: int) -> JobStatus: ...
+
+    async def find_job(self, job_name: str) -> tuple[int, JobStatus] | None:
+        """A job of ours with this exact name that is still pending or running,
+        as (job_id, status), or None. The basis of idempotent submission.
+        Launchers that cannot look a job up by name fall back to plain retries."""
+        return None
+
+    async def _submit_idempotently(
+        self,
+        job_name: str,
+        submit: Callable[[], Awaitable[int]],
+        delays: Sequence[float] = (1.0, 2.0, 4.0, 8.0, 16.0),
+    ) -> int:
+        """Submit a job named ``job_name`` at most once.
+
+        FirecREST can report an error (5xx, 408) for an sbatch that actually
+        went through, so a naive retry would allocate a second job. Here a
+        transient error is followed by a lookup by name; if the job exists
+        it is adopted, otherwise the submission is retried with backoff.
+        Non-transient errors propagate at once.
+        """
+        for attempt in range(len(delays) + 1):
+            try:
+                return await submit()
+            except Exception as exc:
+                if not is_firecrest_retryable(exc):
+                    raise
+                try:
+                    found = await self.find_job(job_name)
+                except Exception:  # the lookup itself hit the same outage
+                    found = None
+                if found is not None:
+                    return found[0]
+                if attempt == len(delays):
+                    raise
+                await asyncio.sleep(delays[attempt])
+        raise RuntimeError("unreachable")  # pragma: no cover
 
     async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:
         """The job's ``(start, end)`` wall-clock times as display strings.

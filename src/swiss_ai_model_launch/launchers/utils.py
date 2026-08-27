@@ -20,22 +20,37 @@ MODEL_REGISTRY = Path("/capstor/store/cscs/swissai/infra01/hf_models/models/")
 _FIRECREST_RETRY_DELAYS_SEC: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0)
 
 
+# 408 is what FirecREST answers when its own SSH command to the cluster
+# times out ("Command execution timeout limit exceeded"); 429 is throttling.
+# Both are as transient as a 5xx.
+_RETRYABLE_STATUSES = frozenset({408, 429})
+
+
 def _is_firecrest_retryable(exc: BaseException) -> bool:
     if isinstance(exc, f7t.UnexpectedStatusException):
         try:
             status = exc.responses[-1].status_code
         except (AttributeError, IndexError):
             return False
-        return bool(500 <= status < 600)
+        return status in _RETRYABLE_STATUSES or bool(500 <= status < 600)
     return isinstance(exc, httpx.HTTPError)
+
+
+def is_firecrest_retryable(exc: BaseException) -> bool:
+    """Whether a failed FirecREST call may be retried (transient error)."""
+    return _is_firecrest_retryable(exc)
 
 
 async def call_with_firecrest_retry(make_call: Callable[[], Awaitable[_T]]) -> _T:
     """Invoke ``make_call()`` with retries on transient FirecREST errors.
 
     Retries up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s) on
-    FirecREST 5xx responses and httpx transport errors. Other exceptions
-    propagate immediately.
+    FirecREST 5xx/408/429 responses and httpx transport errors. Other
+    exceptions propagate immediately.
+
+    Not for job submission: a retried sbatch may duplicate a job FirecREST
+    did run despite the error. Launchers submit through
+    ``Launcher._submit_idempotently`` instead.
     """
     for attempt in range(len(_FIRECREST_RETRY_DELAYS_SEC) + 1):
         try:

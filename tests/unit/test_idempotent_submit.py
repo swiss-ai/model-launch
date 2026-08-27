@@ -1,0 +1,148 @@
+"""Job submission is idempotent: a named launch is never duplicated.
+
+FirecREST can report an error (5xx, or 408 when its own SSH command to the
+cluster times out) for an sbatch that actually went through. A retry that
+doesn't check first allocates a second job. These tests drive
+FirecRESTLauncher with a fake client that behaves like FirecREST on a bad day.
+"""
+
+import asyncio
+
+import httpx
+import pytest
+from firecrest import UnexpectedStatusException
+
+from swiss_ai_model_launch.launchers import FirecRESTLauncher, JobStatus, LaunchRequest
+from swiss_ai_model_launch.launchers.utils import is_firecrest_retryable
+
+
+def _status_error(code: int) -> UnexpectedStatusException:
+    resp = httpx.Response(code, request=httpx.Request("POST", "https://api.cscs.ch/jobs"))
+    return UnexpectedStatusException([resp], 201)
+
+
+class FakeClient:
+    """FirecREST with a script: submit() answers each call from `submit_outcomes`
+    (an int job id, or an exception to raise); job_info(name=...) lists
+    whatever `jobs` holds."""
+
+    def __init__(self, submit_outcomes, jobs=None):
+        self.submit_outcomes = list(submit_outcomes)
+        self.jobs = jobs or []
+        self.submits = 0
+        self.lookups = []
+
+    async def submit(self, **kwargs):
+        self.submits += 1
+        outcome = self.submit_outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return {"jobId": outcome}
+
+    async def job_info(self, system_name, jobid=None, name=None, **kwargs):
+        self.lookups.append(name)
+        return [j for j in self.jobs if name is None or j["name"] == name]
+
+    async def mkdir(self, **kwargs):
+        return None
+
+    async def upload(self, **kwargs):
+        return None
+
+
+def _launcher(client) -> FirecRESTLauncher:
+    return FirecRESTLauncher(
+        client=client, system_name="clariden", username="alice", account="infra01", partition="normal"
+    )
+
+
+def _request(job_name=None) -> LaunchRequest:
+    return LaunchRequest(
+        model="swiss-ai/Apertus-8B-Instruct-2509",
+        framework="sglang",
+        nodes_per_replica=1,
+        replicas=1,
+        time="01:00:00",
+        job_name=job_name,
+    )
+
+
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch):
+    async def instant(_):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", instant)
+
+
+def test_408_and_429_count_as_transient() -> None:
+    assert is_firecrest_retryable(_status_error(408))
+    assert is_firecrest_retryable(_status_error(429))
+    assert is_firecrest_retryable(_status_error(503))
+    assert not is_firecrest_retryable(_status_error(400))
+    assert not is_firecrest_retryable(ValueError("nope"))
+
+
+def test_named_launch_adopts_the_job_a_failed_submit_created() -> None:
+    # FirecREST 408s, but the sbatch went through: the job exists under our name.
+    client = FakeClient(
+        submit_outcomes=[_status_error(408), 999],
+        jobs=[{"jobId": 4242, "name": "evalsvc-abc123", "status": {"state": "PENDING"}}],
+    )
+    launcher = _launcher(client)
+
+    job_id, served = asyncio.run(launcher.launch_model(_request(job_name="evalsvc-abc123")))
+
+    assert job_id == 4242
+    assert served == "alice/swiss-ai/Apertus-8B-Instruct-2509"
+    assert client.submits == 1  # no second sbatch
+    assert client.lookups == ["evalsvc-abc123"]
+
+
+def test_named_launch_retries_when_no_job_exists_yet() -> None:
+    client = FakeClient(submit_outcomes=[_status_error(503), _status_error(408), 777], jobs=[])
+    launcher = _launcher(client)
+
+    job_id, _ = asyncio.run(launcher.launch_model(_request(job_name="evalsvc-def456")))
+
+    assert job_id == 777
+    assert client.submits == 3
+    assert client.lookups == ["evalsvc-def456", "evalsvc-def456"]
+
+
+def test_finished_job_with_our_name_is_not_adopted() -> None:
+    client = FakeClient(
+        submit_outcomes=[_status_error(503), 555],
+        jobs=[{"jobId": 1, "name": "evalsvc-old", "status": {"state": "CANCELLED by 0"}}],
+    )
+    job_id, _ = asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-old")))
+    assert job_id == 555
+    assert client.submits == 2
+
+
+def test_non_transient_error_is_not_retried() -> None:
+    client = FakeClient(submit_outcomes=[_status_error(400), 1])
+    with pytest.raises(UnexpectedStatusException):
+        asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-bad")))
+    assert client.submits == 1
+
+
+def test_unnamed_launch_gets_a_unique_name_and_still_checks_by_it() -> None:
+    client = FakeClient(submit_outcomes=[_status_error(503), 31337], jobs=[])
+    launcher = _launcher(client)
+    job_id, _ = asyncio.run(launcher.launch_model(_request()))
+    assert job_id == 31337
+    (looked_up,) = set(client.lookups)
+    assert looked_up.startswith("swiss-ai_Apertus-8B-Instruct-2509_alice_")
+
+
+def test_find_job_reports_live_jobs_only() -> None:
+    client = FakeClient(
+        submit_outcomes=[],
+        jobs=[
+            {"jobId": 1, "name": "x", "status": {"state": "COMPLETED"}},
+            {"jobId": 2, "name": "x", "status": {"state": "RUNNING"}},
+        ],
+    )
+    assert asyncio.run(_launcher(client).find_job("x")) == (2, JobStatus.RUNNING)
+    assert asyncio.run(_launcher(client).find_job("y")) is None

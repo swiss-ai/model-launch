@@ -115,7 +115,7 @@ class FirecRESTLauncher(Launcher):
         launch_request: LaunchRequest,
     ) -> LaunchArgs:
         model = launch_request.model
-        job_name = f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
+        job_name = launch_request.job_name or f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
         served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
         return LaunchArgs(
             job_name=job_name,
@@ -188,17 +188,18 @@ class FirecRESTLauncher(Launcher):
         remote_env_path = await self._upload_env_file(launch_args.environment, launch_args.framework)
         return launch_args.model_copy(update={"environment": remote_env_path})
 
+    async def _submit_script(self, script_str: str) -> int:
+        report = await self.client.submit(
+            system_name=self.system_name,
+            working_dir=self._get_working_dir(),
+            script_str=script_str,
+            account=self.account,
+        )
+        return int(report["jobId"])
+
     async def _submit_one(self, launch_args: LaunchArgs) -> int:
         script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
-        job_submission_report = await call_with_firecrest_retry(
-            lambda: self.client.submit(
-                system_name=self.system_name,
-                working_dir=self._get_working_dir(),
-                script_str=script_str,
-                account=self.account,
-            )
-        )
-        return int(job_submission_report["jobId"])
+        return await self._submit_idempotently(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         prepared = await self._prepare_launch_args(launch_args)
@@ -251,17 +252,20 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
-        script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
-        job_submission_report = await call_with_firecrest_retry(
-            lambda: self.client.submit(
-                system_name=self.system_name,
-                working_dir=self._get_working_dir(),
-                script_str=script_str,
-                account=self.account,
-            )
-        )
+        job_id = await self._submit_one(launch_args)
+        return job_id, launch_args.served_model_name
 
-        return int(job_submission_report["jobId"]), launch_args.served_model_name
+    async def find_job(self, job_name: str) -> tuple[int, JobStatus] | None:
+        jobs = await call_with_firecrest_retry(
+            lambda: self.client.job_info(system_name=self.system_name, name=job_name)
+        )
+        for job in jobs:
+            if job.get("name") != job_name:
+                continue
+            status = JobStatus.from_str(str((job.get("status") or {}).get("state", "")))
+            if status in (JobStatus.PENDING, JobStatus.RUNNING):
+                return int(job["jobId"]), status
+        return None
 
     async def get_job_status(self, job_id: int) -> JobStatus:
         job_info = await call_with_firecrest_retry(
