@@ -110,6 +110,30 @@ def test_named_launch_retries_when_no_job_exists_yet() -> None:
     assert client.lookups == ["evalsvc-def456", "evalsvc-def456"]
 
 
+def test_waits_before_looking_the_job_up(monkeypatch) -> None:
+    """SLURM needs a moment to list a job FirecREST reported an error for."""
+    events: list[str] = []
+
+    async def recording_sleep(seconds):
+        events.append(f"sleep {seconds:g}")
+
+    monkeypatch.setattr(asyncio, "sleep", recording_sleep)
+    client = FakeClient(
+        submit_outcomes=[_status_error(408)],
+        jobs=[{"jobId": 7, "name": "evalsvc-slow", "status": {"state": "PENDING"}}],
+    )
+    original = client.job_info
+
+    async def recording_lookup(**kwargs):
+        events.append("lookup")
+        return await original(**kwargs)
+
+    client.job_info = recording_lookup
+    job_id, _ = asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-slow")))
+    assert job_id == 7
+    assert events == ["sleep 10", "lookup"]
+
+
 def test_finished_job_with_our_name_is_not_adopted() -> None:
     client = FakeClient(
         submit_outcomes=[_status_error(503), 555],

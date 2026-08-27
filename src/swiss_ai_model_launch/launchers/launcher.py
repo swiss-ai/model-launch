@@ -217,19 +217,21 @@ class Launcher(ABC):
         Launchers that cannot look a job up by name fall back to plain retries."""
         return None
 
-    async def _submit_idempotently(
+    async def _submit_or_adopt(
         self,
         job_name: str,
         submit: Callable[[], Awaitable[int]],
-        delays: Sequence[float] = (1.0, 2.0, 4.0, 8.0, 16.0),
+        delays: Sequence[float] = (10.0, 15.0, 22.5, 34.0, 51.0),
     ) -> int:
         """Submit a job named ``job_name`` at most once.
 
         FirecREST can report an error (5xx, 408) for an sbatch that actually
-        went through, so a naive retry would allocate a second job. Here a
-        transient error is followed by a lookup by name; if the job exists
-        it is adopted, otherwise the submission is retried with backoff.
-        Non-transient errors propagate at once.
+        went through, so a naive retry would allocate a second job. After a
+        transient error this waits -- FirecREST's own command timeout is about
+        10s, and the scheduler needs a moment to list a job that did get
+        through -- then looks the job up by name and adopts it if it exists;
+        only otherwise is the submission retried, with the wait growing by
+        1.5x each time. Non-transient errors propagate at once.
         """
         for attempt in range(len(delays) + 1):
             try:
@@ -237,6 +239,7 @@ class Launcher(ABC):
             except Exception as exc:
                 if not is_firecrest_retryable(exc):
                     raise
+                await asyncio.sleep(delays[min(attempt, len(delays) - 1)])
                 try:
                     found = await self.find_job(job_name)
                 except Exception:  # the lookup itself hit the same outage
@@ -245,7 +248,6 @@ class Launcher(ABC):
                     return found[0]
                 if attempt == len(delays):
                     raise
-                await asyncio.sleep(delays[attempt])
         raise RuntimeError("unreachable")  # pragma: no cover
 
     async def get_job_times(self, job_id: int) -> tuple[str | None, str | None]:

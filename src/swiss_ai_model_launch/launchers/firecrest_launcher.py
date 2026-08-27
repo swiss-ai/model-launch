@@ -199,7 +199,7 @@ class FirecRESTLauncher(Launcher):
 
     async def _submit_one(self, launch_args: LaunchArgs) -> int:
         script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
-        return await self._submit_idempotently(launch_args.job_name, lambda: self._submit_script(script_str))
+        return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
         prepared = await self._prepare_launch_args(launch_args)

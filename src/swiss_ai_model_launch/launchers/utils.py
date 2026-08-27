@@ -26,7 +26,8 @@ _FIRECREST_RETRY_DELAYS_SEC: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0)
 _RETRYABLE_STATUSES = frozenset({408, 429})
 
 
-def _is_firecrest_retryable(exc: BaseException) -> bool:
+def is_firecrest_retryable(exc: BaseException) -> bool:
+    """Whether a failed FirecREST call may be retried (transient error)."""
     if isinstance(exc, f7t.UnexpectedStatusException):
         try:
             status = exc.responses[-1].status_code
@@ -34,11 +35,6 @@ def _is_firecrest_retryable(exc: BaseException) -> bool:
             return False
         return status in _RETRYABLE_STATUSES or bool(500 <= status < 600)
     return isinstance(exc, httpx.HTTPError)
-
-
-def is_firecrest_retryable(exc: BaseException) -> bool:
-    """Whether a failed FirecREST call may be retried (transient error)."""
-    return _is_firecrest_retryable(exc)
 
 
 async def call_with_firecrest_retry(make_call: Callable[[], Awaitable[_T]]) -> _T:
@@ -50,13 +46,13 @@ async def call_with_firecrest_retry(make_call: Callable[[], Awaitable[_T]]) -> _
 
     Not for job submission: a retried sbatch may duplicate a job FirecREST
     did run despite the error. Launchers submit through
-    ``Launcher._submit_idempotently`` instead.
+    ``Launcher._submit_or_adopt`` instead.
     """
     for attempt in range(len(_FIRECREST_RETRY_DELAYS_SEC) + 1):
         try:
             return await make_call()
         except Exception as exc:
-            if not _is_firecrest_retryable(exc) or attempt == len(_FIRECREST_RETRY_DELAYS_SEC):
+            if not is_firecrest_retryable(exc) or attempt == len(_FIRECREST_RETRY_DELAYS_SEC):
                 raise
             await asyncio.sleep(_FIRECREST_RETRY_DELAYS_SEC[attempt])
     raise AssertionError("unreachable")  # pragma: no cover
