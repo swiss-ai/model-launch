@@ -16,7 +16,7 @@ _REGISTRY = Path("/registry")
 
 
 class FakeLauncher(Launcher):
-    """A launcher whose filesystem is a dict of path -> directory listing."""
+    """A launcher whose filesystem is a dict of directory -> entry names."""
 
     def __init__(self, listings: dict[str, list[str]], entries: list[ModelCatalogEntry] | None = None) -> None:
         super().__init__(
@@ -26,13 +26,13 @@ class FakeLauncher(Launcher):
             partition="test-partition",
             model_registry=_REGISTRY,
         )
-        self.listings = listings
+        self.paths = set(listings) | {f"{directory}/{name}" for directory, names in listings.items() for name in names}
         self.entries = entries or []
-        self.listed: list[str] = []
+        self.stated: list[str] = []
 
-    async def list_dir(self, path: str) -> list[str] | None:
-        self.listed.append(path)
-        return self.listings.get(path)
+    async def path_exists(self, path: str) -> bool:
+        self.stated.append(path)
+        return path in self.paths
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return self.entries
@@ -67,20 +67,29 @@ async def test_registry_model_with_config_is_ok() -> None:
 
     assert check.status is PathStatus.OK
     assert check.ok
-    assert launcher.listed == ["/registry/vendor/model"]
+    # One stat of the marker — never a listing of the (possibly huge) directory.
+    assert launcher.stated == ["/registry/vendor/model/config.json"]
 
 
 async def test_absent_directory_is_missing() -> None:
-    check = await check_model_path(FakeLauncher({}), _entry("vendor/model"))
+    launcher = FakeLauncher({})
+
+    check = await check_model_path(launcher, _entry("vendor/model"))
 
     assert check.status is PathStatus.MISSING
     assert not check.ok
     assert "/registry/vendor/model" in check.describe()
+    # Every marker was tried, then the directory itself.
+    assert launcher.stated == [
+        "/registry/vendor/model/config.json",
+        "/registry/vendor/model/params.json",
+        "/registry/vendor/model",
+    ]
 
 
 async def test_directory_without_a_marker_is_flagged() -> None:
-    # An emptied checkpoint directory still exists — the listing is what tells
-    # it apart from a model the framework can actually load.
+    # An emptied checkpoint directory still exists — the second stat, of the
+    # directory itself, is what tells it apart from a missing one.
     launcher = FakeLauncher({"/scratch/checkpoint": []})
 
     check = await check_model_path(launcher, _entry("vendor/model", model_path="/scratch/checkpoint"))

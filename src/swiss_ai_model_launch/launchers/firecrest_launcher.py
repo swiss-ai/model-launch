@@ -24,7 +24,7 @@ from swiss_ai_model_launch.launchers.utils import (
     resolve_model_path,
 )
 
-# FirecREST's ls answers: 404 for "No such file or directory", 403 for
+# FirecREST's stat answers: 404 for "No such file or directory", 403 for
 # "Permission denied". Only these mean the path itself is unreachable.
 _PATH_UNREACHABLE_STATUSES = frozenset({403, 404})
 
@@ -229,10 +229,10 @@ class FirecRESTLauncher(Launcher):
             except (FileNotFoundError, f7t.FirecrestException):
                 return None
 
-    async def list_dir(self, path: str) -> list[str] | None:
+    async def path_exists(self, path: str) -> bool:
         try:
-            listing = await call_with_firecrest_retry(
-                lambda: self.client.list_files(
+            await call_with_firecrest_retry(
+                lambda: self.client.stat(
                     system_name=self.system_name,
                     path=path,
                     # Model directories are often symlinks into another tree; report
@@ -241,15 +241,15 @@ class FirecRESTLauncher(Launcher):
                 )
             )
         except f7t.UnexpectedStatusException as exc:
-            # FirecREST turns ls's "No such file or directory" into 404 and
+            # FirecREST turns stat's "No such file or directory" into 404 and
             # "Permission denied" into 403 — both are verdicts on the path.
             # Anything else (408 command timeout, 5xx that outlived the
             # retries, ...) says nothing about the path, so it propagates
-            # rather than masquerading as a missing directory.
+            # rather than masquerading as a missing file.
             if firecrest_status(exc) in _PATH_UNREACHABLE_STATUSES:
-                return None
+                return False
             raise
-        return [str(item["name"]) for item in listing]
+        return True
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]

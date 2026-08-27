@@ -1,6 +1,6 @@
 """Confirm over FirecREST that every catalog entry's weights are still on the cluster.
 
-Nothing here submits a job: each case is a single directory listing, so the whole
+Nothing here submits a job: each case is a single ``stat``, so the whole
 catalog is checked in seconds. These run in every CI tier — a launch test only
 covers the handful of models it launches, and a path that disappeared under any
 of the others is exactly the failure this guards against.

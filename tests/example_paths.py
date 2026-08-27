@@ -114,7 +114,7 @@ class ReferenceGroup:
     """One distinct path, plus every script/flag that names it.
 
     Examples repeat the same weights a lot (a model and its sglang/vllm variants,
-    a shared tokenizer), so checking per group keeps the sweep to one listing per
+    a shared tokenizer), so checking per group keeps the sweep to one stat per
     directory while still naming every script in a failure.
     """
 

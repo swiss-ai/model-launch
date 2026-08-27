@@ -101,12 +101,14 @@ class Launcher(ABC):
         """Where ``entry``'s weights live on this launcher's cluster."""
         return resolve_model_path(entry.model, self.model_registry, entry.model_path)
 
-    async def list_dir(self, path: str) -> list[str] | None:
-        """Entry names in ``path``, or ``None`` if it doesn't exist or can't be read.
+    async def path_exists(self, path: str) -> bool:
+        """Whether ``path`` exists and this account can reach it.
 
-        Used by the catalog path check to confirm a model directory is still
-        there before a launch discovers it isn't. Overridden by launchers that
-        can reach the cluster filesystem.
+        A single ``stat`` — never a listing, which on a directory of a few
+        hundred weight shards can outlast FirecREST's command timeout. Used by
+        the catalog path check to confirm a model directory is still there
+        before a launch discovers it isn't. Overridden by launchers that can
+        reach the cluster filesystem.
         """
         raise NotImplementedError
 

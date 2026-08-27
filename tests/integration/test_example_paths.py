@@ -1,6 +1,6 @@
 """Confirm over FirecREST that the clariden examples still point at real weights.
 
-Nothing here submits a job: each case is a single directory listing for one
+Nothing here submits a job: each case is a single ``stat`` for one
 distinct path, so all 80-odd recipes are covered in seconds. The comprehensive
 tier does launch every example, but only that tier — and a recipe whose
 checkpoint was cleaned off scratch is broken for everyone long before anyone

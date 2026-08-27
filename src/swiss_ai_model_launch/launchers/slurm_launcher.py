@@ -144,11 +144,8 @@ class SlurmLauncher(Launcher):
         except FileNotFoundError:
             return None
 
-    async def list_dir(self, path: str) -> list[str] | None:
-        try:
-            return await asyncio.to_thread(os.listdir, path)
-        except OSError:
-            return None
+    async def path_exists(self, path: str) -> bool:
+        return await asyncio.to_thread(os.path.exists, path)
 
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]:
         return [ModelCatalogEntry(**item) for item in json.loads(_PRECONFIGURED_MODELS.read_text())]

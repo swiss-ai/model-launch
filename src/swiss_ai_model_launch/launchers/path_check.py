@@ -27,8 +27,8 @@ MODEL_MARKERS = ("config.json", "params.json")
 # config of its own.
 TOKENIZER_MARKERS = ("tokenizer.json", "tokenizer_config.json")
 
-# These directories are small in file count; a handful of concurrent listings
-# keeps a full sweep quick without hammering the FirecREST gateway.
+# Each check is one or two stat calls; a handful in flight keeps a full sweep
+# quick without hammering the FirecREST gateway.
 DEFAULT_CONCURRENCY = 8
 
 
@@ -70,14 +70,21 @@ async def check_path(
     label: str,
     markers: tuple[str, ...] = MODEL_MARKERS,
 ) -> PathCheck:
-    """List ``path`` on the launcher's cluster and confirm it holds a marker file."""
-    listing = await launcher.list_dir(path)
-    if listing is None:
-        status = PathStatus.MISSING
-    elif not any(marker in listing for marker in markers):
-        status = PathStatus.NO_MARKER
+    """Confirm ``path`` on the launcher's cluster holds one of ``markers``.
+
+    A single ``stat`` of ``<path>/<marker>`` in the common case. Listing the
+    directory instead would stat every weight shard, and on a few hundred of
+    them under Lustre load that outlasts FirecREST's command timeout. Only when
+    no marker turns up does a second ``stat`` of the directory itself tell an
+    emptied checkpoint apart from a missing one.
+    """
+    directory = path.rstrip("/") or path
+    for marker in markers:
+        if await launcher.path_exists(f"{directory}/{marker}"):
+            status = PathStatus.OK
+            break
     else:
-        status = PathStatus.OK
+        status = PathStatus.NO_MARKER if await launcher.path_exists(directory) else PathStatus.MISSING
     return PathCheck(label=label, path=path, markers=markers, status=status)
 
 
