@@ -146,3 +146,70 @@ def test_find_job_reports_live_jobs_only() -> None:
     )
     assert asyncio.run(_launcher(client).find_job("x")) == (2, JobStatus.RUNNING)
     assert asyncio.run(_launcher(client).find_job("y")) is None
+
+
+def test_lookup_failing_too_falls_back_to_a_plain_retry() -> None:
+    """If FirecREST is down for the lookup as well, adoption is impossible; the
+    launcher must still retry the submission rather than give up or crash."""
+    client = FakeClient(submit_outcomes=[_status_error(503), 8], jobs=[])
+
+    async def broken_lookup(**kwargs):
+        raise _status_error(503)
+
+    client.job_info = broken_lookup
+    job_id, _ = asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-x")))
+    assert job_id == 8
+    assert client.submits == 2
+
+
+def test_exhausted_attempts_raise_the_last_error() -> None:
+    client = FakeClient(submit_outcomes=[_status_error(503)] * 6, jobs=[])
+    with pytest.raises(UnexpectedStatusException):
+        asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-never")))
+    assert client.submits == 6  # 1 + 5 retries
+
+
+def test_slurm_find_job_parses_squeue(monkeypatch) -> None:
+    from swiss_ai_model_launch.launchers import SlurmLauncher
+
+    calls = []
+
+    class FakeProc:
+        def __init__(self, out: bytes):
+            self._out = out
+
+        async def communicate(self):
+            return self._out, b""
+
+    outputs = {
+        "live": b"123 PENDING\n124 RUNNING\n",
+        "done": b"125 COMPLETED\n",
+        "none": b"",
+        "junk": b"not squeue output\n",
+    }
+
+    async def fake_exec(*argv, **kwargs):
+        calls.append(argv)
+        name = argv[argv.index("--name") + 1]
+        return FakeProc(outputs[name])
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    launcher = SlurmLauncher(system_name="local", username="alice", account="infra01", partition="normal")
+
+    assert asyncio.run(launcher.find_job("live")) == (123, JobStatus.PENDING)
+    assert asyncio.run(launcher.find_job("done")) is None
+    assert asyncio.run(launcher.find_job("none")) is None
+    assert asyncio.run(launcher.find_job("junk")) is None
+    assert calls[0][:4] == ("squeue", "--me", "--name", "live")
+
+
+def test_slurm_launch_honours_job_name(tmp_path) -> None:
+    from swiss_ai_model_launch.launchers import SlurmLauncher
+
+    launcher = SlurmLauncher(system_name="local", username="alice", account="infra01", partition="normal")
+    env = str(tmp_path / "env.toml")
+    req = _request(job_name="evalsvc-slurm").model_copy(update={"environment": env})
+    args = launcher._get_launch_args_from_request(req)
+    assert args.job_name == "evalsvc-slurm"
+    unnamed = launcher._get_launch_args_from_request(_request().model_copy(update={"environment": env}))
+    assert unnamed.job_name.startswith("swiss-ai_Apertus-8B-Instruct-2509_alice_")
