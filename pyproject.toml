@@ -38,6 +38,8 @@ line_length = 120
 [tool.ruff]
 src = ["src"]
 line-length = 120
+# Prose, not code: ruff would otherwise reformat python snippets in the docs.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = [
