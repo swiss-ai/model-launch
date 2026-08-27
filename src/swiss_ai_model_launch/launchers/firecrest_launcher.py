@@ -256,9 +256,9 @@ class FirecRESTLauncher(Launcher):
         return job_id, launch_args.served_model_name
 
     async def find_job(self, job_name: str) -> tuple[int, JobStatus] | None:
-        jobs = await call_with_firecrest_retry(
-            lambda: self.client.job_info(system_name=self.system_name, name=job_name)
-        )
+        # The account's jobs, matched by name here: FirecREST's own `name`
+        # filter needs API >= 2.6, which CSCS does not run yet.
+        jobs = await call_with_firecrest_retry(lambda: self.client.job_info(system_name=self.system_name))
         for job in jobs:
             if job.get("name") != job_name:
                 continue

@@ -134,7 +134,7 @@ job_id, served = await launcher.launch_model(LaunchRequest(..., job_name="myserv
 
 On a transient error the launcher looks the job up by name
 (`launcher.find_job(name)` → `(job_id, status)` for a pending/running job,
-via FirecREST's `job_info(name=…)`, or `squeue --name` on the SLURM launcher)
+from FirecREST's job list, or `squeue --name` on the SLURM launcher)
 and adopts it instead of resubmitting; only if nothing exists does it retry,
 with backoff. 408 and 429 count as transient, like 5xx. Without `job_name` a
 unique random name is generated, and the same check still applies within the
