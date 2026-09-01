@@ -19,3 +19,4 @@ class ModelCatalogEntry(BaseModel):
     # models.json to keep it visually apart from the launch fields.
     include_in_lightweight_ci: bool = Field(default=False, alias="_include_in_lightweight_ci")
     servekit_optims: bool = False
+    servekit_artifact_path: str | None = None
