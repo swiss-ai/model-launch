@@ -316,7 +316,18 @@ def _add_advanced_launch_arguments(
         help=(
             "Wrap the engine command with `servekit launch` for fast weight "
             "loading from Lustre (capstor/iopsstor). sglang only; requires "
-            "servekit to be installed in the job's environment."
+            "servekit to be installed in the job's environment and "
+            "--servekit-artifact-path to be set."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--servekit-artifact-path",
+        dest="servekit_artifact_path",
+        default=None,
+        help=(
+            "Directory where servekit keeps its presharded checkpoint artifact "
+            "(written there on first launch if not already present). Required "
+            "with --servekit-optims."
         ),
     )
     advanced_parser.add_argument(
@@ -845,6 +856,7 @@ def build_launch_args_from_advanced(
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         servekit_optims=args.servekit_optims,
+        servekit_artifact_path=args.servekit_artifact_path,
         telemetry_endpoint=telemetry_endpoint,
     )
 

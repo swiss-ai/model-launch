@@ -85,16 +85,6 @@
     "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
-    "model": "swiss-ai/Apertus-70B-Instruct-2509-servekit",
-    "framework": "sglang",
-    "environment": null,
-    "nodes_per_replica": 2,
-    "framework_args": "--load-format sharded_state --tp-size 8 --enable-metrics",
-    "pre_launch_cmds": "pip install --quiet git+https://github.com/eth-easl/servekit.git@e9fde0b",
-    "model_path": "/capstor/store/cscs/swissai/infra01/cold-start-experiments/apertus70b-tp8-sharded",
-    "servekit_optims": true
-  },
-  {
     "model": "swiss-ai/Apertus-8B-Instruct-2509",
     "framework": "sglang",
     "environment": null,
@@ -115,10 +105,11 @@
     "framework": "sglang",
     "environment": null,
     "nodes_per_replica": 1,
-    "framework_args": "--load-format sharded_state --tensor-parallel-size 4 --enable-metrics",
-    "pre_launch_cmds": "pip install --quiet git+https://github.com/eth-easl/servekit.git@5a84507",
-    "model_path": "/capstor/store/cscs/swissai/infra01/cold-start-experiments/apertus8b-tp4-sharded",
-    "servekit_optims": true
+    "framework_args": "--tensor-parallel-size 4 --enable-metrics",
+    "pre_launch_cmds": "pip install --quiet git+https://github.com/eth-easl/servekit.git@f42a458",
+    "model_path": "/capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509",
+    "servekit_optims": true,
+    "servekit_artifact_path": "/capstor/store/cscs/swissai/infra01/servekit-artifacts/apertus8b-tp4"
   },
   {
     "model": "swiss-ai/Apertus-v1.5-8B",

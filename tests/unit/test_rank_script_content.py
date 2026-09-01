@@ -40,18 +40,24 @@ def test_sglang_multi_node_passes_node_rank():
 
 def test_servekit_optims_wraps_sglang_head_entrypoint():
     args = _make_args(
-        framework="sglang", servekit_optims=True, topology=Topology(replicas=1, nodes_per_replica=1)
+        framework="sglang",
+        servekit_optims=True,
+        servekit_artifact_path="/scratch/artifact",
+        topology=Topology(replicas=1, nodes_per_replica=1),
     )
     head = render_rank_scripts(args)["head.sh"]
-    assert "servekit launch -- python3 -m sglang.launch_server" in head
+    assert "servekit launch --servekit-artifact-path /scratch/artifact -- python3 -m sglang.launch_server" in head
 
 
 def test_servekit_optims_wraps_sglang_follower_entrypoint():
     args = _make_args(
-        framework="sglang", servekit_optims=True, topology=Topology(replicas=1, nodes_per_replica=4)
+        framework="sglang",
+        servekit_optims=True,
+        servekit_artifact_path="/scratch/artifact",
+        topology=Topology(replicas=1, nodes_per_replica=4),
     )
     follower = render_rank_scripts(args)["follower.sh"]
-    assert "servekit launch -- python3 -m sglang.launch_server" in follower
+    assert "servekit launch --servekit-artifact-path /scratch/artifact -- python3 -m sglang.launch_server" in follower
 
 
 def test_servekit_optims_disabled_by_default():
