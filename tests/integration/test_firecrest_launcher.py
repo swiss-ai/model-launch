@@ -24,10 +24,27 @@ _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
 _CATALOG_ENTRIES = json.loads(_MODEL_JSON.read_text())
 
+# Every vLLM launch in this suite runs on the baseline image this repo builds,
+# whatever environment the catalog entry names. That is the point of the base
+# image: one image serving the whole vLLM matrix instead of a per-model one.
+#
+# models.json is deliberately not edited. The catalog drives production
+# launches too, and those keep their current environments until the base image
+# has proven itself across this matrix. sglang entries are untouched.
+_VLLM_TEST_ENVIRONMENT = str(_ASSERTS.joinpath("envs", "vllm_base.toml"))
+
+
+def _catalog_entry(entry: dict[str, object]) -> ModelCatalogEntry:
+    parsed = ModelCatalogEntry.model_validate(entry)
+    if parsed.framework != "vllm":
+        return parsed
+    return parsed.model_copy(update={"environment": _VLLM_TEST_ENVIRONMENT})
+
+
 _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest(
-            **ModelCatalogEntry.model_validate(entry).model_dump(),
+            **_catalog_entry(entry).model_dump(),
             replicas=1,
             time="03:00:00",
         ),
@@ -58,7 +75,7 @@ _STD_CONFIGS: list[tuple[str, int, bool]] = [
 _STD_LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest.from_catalog_entry(
-            ModelCatalogEntry.model_validate(entry),
+            _catalog_entry(entry),
             replicas=replicas,
             time="04:00:00",
             router="sglang" if use_router else "opentela",
