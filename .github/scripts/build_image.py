@@ -17,7 +17,9 @@ _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
 _RELEASE_CHANNEL = "latest"
 # Anything outside this set lands in a filesystem path and a registry tag, so
 # it must not contain path separators or shell metacharacters.
-_CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
+# "nightly" is a rolling pre-release channel: it lands under the same
+# per-channel subdirectory as pr-<N> and is overwritten by each night's build.
+_CHANNEL_RE = re.compile(r"^(latest|nightly|pr-\d+)$")
 # Same reasoning as the channel: the revision is interpolated into the batch
 # script and into image metadata, so accept only a bare hex commit SHA.
 _REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
@@ -384,6 +386,6 @@ if __name__ == "__main__":
         print(f"Unsupported arch '{arch_arg}' (expected arm64 or amd64)", file=sys.stderr)
         sys.exit(1)
     if not _CHANNEL_RE.match(channel_arg):
-        print(f"Unsupported channel '{channel_arg}' (expected 'latest' or 'pr-<number>')", file=sys.stderr)
+        print(f"Unsupported channel '{channel_arg}' (expected 'latest', 'nightly' or 'pr-<number>')", file=sys.stderr)
         sys.exit(1)
     sys.exit(asyncio.run(main(image_arg, arch_arg, channel_arg)))

@@ -34,7 +34,7 @@ from pathlib import Path
 _REGISTRY = "ghcr.io"
 _ORG = "swiss-ai"
 _ALLOWLIST = Path(".github/image-scan-allowlist.txt")
-_CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
+_CHANNEL_RE = re.compile(r"^(latest|nightly|pr-\d+)$")
 
 _MANIFEST_ACCEPT = ", ".join(
     (
@@ -355,6 +355,6 @@ if __name__ == "__main__":
         print(f"Unsupported arch '{arch_arg}' (expected arm64 or amd64)", file=sys.stderr)
         sys.exit(2)
     if not _CHANNEL_RE.match(channel_arg):
-        print(f"Unsupported channel '{channel_arg}' (expected 'latest' or 'pr-<number>')", file=sys.stderr)
+        print(f"Unsupported channel '{channel_arg}' (expected 'latest', 'nightly' or 'pr-<number>')", file=sys.stderr)
         sys.exit(2)
     sys.exit(main(image_arg, arch_arg, channel_arg))

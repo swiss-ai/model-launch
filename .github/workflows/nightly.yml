@@ -1,0 +1,262 @@
+name: Nightly
+
+# Resolves the latest upstream versions for images that ship a nightly.toml,
+# builds the bumped Dockerfiles into the rolling ":nightly" channel, and opens
+# a PR with the diff.
+#
+# The build happens here rather than on the PR: ci.yml skips its build job for
+# nightly/* branches, so the images are built exactly once per night. Merging
+# the PR is what republishes them under ":latest" through the normal pipeline.
+on:
+  schedule:
+    # 02:00 UTC, outside the working day on both clusters.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+# A nightly can run for hours; never let two overlap on the same channel.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Resolve latest versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.bump.outputs.changed }}
+      images: ${{ steps.bump.outputs.images }}
+      branch: ${{ steps.branch.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+
+      - name: Resolve and rewrite ARGs
+        id: bump
+        run: python .github/scripts/nightly_bump.py
+
+      # A quiet night stops here: no branch, no build, no PR.
+      - name: Push nightly branch
+        id: branch
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          BRANCH="nightly/$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          # Only the image directories: nightly-summary.md is a build product.
+          git add images/
+          git commit -m "Nightly dependency bump $(date -u +%Y-%m-%d)" -m "$(cat nightly-summary.md)"
+          # Force: a same-day re-run rewrites its own branch rather than failing.
+          git push --force origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.bump.outputs.changed == 'true'
+        with:
+          name: nightly-summary
+          path: nightly-summary.md
+
+  build:
+    name: Build ${{ matrix.image }} (${{ matrix.arch }})
+    needs: [bump]
+    if: needs.bump.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.bump.outputs.images) }}
+        arch: [arm64, amd64]
+      fail-fast: false
+    env:
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
+      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
+      SML_PARTITION: ${{ vars.SML_PARTITION }}
+      SML_RESERVATION: ${{ vars.SML_RESERVATION }}
+      SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
+      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
+      SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump.outputs.branch }}
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+
+      # No build sentinel here. The nightly exists to build the bumped
+      # Dockerfile, and a cache hit would make it silently do nothing.
+      - name: Build image and save sqsh
+        shell: bash
+        run: |
+          GIT_REVISION="$(git rev-parse HEAD)"
+          export GIT_REVISION
+          python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}" nightly \
+            2>&1 | tee "build-${{ matrix.image }}-${{ matrix.arch }}.log"
+        timeout-minutes: 300
+
+      # Kept on failure too: the PR body quotes the tail of these.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log-${{ matrix.image }}-${{ matrix.arch }}
+          path: build-${{ matrix.image }}-${{ matrix.arch }}.log
+          if-no-files-found: ignore
+
+  scan-secrets:
+    name: Secret Scan ${{ matrix.image }} (${{ matrix.arch }})
+    needs: [bump, build]
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.bump.outputs.images) }}
+        arch: [arm64, amd64]
+      fail-fast: false
+    env:
+      CHANNEL: nightly
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump.outputs.branch }}
+      - name: Install trufflehog
+        run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
+      - name: Prepare scan workdir
+        run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
+      - name: Scan image layers for secrets
+        env:
+          SCAN_WORKDIR: /mnt/image-scan
+        run: python3 .github/scripts/scan_image.py "${{ matrix.image }}" "${{ matrix.arch }}" nightly
+        timeout-minutes: 90
+
+  merge-manifests:
+    name: Merge multi-arch manifest ${{ matrix.image }}
+    needs: [bump, build, scan-secrets]
+    if: needs.build.result == 'success' && needs.scan-secrets.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.bump.outputs.images) }}
+      fail-fast: false
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push multi-arch manifest
+        env:
+          IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
+        run: |
+          docker buildx imagetools create -t "${IMAGE}:nightly" \
+            "${IMAGE}:nightly-arm64" \
+            "${IMAGE}:nightly-amd64"
+
+  open-pr:
+    name: Open nightly PR
+    needs: [bump, build, scan-secrets, merge-manifests]
+    # always(): a failing bump is the most interesting PR of all, so it is
+    # opened as a draft rather than swallowed.
+    if: always() && needs.bump.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      # A PAT, so the PR triggers pull_request workflows. GITHUB_TOKEN-authored
+      # PRs get no checks at all.
+      GH_TOKEN: ${{ secrets.NIGHTLY_PR_TOKEN }}
+      BRANCH: ${{ needs.bump.outputs.branch }}
+      BUILD_RESULT: ${{ needs.build.result }}
+      SCAN_RESULT: ${{ needs.scan-secrets.result }}
+      MERGE_RESULT: ${{ needs.merge-manifests.result }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compose PR body
+        id: body
+        shell: bash
+        run: |
+          DATE="$(date -u +%Y-%m-%d)"
+          if [ "$BUILD_RESULT" = "success" ] && [ "$SCAN_RESULT" = "success" ] && [ "$MERGE_RESULT" = "success" ]; then
+            echo "title=Nightly dependency bump $DATE" >> "$GITHUB_OUTPUT"
+            echo "draft=" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=Nightly dependency bump $DATE — FAILING" >> "$GITHUB_OUTPUT"
+            echo "draft=--draft" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            cat artifacts/nightly-summary/nightly-summary.md
+            echo
+            echo "## Pipeline"
+            echo
+            echo "| stage | result |"
+            echo "| --- | --- |"
+            echo "| build | \`$BUILD_RESULT\` |"
+            echo "| secret scan | \`$SCAN_RESULT\` |"
+            echo "| manifest | \`$MERGE_RESULT\` |"
+            echo
+            echo "[Full run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            echo
+            if [ "$BUILD_RESULT" = "success" ]; then
+              echo "Images published to the rolling \`:nightly\` channel; \`:latest\` follows when this merges."
+            else
+              echo "The \`:nightly\` channel still points at the last good build."
+              echo
+              for log in artifacts/build-log-*/*.log; do
+                [ -f "$log" ] || continue
+                echo "<details><summary>$(basename "$log")</summary>"
+                echo
+                echo '```'
+                tail -n 60 "$log"
+                echo '```'
+                echo
+                echo "</details>"
+                echo
+              done
+            fi
+          } > pr-body.md
+          cat pr-body.md
+
+      # Closed, not force-updated: review comments survive as a record of the
+      # night they were made on.
+      - name: Close the previous nightly PR
+        run: |
+          gh label create nightly --color BFD4F2 --description "Automated nightly dependency bump" 2>/dev/null || true
+          gh pr list --label nightly --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"${BRANCH}\") | .number" \
+          | while read -r number; do
+              [ -n "$number" ] || continue
+              echo "Closing #$number"
+              gh pr close "$number" --delete-branch --comment "Superseded by tonight's bump."
+            done
+
+      - name: Open the PR
+        run: |
+          # A same-day re-run updates the existing PR instead of failing.
+          if existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number') && [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "${{ steps.body.outputs.title }}" --body-file pr-body.md
+            echo "Updated #$existing"
+          else
+            gh pr create --base main --head "$BRANCH" --label nightly \
+              --title "${{ steps.body.outputs.title }}" --body-file pr-body.md \
+              ${{ steps.body.outputs.draft }}
+          fi
