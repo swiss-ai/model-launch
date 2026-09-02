@@ -25,6 +25,9 @@ _CHANNEL_RE = re.compile(r"^(latest|nightly|pr-\d+)$")
 _REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _UNKNOWN_REVISION = "unknown"
 _POLL_INTERVAL = 60
+# Consecutive status-poll failures tolerated before the build is abandoned;
+# at _POLL_INTERVAL seconds apart this rides out ~10 minutes of gateway trouble.
+_MAX_POLL_ERRORS = 10
 _TIMEOUT = 4 * 3600
 _TERMINAL_STATES = {
     "COMPLETED",
@@ -364,11 +367,30 @@ async def main(image_name: str, arch: str, channel: str) -> int:
     print(f"Job ID: {job_id}")
 
     start = time.time()
+    poll_errors = 0
     while time.time() - start < _TIMEOUT:
         await asyncio.sleep(_POLL_INTERVAL)
-        info = await client.job_info(system_name=system_name, jobid=str(job_id))
-        state = str(info[0]["status"]["state"])
         elapsed = int(time.time() - start)
+
+        # The gateway returns 500 ("Error executing Slurm command",
+        # "Command execution timeout limit exceeded") when its own squeue call
+        # times out. The job is unaffected, so a transient poll failure must
+        # not abandon a build with hours left to run -- and abandoning it also
+        # skips the log download below, which hides why a job that did fail
+        # failed. Give up only once the gateway looks durably broken.
+        try:
+            info = await client.job_info(system_name=system_name, jobid=str(job_id))
+        except Exception as e:  # noqa: BLE001
+            poll_errors += 1
+            if poll_errors > _MAX_POLL_ERRORS:
+                print(f"[{elapsed}s] Giving up after {poll_errors} consecutive polling failures: {e}")
+                print(f"Job {job_id} may still be running; check with sacct.")
+                return 1
+            print(f"[{elapsed}s] Poll {poll_errors}/{_MAX_POLL_ERRORS} failed, retrying: {e}")
+            continue
+        poll_errors = 0
+
+        state = str(info[0]["status"]["state"])
         print(f"[{elapsed}s] Job {job_id}: {state}")
 
         if state == "COMPLETED":
