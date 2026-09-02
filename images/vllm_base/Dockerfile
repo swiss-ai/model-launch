@@ -8,14 +8,17 @@ FROM docker.io/nvidia/cuda:13.0.3-cudnn-devel-ubuntu24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PYTHON_VERSION=3.12
 ARG CUDA_VERSION_PATH=cu130
-ARG UV_VERSION=0.12.3
+ARG UV_VERSION=0.12.9
 
+# The torch trio and flashinfer-cubin are hard-pinned by vLLM's
+# requirements/cuda.txt (`==`), so they track the vLLM release rather than
+# their own latest: bumping them independently makes the resolve unsatisfiable.
 ARG TORCH_VERSION=2.13.0
 ARG TORCHVISION_VERSION=0.28.0
 ARG TORCHAUDIO_VERSION=2.11.0
-ARG VLLM_VERSION=0.27.1
-ARG TRANSFORMERS_VERSION=5.15.0
-ARG RAY_VERSION=2.57.0
+ARG VLLM_VERSION=0.28.0
+ARG TRANSFORMERS_VERSION=5.16.1
+ARG RAY_VERSION=2.58.0
 ARG FLASHINFER_VERSION=0.6.16.post3
 
 # Build provenance from CI (.github/scripts/build_image.py); "unknown" in a published image means it was not built by the pipeline.
