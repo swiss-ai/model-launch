@@ -56,15 +56,22 @@ _LAUNCH_REQUESTS = [
 ]
 
 # Std suite: Apertus 8B (sglang + vllm), Apertus 70B (sglang), Gemma 3 27B (vllm),
-# and GLM-5.1-FP8 (sglang) across three topologies. The with/without-router axis is
-# meaningful for multi-replica configurations. vllm/2r-router combinations are skipped
-# because the multi-replica router is sglang-only (master script invokes
-# sglang_router.launch_router, which the vllm container does not ship).
+# GLM-5.1-FP8 (sglang) and Qwen3-235B-A22B (sglang + vllm) across three topologies.
+# The with/without-router axis is meaningful for multi-replica configurations.
+# vllm/2r-router combinations are skipped because the multi-replica router is
+# sglang-only (master script invokes sglang_router.launch_router, which the vllm
+# container does not ship).
+#
+# Qwen3-235B-A22B is the suite's only multi-node vLLM model (2 nodes, TP 8). Every
+# other vLLM entry fits on one node, so without it nothing here exercises vLLM's
+# cross-node path -- Ray bootstrapping a placement group and NCCL over the fabric
+# -- which is the part of the base image least like a single-node launch.
 _STD_MODELS = (
     "swiss-ai/Apertus-8B-Instruct-2509",
     "swiss-ai/Apertus-70B-Instruct-2509",
     "google/gemma-3-27b-it",
     "zai-org/GLM-5.1-FP8",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507",
 )
 _STD_CONFIGS: list[tuple[str, int, bool]] = [
     # (config_id, replicas, use_router)

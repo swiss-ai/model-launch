@@ -70,6 +70,13 @@
     "framework_args": "--tp-size 8 --enable-metrics"
   },
   {
+    "model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_replica": 2,
+    "framework_args": "--tensor-parallel-size 8"
+  },
+  {
     "model": "Qwen/Qwen3.5-397B-A17B",
     "framework": "sglang",
     "environment": null,
