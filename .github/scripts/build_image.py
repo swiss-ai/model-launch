@@ -18,6 +18,10 @@ _RELEASE_CHANNEL = "latest"
 # Anything outside this set lands in a filesystem path and a registry tag, so
 # it must not contain path separators or shell metacharacters.
 _CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
+# Same reasoning as the channel: the revision is interpolated into the batch
+# script and into image metadata, so accept only a bare hex commit SHA.
+_REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
+_UNKNOWN_REVISION = "unknown"
 _POLL_INTERVAL = 60
 _TIMEOUT = 4 * 3600
 _TERMINAL_STATES = {
@@ -46,6 +50,7 @@ def _build_slurm_script(
     image_name: str,
     arch: str,
     channel: str,
+    revision: str,
     account: str,
     partition: str,
     reservation: str | None,
@@ -157,7 +162,37 @@ def _build_slurm_script(
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         # --format docker: honor SHELL instructions (OCI format silently
         # ignores SHELL, so RUN steps needing bash/pipefail break under sh).
-        podman build --format docker -t "${{IMAGE_TAG}}" .
+        #
+        # The BUILD_* args carry provenance into the image's labels and into
+        # one env var. Images whose Dockerfile declares no matching ARG just
+        # log an unused-argument warning, so this stays uniform across images.
+        BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        podman build --format docker \\
+            --build-arg BUILD_IMAGE="{image_name}" \\
+            --build-arg BUILD_ARCH="{arch}" \\
+            --build-arg BUILD_CHANNEL="{channel}" \\
+            --build-arg BUILD_REVISION="{revision}" \\
+            --build-arg BUILD_DATE="${{BUILD_DATE}}" \\
+            -t "${{IMAGE_TAG}}" .
+
+        # Check the built artifact before it is published. The script is
+        # image-owned (images/<name>/sanity_check.sh) and reached the node with
+        # the rest of the build context; it is mounted rather than COPYed so it
+        # stays out of the image. Images that ship none are simply not checked.
+        # `set -e` above makes a failure here abort before the push.
+        #
+        # The node's GPUs are passed in through CDI (/etc/cdi/nvidia.yaml):
+        # the check imports vLLM, which initialises platform detection and
+        # needs a live CUDA runtime, not just the wheels.
+        if [ -f sanity_check.sh ]; then
+            echo "=== Sanity check ==="
+            podman run --rm --network=none \\
+                --device nvidia.com/gpu=all \\
+                -v "${{PWD}}/sanity_check.sh:/sanity_check.sh:ro" \\
+                "${{IMAGE_TAG}}" bash /sanity_check.sh
+        else
+            echo "=== Sanity check: no sanity_check.sh in build context, skipping ==="
+        fi
 
         echo "=== Pushing to GHCR ==="
         echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
@@ -249,6 +284,14 @@ async def main(image_name: str, arch: str, channel: str) -> int:
     ghcr_token = os.environ["GHCR_TOKEN"]
     ghcr_actor = os.environ["GHCR_ACTOR"]
 
+    # GIT_REVISION is set by the workflow to the PR's head commit; GITHUB_SHA
+    # would be the merge commit on pull_request events, which is not a commit
+    # that exists on the branch under review.
+    revision = (os.environ.get("GIT_REVISION") or os.environ.get("GITHUB_SHA") or "").strip().lower()
+    if not _REVISION_RE.match(revision):
+        print(f"No usable commit SHA in GIT_REVISION/GITHUB_SHA; recording '{_UNKNOWN_REVISION}'.")
+        revision = _UNKNOWN_REVISION
+
     # Credentials (service-account API key, or client ID/secret) are shared
     # across both clusters and read from the environment.
     client = build_client_from_env(firecrest_url)
@@ -289,6 +332,7 @@ async def main(image_name: str, arch: str, channel: str) -> int:
         image_name=image_name,
         arch=arch,
         channel=channel,
+        revision=revision,
         account=account,
         partition=partition,
         reservation=reservation,
