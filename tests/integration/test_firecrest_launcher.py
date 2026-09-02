@@ -41,12 +41,39 @@ def _catalog_entry(entry: dict[str, object]) -> ModelCatalogEntry:
     return parsed.model_copy(update={"environment": _VLLM_TEST_ENVIRONMENT})
 
 
+def _topology(entry: dict[str, object], replicas: int, use_router: bool) -> str:
+    """One launch topology as ``<replicas>r-<nodes>n``, plus ``-router``.
+
+    The node count is carried explicitly because it does not follow from the
+    replica count: it is replicas * nodes_per_replica, and nodes_per_replica
+    varies per model, so two cases both labelled ``2r`` can be a two-node and
+    an eight-node job.
+    """
+    nodes = replicas * int(entry.get("nodes_per_replica", 1))  # type: ignore[call-overload]
+    return f"{replicas}r-{nodes}n" + ("-router" if use_router else "")
+
+
+def _served_name(entry: dict[str, object], replicas: int, use_router: bool = False) -> str:
+    """A served name unique to one case, rather than shared across the suite.
+
+    Left unset, a launch is served as just ``<user>/<model>`` -- deliberate in
+    production, where two launches of one model are meant to load-balance as
+    extra replicas (see launchers/served_name.py). Under xdist that is wrong
+    here: the cases run concurrently, so a model's 1r and 2r launches would
+    share a name and wait_for_all_replicas_healthy would count replicas
+    belonging to the other job. Framework and topology both matter, since the
+    same model is launched under both frameworks and at several topologies.
+    """
+    return f"{entry['model']}-{entry['framework']}-{_topology(entry, replicas, use_router)}"
+
+
 _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest(
             **_catalog_entry(entry).model_dump(),
             replicas=1,
             time="03:00:00",
+            served_model_name=_served_name(entry, 1),
         ),
         id=f"{entry['model']}/{entry['framework']}",
         marks=[pytest.mark.comprehensive]
@@ -73,11 +100,11 @@ _STD_MODELS = (
     "zai-org/GLM-5.1-FP8",
     "Qwen/Qwen3-235B-A22B-Instruct-2507",
 )
-_STD_CONFIGS: list[tuple[str, int, bool]] = [
-    # (config_id, replicas, use_router)
-    ("1r", 1, False),
-    ("2r", 2, False),
-    ("2r-router", 2, True),
+_STD_CONFIGS: list[tuple[int, bool]] = [
+    # (replicas, use_router)
+    (1, False),
+    (2, False),
+    (2, True),
 ]
 _STD_LAUNCH_REQUESTS = [
     pytest.param(
@@ -85,14 +112,15 @@ _STD_LAUNCH_REQUESTS = [
             _catalog_entry(entry),
             replicas=replicas,
             time="04:00:00",
+            served_model_name=_served_name(entry, replicas, use_router),
             router="sglang" if use_router else "opentela",
         ),
-        id=f"{entry['model']}/{entry['framework']}/{config_id}",
+        id=f"{entry['model']}/{entry['framework']}/{_topology(entry, replicas, use_router)}",
         marks=[pytest.mark.std],
     )
     for entry in _CATALOG_ENTRIES
     if entry["model"] in _STD_MODELS
-    for config_id, replicas, use_router in _STD_CONFIGS
+    for replicas, use_router in _STD_CONFIGS
     if not (entry["framework"] == "vllm" and use_router)
 ]
 
