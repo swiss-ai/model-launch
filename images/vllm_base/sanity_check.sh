@@ -15,6 +15,7 @@
 #   SML_SANITY_COMMANDS     executables that must be on PATH
 #   SML_SANITY_PACKAGES     installed distributions, "name==version" or "name"
 #   SML_SANITY_IMPORTS      modules that must import cleanly
+#   SML_SANITY_GPU_IMPORTS  modules that only import where a GPU is visible
 #   SML_SANITY_FILES        paths that must exist; symlinks must resolve
 #
 # SML_IMAGE_BUILD, if the image carries it, is reported but never asserted --
@@ -25,9 +26,10 @@
 # paying for the import. SML_SANITY_IMPORTS is for the modules where the import
 # itself is the check.
 #
-# The check requires a GPU. Importing vLLM initialises platform detection, so
-# it only succeeds where one is visible; CI passes the devices in via
-# `--device nvidia.com/gpu=all` (.github/scripts/build_image.py).
+# A GPU is not assumed. Importing vLLM initialises platform detection, which
+# needs a live CUDA runtime, so it lives in SML_SANITY_GPU_IMPORTS and is
+# checked only where a GPU is actually visible: the arm64 build nodes register
+# a CDI spec and pass their GH200s in, the amd64 ones do not.
 #
 # To run it by hand against a saved squashfs:
 #   enroot start --mount ./sanity_check.sh:/sanity_check.sh <image>.sqsh \
@@ -47,6 +49,13 @@ fail() {
 }
 
 PYTHON="$(command -v python || command -v python3 || true)"
+
+# Probed via /dev rather than through torch, so images with no GPU stack at all
+# take the same path.
+gpu_visible=0
+if [ -e /dev/nvidiactl ] || compgen -G "/dev/nvidia[0-9]*" > /dev/null 2>&1; then
+    gpu_visible=1
+fi
 
 # Printed first so a CI log says which build it is checking before it says
 # anything about whether that build is good.
@@ -100,7 +109,19 @@ else
             'import sys; from importlib.metadata import version; print(version(sys.argv[1]))' \
             "${name}" 2>/dev/null)"; then
             fail "${name} is not installed"
-        elif [ -n "${expected}" ] && [ "${actual}" != "${expected}" ]; then
+            continue
+        fi
+
+        # PEP 440: when the pin carries no local version label, the candidate's
+        # is ignored for matching -- torch==2.13.0 is satisfied by the cu130
+        # index's 2.13.0+cu130. Compare local labels only when the pin has one.
+        compare="${actual}"
+        case "${expected}" in
+            *+*) ;;
+            *) compare="${actual%%+*}" ;;
+        esac
+
+        if [ -n "${expected}" ] && [ "${compare}" != "${expected}" ]; then
             fail "${name} ${actual} installed, expected ${expected}"
         else
             pass "${name} ${actual}"
@@ -120,6 +141,23 @@ for module in "${imports[@]}"; do
         fail "import ${module} failed: $(printf '%s' "${output}" | tail -n 1)"
     fi
 done
+
+section "GPU-only imports"
+read -ra gpu_imports <<< "${SML_SANITY_GPU_IMPORTS:-}"
+if [ ${#gpu_imports[@]} -eq 0 ]; then
+    skip "SML_SANITY_GPU_IMPORTS not set"
+elif [ "${gpu_visible}" -eq 0 ]; then
+    skip "no GPU visible; not importing: ${gpu_imports[*]}"
+fi
+if [ "${gpu_visible}" -eq 1 ]; then
+    for module in "${gpu_imports[@]}"; do
+        if output="$("${PYTHON}" -c 'import sys; __import__(sys.argv[1])' "${module}" 2>&1)"; then
+            pass "import ${module}"
+        else
+            fail "import ${module} failed: $(printf '%s' "${output}" | tail -n 1)"
+        fi
+    done
+fi
 
 section "Files"
 read -ra files <<< "${SML_SANITY_FILES:-}"
@@ -157,7 +195,7 @@ fi
 
 section "Result"
 if [ "${failures}" -eq 0 ]; then
-    printf '  all checks passed\n'
+    printf '  all checks passed (gpu_visible=%s)\n' "${gpu_visible}"
     exit 0
 fi
 printf '  %s check(s) failed\n' "${failures}" >&2

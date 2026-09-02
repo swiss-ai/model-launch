@@ -107,9 +107,10 @@ RUN SITE="/opt/venv/lib/python${PYTHON_VERSION}/site-packages" && \
 # between `podman build` and `podman push` (.github/scripts/build_image.py), so
 # a mismatch blocks the release instead of reaching a build log nobody reads.
 #
-# Distributions are checked through metadata; torch and vLLM are also imported
-# -- torch catches a mismatched CUDA ABI, and vLLM initialises platform
-# detection, which proves the CUDA runtime comes up on the build node's GPUs.
+# Distributions are checked through metadata; torch is imported, catching a
+# mismatched CUDA ABI. vLLM is GPU-gated: importing it initialises platform
+# detection and needs a live CUDA runtime, which the arm64 build nodes provide
+# and the amd64 ones do not.
 ENV SML_SANITY_PYTHON="${PYTHON_VERSION}" \
     SML_SANITY_COMMANDS="python uv curl ffmpeg vllm ray" \
     SML_SANITY_PACKAGES="torch==${TORCH_VERSION} \
@@ -119,7 +120,8 @@ vllm==${VLLM_VERSION} \
 flashinfer-cubin==${FLASHINFER_VERSION} \
 transformers==${TRANSFORMERS_VERSION} \
 ray==${RAY_VERSION}" \
-    SML_SANITY_IMPORTS="torch vllm" \
+    SML_SANITY_IMPORTS="torch" \
+    SML_SANITY_GPU_IMPORTS="vllm" \
     SML_SANITY_FILES="${VIRTUAL_ENV}/include/cudnn.h ${VIRTUAL_ENV}/include/nccl.h"
 
 # Provenance in the environment because that is what reaches the cluster:

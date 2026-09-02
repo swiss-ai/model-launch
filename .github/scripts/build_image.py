@@ -188,8 +188,17 @@ def _build_slurm_script(
         # needs a live CUDA runtime, not just the wheels.
         if [ -f sanity_check.sh ]; then
             echo "=== Sanity check ==="
-            podman run --rm --network=none \\
-                --device nvidia.com/gpu=all \\
+            # The Grace nodes register a CDI spec for their GPUs; not every
+            # cluster does, and passing an unresolvable device is a hard error
+            # rather than a degraded run.
+            GPU_DEVICE=""
+            if [ -e /etc/cdi/nvidia.yaml ] || [ -e /var/run/cdi/nvidia.yaml ]; then
+                GPU_DEVICE="--device nvidia.com/gpu=all"
+            else
+                echo "No CDI GPU spec on $(hostname); checking without GPUs."
+            fi
+            # shellcheck disable=SC2086
+            podman run --rm --network=none ${{GPU_DEVICE}} \\
                 -v "${{PWD}}/sanity_check.sh:/sanity_check.sh:ro" \\
                 "${{IMAGE_TAG}}" bash /sanity_check.sh
         else
