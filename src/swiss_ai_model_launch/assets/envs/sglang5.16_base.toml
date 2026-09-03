@@ -1,0 +1,31 @@
+image = "lmsysorg/sglang:v0.5.16"
+
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor",
+  "/iopsstor",
+  "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
+  "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
+  "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
+]
+
+workdir = "/opt"
+
+[env]
+NCCL_NET = "AWS Libfabric"
+NCCL_SOCKET_IFNAME = "hsn0"
+GLOO_SOCKET_IFNAME = "hsn0"
+NCCL_CROSS_NIC = "1"
+FI_CXI_DISABLE_HOST_REGISTER = "1"
+FI_CXI_DEFAULT_CQ_SIZE = "131072"
+FI_CXI_RDZV_THRESHOLD = "0"
+FI_CXI_RDZV_GET_MIN = "0"
+# Replaces the default memory-region cache monitor, which mishandles
+# CXI-registered memory.
+FI_MR_CACHE_MONITOR = "userfaultfd"
+
+[annotations]
+com.hooks.aws_ofi_nccl.enabled = "true"
+com.hooks.aws_ofi_nccl.variant = "cuda12"
+com.hooks.netstack.name = "gpu_cuda13-cxi_13.1.0-ofi_2.6.0-aws_1.20.0_dl"
