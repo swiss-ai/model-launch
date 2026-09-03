@@ -30,6 +30,22 @@ FI_CXI_DISABLE_HOST_REGISTER = "1"
 OFI_NCCL_DISABLE_DMABUF = "1"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
 
+# Forces the legacy ray_executor.py path instead of RayExecutorV2.
+#
+# RayExecutorV2 inherits from MultiprocExecutor, which coordinates ranks via
+# shm_broadcast -- POSIX shared memory, which is per-host. Across nodes there is
+# no shm path, so in_the_same_node_as() falls back to Gloo TCP and deadlocks:
+# the source rank drops out of a contextlib.suppress(OSError) without
+# broadcasting, every peer waits in broadcast_object_list for gloo's 1800000ms
+# default, then the barrier fails with "Application timeout caused pair
+# closure". A multi-node launch dies ~33 minutes in, before loading any weights.
+#
+# See vllm-project/vllm#43420. The legacy executor routes collectives over Ray
+# RPC, which crosses nodes. Drop this once RayExecutorV2 grows a cross-node
+# path; single-node launches work either way, so this only costs us the newer
+# executor on models that fit on one node.
+VLLM_USE_V2_MODEL_RUNNER = "0"
+
 # JIT and compile caches. Left unset they default under $HOME, which is NFS --
 # the worst filesystem here for the many small concurrent writes that
 # torch.compile and Triton produce. These live on capstor instead, which is
