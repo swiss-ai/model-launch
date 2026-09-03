@@ -106,10 +106,10 @@
     "environment": null,
     "nodes_per_replica": 1,
     "framework_args": "--tensor-parallel-size 4 --enable-metrics",
-    "pre_launch_cmds": "pip install --quiet git+https://github.com/eth-easl/servekit.git@f42a458",
+    "pre_launch_cmds": "pip install --quiet https://github.com/eth-easl/servekit/archive/f42a458.tar.gz",
     "model_path": "/capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509",
     "servekit_optims": true,
-    "servekit_artifact_path": "/capstor/store/cscs/swissai/infra01/servekit-artifacts/apertus8b-tp4"
+    "servekit_args": "--servekit-artifact-path /capstor/store/cscs/swissai/infra01/servekit-artifacts/apertus8b-tp4"
   },
   {
     "model": "swiss-ai/Apertus-v1.5-8B",
@@ -168,6 +168,16 @@
     "environment": null,
     "nodes_per_replica": 4,
     "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
+  },
+  {
+    "model": "zai-org/GLM-4.7",
+    "framework": "sglang",
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang5.16_base.toml",
+    "nodes_per_replica": 4,
+    "framework_args": "--tensor-parallel-size 4 --pipeline-parallel-size 4 --expert-parallel-size 4 --load-format sharded_state --attention-backend flashinfer --trust-remote-code --context-length 32768 --mem-fraction-static 0.85 --tool-call-parser glm47 --reasoning-parser glm45 --enable-metrics",
+    "pre_launch_cmds": "pip install --quiet --break-system-packages https://github.com/eth-easl/servekit/archive/f42a458.tar.gz",
+    "servekit_optims": true,
+    "servekit_args": "--servekit-artifact-path /capstor/store/cscs/swissai/infra01/cold-start-experiments/glm4.7-tp4pp4-sharded"
   },
   {
     "model": "rednote-hilab/dots.mocr",

@@ -70,7 +70,7 @@ def test_rendered_scripts_pass_bash_n(
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
         servekit_optims=servekit_optims,
-        servekit_artifact_path="/scratch/artifact" if servekit_optims else None,
+        servekit_args="--servekit-artifact-path /scratch/artifact" if servekit_optims else None,
     )
     master_path = tmp_path / "master.sh"
     master_path.write_text("#!/bin/bash\n" + render_master(args))
@@ -104,7 +104,7 @@ def test_rendered_scripts_pass_shellcheck(
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
         servekit_optims=servekit_optims,
-        servekit_artifact_path="/scratch/artifact" if servekit_optims else None,
+        servekit_args="--servekit-artifact-path /scratch/artifact" if servekit_optims else None,
     )
     master_path = tmp_path / "master.sh"
     master_path.write_text("#!/bin/bash\n" + render_master(args))
