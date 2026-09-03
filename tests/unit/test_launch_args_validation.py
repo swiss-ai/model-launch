@@ -36,15 +36,15 @@ def test_disabled_metrics_allow_no_remote_write_url() -> None:
 
 def test_servekit_optims_rejected_for_vllm() -> None:
     with pytest.raises(ValidationError, match="--servekit-optims is only supported with --framework sglang"):
-        _make_args(framework="vllm", servekit_optims=True, servekit_artifact_path="/scratch/artifact")
+        _make_args(framework="vllm", servekit_optims=True, servekit_args="--servekit-artifact-path /scratch/artifact")
 
 
-def test_servekit_optims_rejected_without_artifact_path() -> None:
-    with pytest.raises(ValidationError, match="--servekit-optims requires --servekit-artifact-path"):
+def test_servekit_optims_rejected_without_args() -> None:
+    with pytest.raises(ValidationError, match="--servekit-optims requires --servekit-args"):
         _make_args(framework="sglang", servekit_optims=True)
 
 
 def test_servekit_optims_allowed_for_sglang() -> None:
-    args = _make_args(framework="sglang", servekit_optims=True, servekit_artifact_path="/scratch/artifact")
+    args = _make_args(framework="sglang", servekit_optims=True, servekit_args="--servekit-artifact-path /scratch/artifact")
     assert args.servekit_optims is True
-    assert args.servekit_artifact_path == "/scratch/artifact"
+    assert args.servekit_args == "--servekit-artifact-path /scratch/artifact"

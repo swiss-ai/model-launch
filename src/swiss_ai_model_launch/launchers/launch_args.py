@@ -103,7 +103,7 @@ class LaunchArgs(BaseModel):
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
     servekit_optims: bool = False
-    servekit_artifact_path: str | None = None
+    servekit_args: str | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "LaunchArgs":
@@ -114,8 +114,8 @@ class LaunchArgs(BaseModel):
                 "--servekit-optims is only supported with --framework sglang "
                 "(servekit's fast weight loading does not yet support vLLM)."
             )
-        if self.servekit_optims and not self.servekit_artifact_path:
-            raise ValueError("--servekit-optims requires --servekit-artifact-path.")
+        if self.servekit_optims and not self.servekit_args:
+            raise ValueError("--servekit-optims requires --servekit-args (e.g. '--servekit-artifact-path ...').")
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

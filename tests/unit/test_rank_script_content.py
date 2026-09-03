@@ -42,7 +42,7 @@ def test_servekit_optims_wraps_sglang_head_entrypoint():
     args = _make_args(
         framework="sglang",
         servekit_optims=True,
-        servekit_artifact_path="/scratch/artifact",
+        servekit_args="--servekit-artifact-path /scratch/artifact",
         topology=Topology(replicas=1, nodes_per_replica=1),
     )
     head = render_rank_scripts(args)["head.sh"]
@@ -53,7 +53,7 @@ def test_servekit_optims_wraps_sglang_follower_entrypoint():
     args = _make_args(
         framework="sglang",
         servekit_optims=True,
-        servekit_artifact_path="/scratch/artifact",
+        servekit_args="--servekit-artifact-path /scratch/artifact",
         topology=Topology(replicas=1, nodes_per_replica=4),
     )
     follower = render_rank_scripts(args)["follower.sh"]

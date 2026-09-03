@@ -25,7 +25,7 @@ class LaunchRequest(BaseModel):
     # Unset, a unique random name is generated.
     job_name: str | None = None
     servekit_optims: bool = False
-    servekit_artifact_path: str | None = None
+    servekit_args: str | None = None
 
     @classmethod
     def from_catalog_entry(
@@ -50,5 +50,5 @@ class LaunchRequest(BaseModel):
             router=router,
             model_path=entry.model_path,
             servekit_optims=entry.servekit_optims,
-            servekit_artifact_path=entry.servekit_artifact_path,
+            servekit_args=entry.servekit_args,
         )

@@ -87,7 +87,7 @@ def _entrypoint(framework: Framework, launch_args: LaunchArgs) -> str:
     if not launch_args.servekit_optims:
         return framework.entrypoint
     # No --out: we can use it for .json phase breakdown.
-    return f"servekit launch --servekit-artifact-path {launch_args.servekit_artifact_path} -- {framework.entrypoint}"
+    return f"servekit launch {launch_args.servekit_args} -- {framework.entrypoint}"
 
 
 def _opentela_labels(launch_args: LaunchArgs) -> str:
