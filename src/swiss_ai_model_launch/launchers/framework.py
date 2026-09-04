@@ -18,18 +18,6 @@ SGLANG_ROUTER_PORT = 30000
 # `--opentela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
 OPENTELA_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
 OPENTELA_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
-
-# Build-attestation trust anchors for the nodes this launcher starts.
-# OpenTela verifies a peer's build signature against security.build_pubkeys
-# (env: OF_SECURITY_BUILD_PUBKEYS); unset, it trusts only the upstream release
-# key, so our own signed builds would be rejected. Both keys are listed so our
-# nodes accept our builds and upstream-signed peers alike. These are public
-# keys — the signing (private) half lives only in the BUILD_SIGN_KEY CI secret.
-OPENTELA_BUILD_PUBKEY_SWISSAI = "01000ef3ec50dc29b8012692030df8f81e914c71e1a715302543caf823fe2196"
-OPENTELA_BUILD_PUBKEY_UPSTREAM = "df45c7c4dd4450cd0f296ea6250c60e8a0dad2f459dbf5908e38977e45098d8b"
-_OTELA_TRUST_EXPORT = (
-    'export OF_SECURITY_BUILD_PUBKEYS="' + OPENTELA_BUILD_PUBKEY_SWISSAI + "," + OPENTELA_BUILD_PUBKEY_UPSTREAM + '"\n'
-)
 RAY_PORT = 6379
 NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
@@ -126,7 +114,6 @@ def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
 def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"{_OTELA_TRUST_EXPORT}"
         f"$OPENTELA_BIN start \\\n"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
@@ -157,7 +144,6 @@ def _opentela_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
 def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"{_OTELA_TRUST_EXPORT}"
         f"$OPENTELA_BIN start \\\n"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
