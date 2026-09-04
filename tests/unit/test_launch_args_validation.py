@@ -45,6 +45,10 @@ def test_servekit_optims_rejected_without_args() -> None:
 
 
 def test_servekit_optims_allowed_for_sglang() -> None:
-    args = _make_args(framework="sglang", servekit_optims=True, servekit_args="--servekit-artifact-path /scratch/artifact")
+    args = _make_args(
+        framework="sglang",
+        servekit_optims=True,
+        servekit_args="--servekit-artifact-path /scratch/artifact",
+    )
     assert args.servekit_optims is True
     assert args.servekit_args == "--servekit-artifact-path /scratch/artifact"
