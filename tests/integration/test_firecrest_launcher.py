@@ -24,12 +24,56 @@ _ASSERTS = importlib.resources.files("swiss_ai_model_launch.assets")
 _MODEL_JSON = _ASSERTS.joinpath("models.json")
 _CATALOG_ENTRIES = json.loads(_MODEL_JSON.read_text())
 
+# Every vLLM launch in this suite runs on the baseline image this repo builds,
+# whatever environment the catalog entry names. That is the point of the base
+# image: one image serving the whole vLLM matrix instead of a per-model one.
+#
+# models.json is deliberately not edited. The catalog drives production
+# launches too, and those keep their current environments until the base image
+# has proven itself across this matrix. sglang entries are untouched.
+_VLLM_TEST_ENVIRONMENT = str(_ASSERTS.joinpath("envs", "vllm_base.toml"))
+
+
+def _catalog_entry(entry: dict[str, object]) -> ModelCatalogEntry:
+    parsed = ModelCatalogEntry.model_validate(entry)
+    if parsed.framework != "vllm":
+        return parsed
+    return parsed.model_copy(update={"environment": _VLLM_TEST_ENVIRONMENT})
+
+
+def _topology(entry: dict[str, object], replicas: int, use_router: bool) -> str:
+    """One launch topology as ``<replicas>r-<nodes>n``, plus ``-router``.
+
+    The node count is carried explicitly because it does not follow from the
+    replica count: it is replicas * nodes_per_replica, and nodes_per_replica
+    varies per model, so two cases both labelled ``2r`` can be a two-node and
+    an eight-node job.
+    """
+    nodes = replicas * int(entry.get("nodes_per_replica", 1))  # type: ignore[call-overload]
+    return f"{replicas}r-{nodes}n" + ("-router" if use_router else "")
+
+
+def _served_name(entry: dict[str, object], replicas: int, use_router: bool = False) -> str:
+    """A served name unique to one case, rather than shared across the suite.
+
+    Left unset, a launch is served as just ``<user>/<model>`` -- deliberate in
+    production, where two launches of one model are meant to load-balance as
+    extra replicas (see launchers/served_name.py). Under xdist that is wrong
+    here: the cases run concurrently, so a model's 1r and 2r launches would
+    share a name and wait_for_all_replicas_healthy would count replicas
+    belonging to the other job. Framework and topology both matter, since the
+    same model is launched under both frameworks and at several topologies.
+    """
+    return f"{entry['model']}-{entry['framework']}-{_topology(entry, replicas, use_router)}"
+
+
 _LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest(
-            **ModelCatalogEntry.model_validate(entry).model_dump(),
+            **_catalog_entry(entry).model_dump(),
             replicas=1,
             time="03:00:00",
+            served_model_name=_served_name(entry, 1),
         ),
         id=f"{entry['model']}/{entry['framework']}",
         marks=[pytest.mark.comprehensive]
@@ -39,36 +83,44 @@ _LAUNCH_REQUESTS = [
 ]
 
 # Std suite: Apertus 8B (sglang + vllm), Apertus 70B (sglang), Gemma 3 27B (vllm),
-# and GLM-5.1-FP8 (sglang) across three topologies. The with/without-router axis is
-# meaningful for multi-replica configurations. vllm/2r-router combinations are skipped
-# because the multi-replica router is sglang-only (master script invokes
-# sglang_router.launch_router, which the vllm container does not ship).
+# GLM-5.1-FP8 (sglang) and Qwen3-235B-A22B (sglang + vllm) across three topologies.
+# The with/without-router axis is meaningful for multi-replica configurations.
+# vllm/2r-router combinations are skipped because the multi-replica router is
+# sglang-only (master script invokes sglang_router.launch_router, which the vllm
+# container does not ship).
+#
+# Qwen3-235B-A22B is the suite's only multi-node vLLM model (2 nodes, TP 8). Every
+# other vLLM entry fits on one node, so without it nothing here exercises vLLM's
+# cross-node path -- Ray bootstrapping a placement group and NCCL over the fabric
+# -- which is the part of the base image least like a single-node launch.
 _STD_MODELS = (
     "swiss-ai/Apertus-8B-Instruct-2509",
     "swiss-ai/Apertus-70B-Instruct-2509",
     "google/gemma-3-27b-it",
     "zai-org/GLM-5.1-FP8",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507",
 )
-_STD_CONFIGS: list[tuple[str, int, bool]] = [
-    # (config_id, replicas, use_router)
-    ("1r", 1, False),
-    ("2r", 2, False),
-    ("2r-router", 2, True),
+_STD_CONFIGS: list[tuple[int, bool]] = [
+    # (replicas, use_router)
+    (1, False),
+    (2, False),
+    (2, True),
 ]
 _STD_LAUNCH_REQUESTS = [
     pytest.param(
         LaunchRequest.from_catalog_entry(
-            ModelCatalogEntry.model_validate(entry),
+            _catalog_entry(entry),
             replicas=replicas,
             time="04:00:00",
+            served_model_name=_served_name(entry, replicas, use_router),
             router="sglang" if use_router else "opentela",
         ),
-        id=f"{entry['model']}/{entry['framework']}/{config_id}",
+        id=f"{entry['model']}/{entry['framework']}/{_topology(entry, replicas, use_router)}",
         marks=[pytest.mark.std],
     )
     for entry in _CATALOG_ENTRIES
     if entry["model"] in _STD_MODELS
-    for config_id, replicas, use_router in _STD_CONFIGS
+    for replicas, use_router in _STD_CONFIGS
     if not (entry["framework"] == "vllm" and use_router)
 ]
 

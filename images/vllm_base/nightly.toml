@@ -1,0 +1,47 @@
+# Opts this image into the nightly dependency bump
+# (.github/workflows/nightly.yml). Presence of this file is the opt-in; an
+# image without one is left alone.
+#
+# Each [track.<ARG>] names a Dockerfile ARG and how its value is resolved.
+
+[nightly]
+# The ARG holding the vLLM version that "vllm-pin" entries follow.
+vllm_arg = "VLLM_VERSION"
+
+# Resolved to the latest stable release on PyPI.
+
+[track.VLLM_VERSION]
+source = "pypi"
+package = "vllm"
+
+[track.TRANSFORMERS_VERSION]
+source = "pypi"
+package = "transformers"
+
+[track.RAY_VERSION]
+source = "pypi"
+package = "ray"
+
+[track.UV_VERSION]
+source = "pypi"
+package = "uv"
+
+# Hard-pinned with `==` in the vLLM release's requirements/cuda.txt, so these
+# follow whichever vLLM version the run resolves rather than their own latest.
+# Bumping them independently makes the resolve unsatisfiable.
+
+[track.TORCH_VERSION]
+source = "vllm-pin"
+package = "torch"
+
+[track.TORCHVISION_VERSION]
+source = "vllm-pin"
+package = "torchvision"
+
+[track.TORCHAUDIO_VERSION]
+source = "vllm-pin"
+package = "torchaudio"
+
+[track.FLASHINFER_VERSION]
+source = "vllm-pin"
+package = "flashinfer-cubin"

@@ -94,7 +94,11 @@ jobs:
   build:
     name: Docker Build ${{ matrix.image }} (${{ matrix.arch }})
     needs: [detect-changes, static-checks]
-    if: github.event.pull_request.draft != true && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
+    # nightly/* branches are skipped: nightly.yml already built and scanned
+    # those exact Dockerfiles into the ":nightly" channel, so rebuilding them
+    # under pr-<N> would spend a second multi-hour job per arch on the same
+    # code. The build still runs for real once the PR merges to main.
+    if: github.event.pull_request.draft != true && !startsWith(github.head_ref, 'nightly/') && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -121,6 +125,10 @@ jobs:
       SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GHCR_ACTOR: ${{ github.actor }}
+      # Recorded in the image's provenance labels. On pull_request, GITHUB_SHA
+      # is the ephemeral merge commit, which exists on no branch; head.sha is
+      # the commit a reader can actually check out.
+      GIT_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       # The channel is part of the cache key: a PR build only proves the
       # pr-<N> artifacts exist. Without it, merging an already-built PR would
       # hit the cache on main, skip the build, and never publish ":latest".
