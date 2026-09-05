@@ -1,8 +1,11 @@
+import fcntl
 import os
 import tempfile
 from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
+import keyring
 import pytest
 
 _REQUIRED_ENV_VARS_FOR_SML_CONFIG = [
@@ -39,6 +42,33 @@ from swiss_ai_model_launch.launchers.firecrest_launcher import FirecRESTLauncher
 from tests.integration.utils import firecrest_auth_env  # noqa: E402
 
 
+@contextmanager
+def _keyring_write_lock() -> Iterator[None]:
+    """Serialise secret writes across xdist workers sharing one file-backed keyring.
+
+    Every worker runs the session fixture below, and on CI the keyring is
+    keyrings.alt's plaintext file under ~/.local/share/python_keyring. Its
+    backend creates that directory with a bare ``os.makedirs`` — two workers
+    racing for it on a fresh runner leave one with ``FileExistsError``, which
+    then fails every test on that worker — and its read-modify-write of the
+    file isn't atomic either. Create the directory up front and hold a lock
+    while writing. Keyrings without a ``file_path`` (macOS Keychain, ...) take
+    care of themselves.
+    """
+    file_path = getattr(keyring.get_keyring(), "file_path", None)
+    if not file_path:
+        yield
+        return
+    storage_root = Path(file_path).parent
+    storage_root.mkdir(parents=True, exist_ok=True)
+    with (storage_root / ".sml-tests.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 @pytest.fixture(scope="session", autouse=True)  # type: ignore[misc]
 def sml_config_dir() -> Iterator[Path]:
     """Write a throwaway InitConfig into _BOOTSTRAP_DIR so `sml advanced` can run without `sml init`."""
@@ -47,13 +77,14 @@ def sml_config_dir() -> Iterator[Path]:
         return
 
     config = InitConfig()
-    config.set_value("launcher", "firecrest")
-    config.set_value("firecrest_url", os.environ["SML_FIRECREST_URL"])
-    if _HAS_CLIENT_CREDENTIALS:
-        for env_var in _CLIENT_CREDENTIALS_ENV_VARS:
-            config.set_value(env_var.removeprefix("SML_").lower(), os.environ[env_var])
-    config.set_value("swissai_research_api_key", os.environ["SML_SWISSAI_RESEARCH_API_KEY"])
-    config.save()
+    with _keyring_write_lock():
+        config.set_value("launcher", "firecrest")
+        config.set_value("firecrest_url", os.environ["SML_FIRECREST_URL"])
+        if _HAS_CLIENT_CREDENTIALS:
+            for env_var in _CLIENT_CREDENTIALS_ENV_VARS:
+                config.set_value(env_var.removeprefix("SML_").lower(), os.environ[env_var])
+        config.set_value("swissai_research_api_key", os.environ["SML_SWISSAI_RESEARCH_API_KEY"])
+        config.save()
 
     yield _BOOTSTRAP_DIR
 
