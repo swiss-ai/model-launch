@@ -6,6 +6,6 @@ sml advanced \
   --time "05:00:00" \
   --partition mi300 \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-rocm \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509-rocm \
     --host 0.0.0.0 \
     --gpu-memory-utilization 0.5"

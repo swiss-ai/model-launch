@@ -13,7 +13,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-fraction-05 \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-fraction-05 \
     --host 0.0.0.0 --tp-size 4 \
     --mem-fraction-static 0.5"
 
@@ -25,7 +25,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-delete-ckpt \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-delete-ckpt \
     --host 0.0.0.0 --tp-size 4 \
     --delete-ckpt-after-loading"
 
@@ -37,7 +37,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap \
     --host 0.0.0.0 --tp-size 4 \
     --weight-loader-disable-mmap"
 
@@ -49,7 +49,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction-05 \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction-05 \
     --host 0.0.0.0 --tp-size 4 \
     --weight-loader-disable-mmap \
     --mem-fraction-static 0.5"
@@ -62,7 +62,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-mem-fraction \
     --host 0.0.0.0 --tp-size 4 \
     --weight-loader-disable-mmap \
     --mem-fraction-static 0.7"
@@ -75,7 +75,7 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-delete-ckpt-mem-fraction \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-disable-mmap-delete-ckpt-mem-fraction \
     --host 0.0.0.0 --tp-size 4 \
     --weight-loader-disable-mmap \
     --delete-ckpt-after-loading \
@@ -90,7 +90,7 @@ sml advanced \
   --environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-saver \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-mem-saver \
     --host 0.0.0.0 --tp-size 4 \
     --enable-memory-saver"
 
@@ -103,7 +103,7 @@ sml advanced \
   --environment "$ENV" \
   --pre-launch-cmds "pip install torch-memory-saver" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-all-mem-opts \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-all-mem-opts \
     --host 0.0.0.0 --tp-size 4 \
     --enable-memory-saver \
     --delete-ckpt-after-loading \
@@ -118,6 +118,6 @@ sml advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model $MODEL \
-    --served-model-name swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-2nodes \
+    --served-model-name $USER/swiss-ai/Apertus-70B-Instruct-2509-rocm-sglang-2nodes \
     --host 0.0.0.0 --tp-size 8 \
     --mem-fraction-static 0.5"

@@ -10,7 +10,7 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.served_name import derive_served_model_name, namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     MODEL_REGISTRY,
@@ -73,7 +73,13 @@ class SlurmLauncher(Launcher):
     def _get_launch_args_from_request(self, launch_request: LaunchRequest) -> LaunchArgs:
         model = launch_request.model
         job_name = launch_request.job_name or f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
-        served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
+        # An explicit name is honoured as given; only a name we invent carries
+        # the framework suffix that keeps sglang and vllm launches apart.
+        served_model_name = (
+            namespace_served_model_name(launch_request.served_model_name, self.username)
+            if launch_request.served_model_name
+            else derive_served_model_name(model, launch_request.framework, self.username)
+        )
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -94,6 +100,7 @@ class SlurmLauncher(Launcher):
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
             router=launch_request.router,
+            authorization=launch_request.authorization,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
