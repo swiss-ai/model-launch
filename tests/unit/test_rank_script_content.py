@@ -58,7 +58,7 @@ def test_opentela_disabled_omits_wrap():
     args = _make_args(disable_opentela=True, topology=Topology(replicas=1, nodes_per_replica=1))
     head = render_rank_scripts(args)["head.sh"]
     assert "$OPENTELA_BIN start" not in head
-    assert "--bootstrap.addr" not in head
+    assert "--bootstrap.static" not in head
 
 
 def test_opentela_enabled_wraps_head_and_follower():
@@ -116,7 +116,7 @@ def test_opentela_bootstrap_addr_defaults_to_prod():
     args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2))
     scripts = render_rank_scripts(args)
     for s in (scripts["head.sh"], scripts["follower.sh"]):
-        assert f'--bootstrap.addr "{OPENTELA_BOOTSTRAP_ADDR}"' in s
+        assert f'--bootstrap.static "{OPENTELA_BOOTSTRAP_ADDR}"' in s
         assert OPENTELA_BOOTSTRAP_ADDR_DEV not in s
 
 
@@ -127,7 +127,7 @@ def test_opentela_bootstrap_addr_dev_override():
     )
     scripts = render_rank_scripts(args)
     for s in (scripts["head.sh"], scripts["follower.sh"]):
-        assert f'--bootstrap.addr "{OPENTELA_BOOTSTRAP_ADDR_DEV}"' in s
+        assert f'--bootstrap.static "{OPENTELA_BOOTSTRAP_ADDR_DEV}"' in s
         assert OPENTELA_BOOTSTRAP_ADDR not in s
 
 
@@ -138,7 +138,7 @@ def test_opentela_bootstrap_addr_custom_override():
         opentela_bootstrap_addr=custom,
     )
     head = render_rank_scripts(args)["head.sh"]
-    assert f'--bootstrap.addr "{custom}"' in head
+    assert f'--bootstrap.static "{custom}"' in head
 
 
 def test_telemetry_payload_uses_resolved_bootstrap_addr():
@@ -210,7 +210,7 @@ def test_router_omits_opentela_wrap_when_disabled():
     )
     router = render_rank_scripts(args)["router.sh"]
     assert "$OPENTELA_BIN start" not in router
-    assert "--bootstrap.addr" not in router
+    assert "--bootstrap.static" not in router
     assert "sglang_router.launch_router" in router
 
 

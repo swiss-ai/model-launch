@@ -115,7 +115,7 @@ def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = 
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"$OPENTELA_BIN start \\\n"
-        f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
+        f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
         f"{_opentela_labels(launch_args)}"
@@ -145,7 +145,7 @@ def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"$OPENTELA_BIN start \\\n"
-        f'    --bootstrap.addr "{bootstrap_addr}" \\\n'
+        f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
     )
