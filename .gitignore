@@ -361,3 +361,6 @@ $RECYCLE.BIN/
 
 # VHS render intermediates — only the GIF is checked in.
 docs/assets/*.mp4
+
+# Slurm job output from example scripts.
+examples/*/logs/

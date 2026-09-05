@@ -50,3 +50,20 @@ def test_model_paths_are_absolute() -> None:
     relative = [entry["model_path"] for entry in _CATALOG if entry.get("model_path") and entry["model_path"][0] != "/"]
 
     assert not relative, f"catalog model_path overrides must be absolute: {relative}"
+
+
+def test_servekit_artifact_paths_are_absolute() -> None:
+    # Same reasoning as model_path: passed straight to `servekit launch` on a
+    # compute node.
+    relative = []
+    for entry in _CATALOG:
+        servekit_args = entry.get("servekit_args")
+        if not servekit_args:
+            continue
+        tokens = servekit_args.split()
+        if "--servekit-artifact-path" in tokens:
+            path = tokens[tokens.index("--servekit-artifact-path") + 1]
+            if path[0] != "/":
+                relative.append(path)
+
+    assert not relative, f"catalog servekit_args --servekit-artifact-path overrides must be absolute: {relative}"
