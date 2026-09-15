@@ -1,0 +1,11 @@
+model-launch-factory run c52187a88edc48a2aa366a8e7a21770f, attempt 9b88d5cdc9f24142bd03a041a403c7ce (sglang)
+gate: PASSED — probe + streaming passed; advisory: core 9/13 (core_system, core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system)
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 9/13 (core_system, core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system)
+  - core_system: fail AssertionError: expected ~one word, got: 'the primary color is red, blue, and yellow'
+  - core_tokenizer_roundtrip: broken KeyError: 'prompt'
+  - core_tokenizer_unicode: broken KeyError: 'prompt'
+  - core_multi_system: fail AssertionError: second system message not honored (answer out of closed set): 'the primary color is red'
+streaming 4/4

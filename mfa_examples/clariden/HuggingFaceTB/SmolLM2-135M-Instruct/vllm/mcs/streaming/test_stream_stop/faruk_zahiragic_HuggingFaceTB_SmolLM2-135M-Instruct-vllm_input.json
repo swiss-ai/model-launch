@@ -1,0 +1,15 @@
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Count: one two three four five"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "max_tokens": 1024,
+  "stop": [
+    "three"
+  ]
+}

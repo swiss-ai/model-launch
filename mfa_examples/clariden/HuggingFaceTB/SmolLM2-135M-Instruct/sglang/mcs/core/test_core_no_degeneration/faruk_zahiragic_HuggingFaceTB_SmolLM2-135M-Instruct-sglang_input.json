@@ -1,0 +1,12 @@
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write two sentences about the ocean."
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 1024
+}
