@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789473168,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "red"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 1,
+    "total_tokens": 9
+  }
+}

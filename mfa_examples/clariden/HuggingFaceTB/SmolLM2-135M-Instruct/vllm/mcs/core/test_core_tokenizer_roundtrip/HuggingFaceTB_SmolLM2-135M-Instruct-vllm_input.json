@@ -1,0 +1,5 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "prompt": "The quick brown fox jumps over the lazy dog. 42!",
+  "add_special_tokens": false
+}

@@ -1,0 +1,12 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "max_tokens": 32
+}

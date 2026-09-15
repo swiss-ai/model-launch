@@ -1,0 +1,12 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Count from one to five."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "max_tokens": 1024
+}
