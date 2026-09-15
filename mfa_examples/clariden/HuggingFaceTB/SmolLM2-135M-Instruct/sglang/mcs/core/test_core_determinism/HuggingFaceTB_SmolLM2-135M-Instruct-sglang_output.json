@@ -1,0 +1,44 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789473168,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: Name three primary colors, comma-separated."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 6,
+    "total_tokens": 14
+  }
+}
+
+------------------------------------------------------------
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789473168,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: Name three primary colors, comma-separated."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 6,
+    "total_tokens": 14
+  }
+}

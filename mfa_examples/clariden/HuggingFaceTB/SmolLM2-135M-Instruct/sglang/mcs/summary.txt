@@ -1,0 +1,7 @@
+model-launch-factory run 6d321ba9cf6b4b0dbbb3eef7ea75fc0a, attempt f3c5c89530804d6db9baa6367ff83811 (sglang)
+gate: PASSED — probe + streaming passed
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 13/13
+streaming 4/4

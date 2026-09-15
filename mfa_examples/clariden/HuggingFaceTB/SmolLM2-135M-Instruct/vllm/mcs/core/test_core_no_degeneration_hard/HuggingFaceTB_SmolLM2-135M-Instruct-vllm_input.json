@@ -1,0 +1,12 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "A 45-year-old presents with sudden tearing chest pain radiating to the back, unequal arm blood pressures, and a widened mediastinum on chest X-ray. Give the single most likely diagnosis in one short sentence."
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 4096
+}

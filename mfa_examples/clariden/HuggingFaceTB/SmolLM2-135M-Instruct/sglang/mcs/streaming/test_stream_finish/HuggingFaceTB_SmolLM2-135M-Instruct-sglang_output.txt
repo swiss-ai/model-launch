@@ -1,0 +1,5 @@
+data: {"id": "chatcmpl-mock", "object": "chat.completion.chunk", "created": 1789473169, "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "echo: "}, "finish_reason": null}]}
+data: {"id": "chatcmpl-mock", "object": "chat.completion.chunk", "created": 1789473169, "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Say "}, "finish_reason": null}]}
+data: {"id": "chatcmpl-mock", "object": "chat.completion.chunk", "created": 1789473169, "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "hello. "}, "finish_reason": null}]}
+data: {"id": "chatcmpl-mock", "object": "chat.completion.chunk", "created": 1789473169, "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+data: [DONE]

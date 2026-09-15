@@ -1,0 +1,5 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "prompt": "ZÜRICH-🦊-مرحبا-4827",
+  "add_special_tokens": false
+}

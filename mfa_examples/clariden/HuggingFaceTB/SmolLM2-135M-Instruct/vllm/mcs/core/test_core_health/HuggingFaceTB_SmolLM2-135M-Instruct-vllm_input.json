@@ -1,0 +1,11 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who is Pablo Picasso?"
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0
+}
