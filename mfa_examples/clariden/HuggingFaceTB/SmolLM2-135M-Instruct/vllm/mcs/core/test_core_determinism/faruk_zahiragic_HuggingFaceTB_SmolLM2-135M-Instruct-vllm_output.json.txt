@@ -1,0 +1,74 @@
+{
+  "id": "chatcmpl-9e78e863bfc810c1",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Here are three primary colors:\n\n1. Red\n2. Blue\n3. Yellow",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1789480261,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-d838faeb",
+  "usage": {
+    "prompt_tokens": 40,
+    "completion_tokens": 19,
+    "total_tokens": 59,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}
+
+------------------------------------------------------------
+{
+  "id": "chatcmpl-b0b3fa53acc28a5f",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Here are three primary colors:\n\n1. Red\n2. Blue\n3. Yellow",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1789480261,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-d838faeb",
+  "usage": {
+    "prompt_tokens": 40,
+    "completion_tokens": 19,
+    "total_tokens": 59,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}
