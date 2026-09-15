@@ -1,0 +1,32 @@
+{
+  "id": "04ac7452426647d396ccd9b61ee7b15c",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "A 45-year-old presenting with chest pain, unequal arm blood pressures, and a widened mediastinum on chest X-ray.",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 2
+    }
+  ],
+  "created": 1789480409,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 78,
+    "completion_tokens": 32,
+    "total_tokens": 110,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}
