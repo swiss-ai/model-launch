@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789476117,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: List the days of the week, one per line."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 10,
+    "total_tokens": 18
+  }
+}

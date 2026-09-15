@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789476116,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: A 45-year-old presents with sudden tearing chest pain radiating to the back, unequal arm blood pressures, and a widened mediastinum on chest X-ray. Give the single most likely diagnosis in one short s"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 34,
+    "total_tokens": 42
+  }
+}
