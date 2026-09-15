@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789476116,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: Say hi."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 3,
+    "total_tokens": 11
+  }
+}

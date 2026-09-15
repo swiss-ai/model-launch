@@ -215,5 +215,19 @@
     "environment": "src/swiss_ai_model_launch/assets/envs/vllm_cuda13_v2.toml",
     "nodes_per_replica": 1,
     "framework_args": "--deploy-config /opt/conda/lib/python3.12/site-packages/vllm_omni/deploy/qwen3_tts.yaml --omni --trust-remote-code --enforce-eager --max-model-len 8192 --gpu-memory-utilization 0.40"
+  },
+  {
+    "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "framework": "sglang",
+    "environment": null,
+    "nodes_per_replica": 1,
+    "framework_args": "--tp-size 4"
+  },
+  {
+    "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "framework": "vllm",
+    "environment": null,
+    "nodes_per_replica": 1,
+    "framework_args": "--tensor-parallel-size 4"
   }
 ]

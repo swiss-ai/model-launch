@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-mock",
+  "object": "chat.completion",
+  "created": 1789476116,
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "echo: Reply with a one-sentence greeting."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 8,
+    "completion_tokens": 6,
+    "total_tokens": 14
+  }
+}

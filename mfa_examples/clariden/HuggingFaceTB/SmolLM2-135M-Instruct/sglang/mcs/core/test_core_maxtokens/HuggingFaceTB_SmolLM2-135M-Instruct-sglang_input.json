@@ -1,0 +1,12 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a long essay about the ocean."
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 16
+}
