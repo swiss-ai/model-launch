@@ -9,7 +9,5 @@
   "stream": true,
   "temperature": 0.0,
   "max_tokens": 1024,
-  "stop": [
-    "three"
-  ]
+  "stop": ["three"]
 }

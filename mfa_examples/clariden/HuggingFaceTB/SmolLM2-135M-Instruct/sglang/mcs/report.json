@@ -103,15 +103,8 @@
       ]
     }
   },
-  "required": [
-    "core",
-    "streaming"
-  ],
-  "blocking": [
-    "streaming"
-  ],
-  "advisory_failed": [
-    "core"
-  ],
+  "required": ["core", "streaming"],
+  "blocking": ["streaming"],
+  "advisory_failed": ["core"],
   "record_dir": "/data/mcs/9b88d5cdc9f24142bd03a041a403c7ce"
 }
