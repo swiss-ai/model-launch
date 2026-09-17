@@ -121,7 +121,7 @@ class LaunchArgs(BaseModel):
     def total_nodes(self) -> int:
         return self.topology.replicas * self.topology.nodes_per_replica
 
-    def to_sbatch_args(self, *, reservation: str | None = None) -> list[str]:
+    def to_sbatch_args(self, *, reservation: str | None = None, qos: str | None = None) -> list[str]:
         args = [
             f"--job-name={self.job_name}",
             f"--account={self.account}",
@@ -134,6 +134,8 @@ class LaunchArgs(BaseModel):
         ]
         if reservation:
             args.append(f"--reservation={reservation}")
+        if qos:
+            args.append(f"--qos={qos}")
         if self.begin:
             args.append(f"--begin={self.begin}")
         if self.dependency:

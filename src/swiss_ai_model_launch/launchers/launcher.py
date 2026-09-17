@@ -83,6 +83,7 @@ class Launcher(ABC):
         account: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         telemetry_endpoint: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
     ):
@@ -91,6 +92,7 @@ class Launcher(ABC):
         self.account = account
         self.partition = partition
         self.reservation = reservation
+        self.qos = qos
         self.telemetry_endpoint = telemetry_endpoint
         self.model_registry = model_registry
 

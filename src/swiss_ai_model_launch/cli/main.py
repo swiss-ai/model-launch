@@ -100,6 +100,19 @@ def _make_reservation_config() -> ChainConfiguration:
     )
 
 
+def _make_qos_config() -> ChainConfiguration:
+    return ChainConfiguration(
+        name="qos_configuration",
+        chain=[
+            TextConfiguration(
+                name="qos",
+                prompt="SLURM QOS (optional, leave blank to use the partition's default).",
+                env_var="SML_QOS",
+            ),
+        ],
+    )
+
+
 def _make_slurm_account_config() -> ChainConfiguration:
     return ChainConfiguration(
         name="slurm_account_configuration",
@@ -255,6 +268,16 @@ def _add_advanced_launch_arguments(
         help="SLURM reservation name (optional, env: SML_RESERVATION).",
     )
     advanced_parser.add_argument(
+        "--qos",
+        dest="qos",
+        default=os.environ.get("SML_QOS"),
+        metavar="QOS",
+        help=(
+            "SLURM QOS (optional, env: SML_QOS). Some partitions (e.g. highprio) "
+            "require a matching --qos or sbatch rejects the job."
+        ),
+    )
+    advanced_parser.add_argument(
         "--served-model-name",
         dest="served_model_name",
         default=None,
@@ -365,6 +388,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
     _make_partition_config().add_to_parser(preconfigured_parser)
     _make_reservation_config().add_to_parser(preconfigured_parser)
+    _make_qos_config().add_to_parser(preconfigured_parser)
     _make_slurm_account_config().add_to_parser(preconfigured_parser)
     _make_launch_request_config().add_to_parser(preconfigured_parser)
 
@@ -443,11 +467,16 @@ async def _get_firecrest_launcher_with_client(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
+        qos = (getattr(args, "qos", None) if args else None) or os.environ.get("SML_QOS") or None
         account = (getattr(args, "account", None) if args else None) or os.environ.get("SML_ACCOUNT") or None
     else:
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
         reservation = reservation_config.get_value("reservation") or None
+
+        qos_config = _make_qos_config()
+        await qos_config.aconfigure(args=args)
+        qos = qos_config.get_value("qos") or None
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
@@ -458,6 +487,7 @@ async def _get_firecrest_launcher_with_client(
         system_name=system_name,
         partition=partition_config.get_non_none_value("partition"),
         reservation=reservation,
+        qos=qos,
         account=account,
         telemetry_endpoint=telemetry_endpoint,
         ssh_host=ssh_host_override or ssh_hosts.get(system_name),
@@ -489,6 +519,7 @@ async def _get_slurm_launcher(
         reservation = (
             (getattr(args, "reservation", None) if args else None) or os.environ.get("SML_RESERVATION") or None
         )
+        qos = (getattr(args, "qos", None) if args else None) or os.environ.get("SML_QOS") or None
         account = (
             (getattr(args, "account", None) if args else None)
             or os.environ.get("SML_ACCOUNT")
@@ -498,6 +529,10 @@ async def _get_slurm_launcher(
         reservation_config = _make_reservation_config()
         await reservation_config.aconfigure(args=args)
         reservation = reservation_config.get_value("reservation") or None
+
+        qos_config = _make_qos_config()
+        await qos_config.aconfigure(args=args)
+        qos = qos_config.get_value("qos") or None
 
         slurm_account_config = _make_slurm_account_config()
         await slurm_account_config.aconfigure(args=args)
@@ -509,6 +544,7 @@ async def _get_slurm_launcher(
         account=account,
         partition=partition_config.get_non_none_value("partition"),
         reservation=reservation,
+        qos=qos,
         telemetry_endpoint=telemetry_endpoint,
     )
 
@@ -895,7 +931,8 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
         master_path = out_dir / "master.sh"
         master_path.write_text(
-            render_sbatch_header(launch_args, reservation=launcher.reservation) + render_master(launch_args)
+            render_sbatch_header(launch_args, reservation=launcher.reservation, qos=launcher.qos)
+            + render_master(launch_args)
         )
         master_path.chmod(0o755)
 

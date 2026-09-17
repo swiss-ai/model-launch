@@ -54,6 +54,7 @@ class SlurmLauncher(Launcher):
         account: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
         telemetry_endpoint: str | None = None,
     ):
@@ -63,6 +64,7 @@ class SlurmLauncher(Launcher):
             account=account,
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
         )
@@ -124,7 +126,7 @@ class SlurmLauncher(Launcher):
             "sbatch",
             "--chdir",
             str(working_dir),
-            *launch_args.to_sbatch_args(reservation=self.reservation),
+            *launch_args.to_sbatch_args(reservation=self.reservation, qos=self.qos),
             str(script_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
