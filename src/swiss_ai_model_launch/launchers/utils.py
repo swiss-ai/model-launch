@@ -75,9 +75,7 @@ def create_salt(length: int) -> str:
     return "".join(secrets.choice(string.ascii_letters) for _ in range(length))
 
 
-def render_sbatch_header(
-    launch_args: LaunchArgs, *, reservation: str | None = None, qos: str | None = None
-) -> str:
+def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = None, qos: str | None = None) -> str:
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name={launch_args.job_name}",
