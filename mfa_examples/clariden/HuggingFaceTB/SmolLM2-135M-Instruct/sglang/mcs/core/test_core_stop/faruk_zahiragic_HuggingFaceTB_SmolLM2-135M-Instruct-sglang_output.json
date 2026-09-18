@@ -1,0 +1,32 @@
+{
+  "id": "f205b8e20a234a21b5a0c9ec01734f42",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "I'm sorry for the confusion, but as a helpful AI, I don't have the capability to count or provide information about specific numbers. I'm designed to assist with mathematical calculations, logical reasoning, and problem-solving. I'm here to help with any mathematical or logical questions you may have. If you have a specific question or problem, feel free to ask!",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 2
+    }
+  ],
+  "created": 1789478766,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 37,
+    "completion_tokens": 75,
+    "total_tokens": 112,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

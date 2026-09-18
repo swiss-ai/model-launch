@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-ab03b5ab3b5aa569",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "I'm sorry for the confusion, but as a helpful AI, I don't have the capability to count or provide information about specific numbers. I'm here to assist you with mathematical concepts, logical puzzles, and problem-solving. If you need assistance with a specific math problem, I'll do my best to provide clear and concise explanations.",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1789478631,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-d838faeb",
+  "usage": {
+    "prompt_tokens": 37,
+    "completion_tokens": 69,
+    "total_tokens": 106,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}

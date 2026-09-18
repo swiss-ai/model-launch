@@ -1,0 +1,32 @@
+{
+  "id": "2924f28d4f24423f85af16eb13a65a17",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "The ocean is a vast, mysterious, and awe-inspiring body of water that surrounds the Earth and plays a crucial role in supporting life on our planet. It is home to an incredible array of marine life, from the majestic blue whales to the tiny plankton that drift through the currents. The ocean's diverse ecosystems, from coral reefs to kelp forests, provide essential habitats for countless species, from fish and invertebrates to sea turtles and sharks. The ocean's vastness and complexity are a testament to the incredible diversity and resilience of life on Earth.",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 2
+    }
+  ],
+  "created": 1789478767,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 37,
+    "completion_tokens": 110,
+    "total_tokens": 147,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

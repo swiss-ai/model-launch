@@ -1,0 +1,110 @@
+{
+  "passed": true,
+  "reason": "probe + streaming passed; advisory: core 11/13 (core_system, core_multi_system)",
+  "probe": {
+    "ok": true,
+    "status": 200,
+    "text": "Hello! I would be delighted to help with an answer to that."
+  },
+  "mcs": {
+    "core": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "core_health",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_system",
+          "status": "fail",
+          "detail": "AssertionError: expected ~one word, got: 'the primary color is red, blue, and yellow'"
+        },
+        {
+          "name": "core_maxtokens",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_usage",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_template_no_leak",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_roundtrip",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_unicode",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_multi_system",
+          "status": "fail",
+          "detail": "AssertionError: second system message not honored (answer out of closed set): 'the primary color is red'"
+        },
+        {
+          "name": "core_assistant_prefill",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_determinism",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "streaming": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "stream_basic",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_finish",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_equiv",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    }
+  },
+  "required": ["core", "streaming"],
+  "blocking": ["streaming"],
+  "advisory_failed": ["core"],
+  "record_dir": "/data/mcs/4c453a0d8cc546e3a47b1e438d24b0a0"
+}

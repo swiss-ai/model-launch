@@ -1,0 +1,26 @@
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "prompt": "The quick brown fox jumps over the lazy dog. 42!",
+  "add_special_tokens": false
+}
+
+------------------------------------------------------------
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "tokens": [
+    504,
+    2365,
+    6354,
+    16438,
+    27003,
+    690,
+    260,
+    23790,
+    2767,
+    30,
+    216,
+    36,
+    34,
+    17
+  ]
+}

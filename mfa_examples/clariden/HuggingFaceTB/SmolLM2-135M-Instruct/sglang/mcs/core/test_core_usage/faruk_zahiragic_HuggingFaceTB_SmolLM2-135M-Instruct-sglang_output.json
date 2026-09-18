@@ -1,0 +1,32 @@
+{
+  "id": "bee1eec0cb5d4005ae0ccc0e426812ac",
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "message": {
+        "content": "Hello! How can I help you today?",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": null
+    }
+  ],
+  "created": 1789478766,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 33,
+    "completion_tokens": 10,
+    "total_tokens": 43,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

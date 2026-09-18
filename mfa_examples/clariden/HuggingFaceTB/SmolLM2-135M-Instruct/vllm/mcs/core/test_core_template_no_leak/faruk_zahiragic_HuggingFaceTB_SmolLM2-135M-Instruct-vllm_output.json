@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-a1d93cf241064c42",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Hello!",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1789478631,
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-d838faeb",
+  "usage": {
+    "prompt_tokens": 59,
+    "completion_tokens": 3,
+    "total_tokens": 62,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}
