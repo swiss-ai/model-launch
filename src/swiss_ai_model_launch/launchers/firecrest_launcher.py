@@ -3,6 +3,7 @@ import tempfile
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from typing import Any, cast
 
 import firecrest as f7t
 
@@ -58,6 +59,22 @@ def _firecrest_time(value: object) -> str | None:
     return None
 
 
+def _primary_group_name(user_info: dict[str, Any]) -> str:
+    """Extract the primary group name from a `userinfo` response.
+
+    Handles the shapes seen across API versions: pre-2.6.0 puts the primary
+    group in a top-level ``group`` field; 2.6.0+ drops that field and flags
+    the primary group with ``"default": true`` inside ``groups`` instead.
+    """
+    group = user_info.get("group")
+    if group is None:
+        groups = user_info.get("groups") or []
+        group = next((g for g in groups if g.get("default")), groups[0] if groups else None)
+    if group is None:
+        raise RuntimeError("FirecREST userinfo response has no group information")
+    return cast(str, group["name"])
+
+
 class FirecRESTLauncher(Launcher):
     def __init__(
         self,
@@ -67,6 +84,7 @@ class FirecRESTLauncher(Launcher):
         account: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
@@ -77,6 +95,7 @@ class FirecRESTLauncher(Launcher):
             account=account,
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
         )
@@ -93,6 +112,7 @@ class FirecRESTLauncher(Launcher):
         system_name: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         account: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
@@ -102,9 +122,10 @@ class FirecRESTLauncher(Launcher):
             client=client,
             system_name=system_name,
             username=user_info["user"]["name"],
-            account=account or user_info["group"]["name"],
+            account=account or _primary_group_name(user_info),
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
         )
@@ -203,7 +224,9 @@ class FirecRESTLauncher(Launcher):
         return int(report["jobId"])
 
     async def _submit_one(self, launch_args: LaunchArgs) -> int:
-        script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
+        script_str = render_sbatch_header(launch_args, reservation=self.reservation, qos=self.qos) + render_master(
+            launch_args
+        )
         return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
