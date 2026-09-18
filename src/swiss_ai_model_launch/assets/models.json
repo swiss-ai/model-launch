@@ -154,9 +154,24 @@
   {
     "model": "zai-org/GLM-5.1-FP8",
     "framework": "sglang",
-    "environment": null,
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang5.16_base.toml",
     "nodes_per_replica": 4,
-    "framework_args": "--tp-size 16 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
+    "framework_args": "--tensor-parallel-size 4 --pipeline-parallel-size 4 --expert-parallel-size 4 --load-format sharded_state --attention-backend flashinfer --trust-remote-code --context-length 32768 --mem-fraction-static 0.85 --max-running-requests 256 --tool-call-parser glm47 --reasoning-parser glm45 --enable-metrics",
+    "pre_launch_cmds": "pip install --quiet --break-system-packages https://github.com/eth-easl/servekit/archive/0d54a36.tar.gz && python -m servekit._patches.sglang_35715",
+    "servekit_optims": true,
+    "model_path": "/capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-5.1-FP8",
+    "servekit_args": "--servekit-artifact-path /capstor/store/cscs/swissai/infra01/servekit-artifacts/glm5.1-fp8-tp4-pp4 --overlap"
+  },
+  {
+    "model": "zai-org/GLM-4.7",
+    "framework": "sglang",
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang5.16_base.toml",
+    "nodes_per_replica": 4,
+    "framework_args": "--tensor-parallel-size 4 --pipeline-parallel-size 4 --expert-parallel-size 4 --load-format sharded_state --attention-backend flashinfer --trust-remote-code --context-length 32768 --mem-fraction-static 0.85 --tool-call-parser glm47 --reasoning-parser glm45 --enable-metrics",
+    "pre_launch_cmds": "pip install --quiet --break-system-packages https://github.com/eth-easl/servekit/archive/0d54a36.tar.gz",
+    "servekit_optims": true,
+    "model_path": "/capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-4.7",
+    "servekit_args": "--servekit-artifact-path /capstor/store/cscs/swissai/infra01/servekit-artifacts/glm4.7-tp4pp4 --overlap"
   },
   {
     "model": "rednote-hilab/dots.mocr",

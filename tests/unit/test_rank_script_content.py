@@ -38,6 +38,34 @@ def test_sglang_multi_node_passes_node_rank():
     assert "--nnodes 4" in follower
 
 
+def test_servekit_optims_wraps_sglang_head_entrypoint():
+    args = _make_args(
+        framework="sglang",
+        servekit_optims=True,
+        servekit_args="--servekit-artifact-path /scratch/artifact",
+        topology=Topology(replicas=1, nodes_per_replica=1),
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert "servekit launch --servekit-artifact-path /scratch/artifact -- python3 -m sglang.launch_server" in head
+
+
+def test_servekit_optims_wraps_sglang_follower_entrypoint():
+    args = _make_args(
+        framework="sglang",
+        servekit_optims=True,
+        servekit_args="--servekit-artifact-path /scratch/artifact",
+        topology=Topology(replicas=1, nodes_per_replica=4),
+    )
+    follower = render_rank_scripts(args)["follower.sh"]
+    assert "servekit launch --servekit-artifact-path /scratch/artifact -- python3 -m sglang.launch_server" in follower
+
+
+def test_servekit_optims_disabled_by_default():
+    args = _make_args(framework="sglang", topology=Topology(replicas=1, nodes_per_replica=1))
+    head = render_rank_scripts(args)["head.sh"]
+    assert "servekit" not in head
+
+
 def test_vllm_multi_node_uses_ray_with_script_on_disk():
     args = _make_args(framework="vllm", topology=Topology(replicas=1, nodes_per_replica=4))
     head = render_rank_scripts(args)["head.sh"]
