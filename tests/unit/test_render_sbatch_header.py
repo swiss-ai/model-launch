@@ -39,6 +39,16 @@ def test_render_sbatch_header_without_reservation() -> None:
     assert "--reservation" not in header
 
 
+def test_render_sbatch_header_with_qos() -> None:
+    args = _make_args()
+    assert "#SBATCH --qos=highprio" in render_sbatch_header(args, qos="highprio")
+
+
+def test_render_sbatch_header_without_qos() -> None:
+    header = render_sbatch_header(_make_args())
+    assert "--qos" not in header
+
+
 def test_render_sbatch_header_with_begin() -> None:
     header = render_sbatch_header(_make_args(begin="2026-06-19T18:00:00"))
     assert "#SBATCH --begin=2026-06-19T18:00:00" in header

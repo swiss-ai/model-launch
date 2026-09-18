@@ -67,6 +67,7 @@ class FirecRESTLauncher(Launcher):
         account: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
@@ -77,6 +78,7 @@ class FirecRESTLauncher(Launcher):
             account=account,
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
         )
@@ -93,6 +95,7 @@ class FirecRESTLauncher(Launcher):
         system_name: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         account: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
@@ -105,6 +108,7 @@ class FirecRESTLauncher(Launcher):
             account=account or user_info["group"]["name"],
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
         )
@@ -203,7 +207,9 @@ class FirecRESTLauncher(Launcher):
         return int(report["jobId"])
 
     async def _submit_one(self, launch_args: LaunchArgs) -> int:
-        script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
+        script_str = render_sbatch_header(launch_args, reservation=self.reservation, qos=self.qos) + render_master(
+            launch_args
+        )
         return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:

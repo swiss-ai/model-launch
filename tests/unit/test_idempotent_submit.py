@@ -32,9 +32,11 @@ class FakeClient:
         self.jobs = jobs or []
         self.submits = 0
         self.lookups = []
+        self.submitted_scripts: list[str] = []
 
     async def submit(self, **kwargs):
         self.submits += 1
+        self.submitted_scripts.append(kwargs["script_str"])
         outcome = self.submit_outcomes.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome
@@ -170,6 +172,26 @@ def test_non_transient_error_is_not_retried() -> None:
     with pytest.raises(UnexpectedStatusException):
         asyncio.run(_launcher(client).launch_model(_request(job_name="evalsvc-bad")))
     assert client.submits == 1
+
+
+def test_launch_forwards_qos_into_the_submitted_sbatch_script() -> None:
+    # Some partitions (e.g. CSCS's "highprio") reject a submission with no
+    # --qos at all ("Invalid qos specification") even though nothing else
+    # asked for one -- the launcher must be able to pair a qos with its
+    # partition/account/reservation policy, same as reservation already does.
+    client = FakeClient(submit_outcomes=[123], jobs=[])
+    launcher = FirecRESTLauncher(
+        client=client,
+        system_name="clariden",
+        username="alice",
+        account="infra01",
+        partition="highprio",
+        qos="highprio",
+    )
+
+    asyncio.run(launcher.launch_model(_request(job_name="evalsvc-qos")))
+
+    assert "#SBATCH --qos=highprio" in client.submitted_scripts[0]
 
 
 def test_unnamed_launch_gets_a_unique_name_and_still_checks_by_it() -> None:
