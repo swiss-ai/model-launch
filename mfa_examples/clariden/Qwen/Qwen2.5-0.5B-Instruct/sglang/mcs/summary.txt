@@ -1,0 +1,9 @@
+model-launch-factory run 72dfde7e98834432919f62b183a2c886, attempt 12b2b239580447bda649a80bc4ff5ad2 (sglang)
+gate: PASSED — probe + streaming passed; advisory: core 11/13 (core_tokenizer_roundtrip, core_tokenizer_unicode)
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 11/13 (core_tokenizer_roundtrip, core_tokenizer_unicode)
+  - core_tokenizer_roundtrip: broken KeyError: 'prompt'
+  - core_tokenizer_unicode: broken KeyError: 'prompt'
+streaming 4/4
