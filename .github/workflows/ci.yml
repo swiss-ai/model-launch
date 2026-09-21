@@ -95,10 +95,14 @@ jobs:
       - name: Detect catalog-only changes
         id: catalog
         run: |
-          # model-launch-factory opens PRs that only add a catalog entry
+          # model-launch-factory today only opens PRs that add a catalog entry
           # (assets/models.json) + an mfa_examples/ folder — no image or launcher
-          # code changes, so the integration test tiers below have nothing to
-          # test and would just burn real FirecREST/SLURM time for no reason.
+          # code, so the integration test tiers below have nothing to test and
+          # would just burn real FirecREST/SLURM time for no reason. If it ever
+          # also touches images/ (canary builds, spec's roadmap M3), this still
+          # does the right thing: any file outside those two paths flips
+          # catalog_only to false, and the existing image-build detection below
+          # picks it up normally — nothing here assumes factory PRs stay this way.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CHANGED=""  # manual dispatch always runs full CI
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
