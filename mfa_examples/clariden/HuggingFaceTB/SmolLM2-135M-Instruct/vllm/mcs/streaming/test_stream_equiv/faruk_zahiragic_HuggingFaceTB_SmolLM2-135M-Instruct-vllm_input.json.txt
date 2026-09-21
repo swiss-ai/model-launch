@@ -1,0 +1,26 @@
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "List the days of the week, one per line."
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 1024
+}
+
+------------------------------------------------------------
+{
+  "model": "faruk_zahiragic/HuggingFaceTB/SmolLM2-135M-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "List the days of the week, one per line."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "max_tokens": 1024
+}
