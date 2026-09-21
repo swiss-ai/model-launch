@@ -13,6 +13,10 @@
 
 <p align="center"><strong>Easy to launch LLM models 🚀</strong></p>
 
+<p align="center"><img src="docs/assets/launch-apertus.gif" alt="Launching Apertus-8B with sml" width="800"></p>
+
+<!-- Source: tapes/launch-apertus.tape — regenerate with `make demo`. -->
+
 A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST. Public serving endpoint: <https://serving.swissai.svc.cscs.ch/>.
 
 ## Quickstart
@@ -55,10 +59,6 @@ Prefer a script you can copy? Browse [`examples/`](examples/) and run any of the
 | [FAQ](docs/faq.md)                                 | Always-on hosting, common gotchas                |
 
 A rendered docs site is built from the same files via MkDocs — run `make docs` for a local preview, or browse the published site at <https://swiss-ai.github.io/model-launch/>.
-
-<p align="center"><img src="docs/assets/launch-apertus.gif" alt="Launching Apertus-8B with sml" width="800"></p>
-
-<!-- Source: tapes/launch-apertus.tape — regenerate with `make demo`. -->
 
 ## License
 
