@@ -26,6 +26,7 @@ jobs:
     outputs:
       images: ${{ steps.detect.outputs.images }}
       channel: ${{ steps.channel.outputs.channel }}
+      catalog_only: ${{ steps.catalog.outputs.catalog_only }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -90,6 +91,47 @@ jobs:
           IMAGES=$(echo "$VALID" | tr ' ' '\n' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
           echo "Detected images: $IMAGES"
+
+      - name: Detect catalog-only changes
+        id: catalog
+        run: |
+          # model-launch-factory today only opens PRs that add a catalog entry
+          # (assets/models.json) + an mfa_examples/ folder — no image or launcher
+          # code, so the integration test tiers below have nothing to test and
+          # would just burn real FirecREST/SLURM time for no reason. If it ever
+          # also touches images/ (canary builds, spec's roadmap M3), this still
+          # does the right thing: any file outside those two paths flips
+          # catalog_only to false, and the existing image-build detection below
+          # picks it up normally — nothing here assumes factory PRs stay this way.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANGED=""  # manual dispatch always runs full CI
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}")
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+              CHANGED=""  # first push to branch; can't diff, don't assume catalog-only
+            else
+              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
+            fi
+          fi
+
+          CATALOG_ONLY=true
+          if [ -z "$CHANGED" ]; then
+            CATALOG_ONLY=false
+          else
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                mfa_examples/*) ;;
+                src/swiss_ai_model_launch/assets/models.json) ;;
+                *) CATALOG_ONLY=false ;;
+              esac
+            done <<< "$CHANGED"
+          fi
+          echo "catalog_only=$CATALOG_ONLY" >> "$GITHUB_OUTPUT"
+          echo "Catalog-only change: $CATALOG_ONLY"
 
   build:
     name: Docker Build ${{ matrix.image }} (${{ matrix.arch }})
@@ -242,6 +284,7 @@ jobs:
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       github.event_name != 'workflow_dispatch' &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
@@ -267,6 +310,7 @@ jobs:
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
     runs-on: ubuntu-latest
@@ -291,6 +335,7 @@ jobs:
       always() &&
       github.event.pull_request.draft != true &&
       needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests'))
     runs-on: ubuntu-latest
     env:
