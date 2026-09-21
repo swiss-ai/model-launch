@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-9bb2ff719f4825e7",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Pablo Picasso (1857-1935) was a French painter, sculptor, printmaker, and ceramicist who is widely considered one of the most influential artists in history. Here are some key points about him:\n\n1. Early life: Born into a wealthy family in Barcelona, Spain, he moved to Paris at age 20.\n\n2. Artistic style: Picasso's work was characterized by bold colors, geometric shapes, and innovative techniques such as collage and abstraction.\n\n3. Notable works:\n   - \"Les Demoiselles d'Avignon\" (1907)\n   - \"Guernica\" (1937)\n   - \"The Persistence of Memory\" (1914)\n\n4. Influence: His art had a profound impact on modern art, influencing many other artists including Jackson Pollock, Mark Rothko, and Willem de Kooning.\n\n5. Education: He studied under Georges Braque and began his career as an artist at the age of 16.\n\n6. Collaborations: Picasso worked closely with other artists like Juan Gris, Fernand Léger, and René Magritte.\n\n7. Legacy: His contributions to art continue to be celebrated today, recognized for his revolutionary approach to painting and sculpture.\n\n8. Cultural significance: He is often referred to as the \"father of modern art,\" and his influence can still be seen in contemporary art and design.\n\nPicasso's legacy extends beyond his own time; his works have been exhibited worldwide and continue to inspire new generations of artists.",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1790005340,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-tp2-de64f56c",
+  "usage": {
+    "prompt_tokens": 34,
+    "completion_tokens": 321,
+    "total_tokens": 355,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}

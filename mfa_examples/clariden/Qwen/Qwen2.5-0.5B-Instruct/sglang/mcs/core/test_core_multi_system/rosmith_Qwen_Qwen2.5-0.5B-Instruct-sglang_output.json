@@ -1,0 +1,32 @@
+{
+  "id": "18ab83c3ab964a7aa4c89a87c605b1fd",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Red",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005324,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 53,
+    "completion_tokens": 2,
+    "total_tokens": 55,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who is Pablo Picasso?"
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0
+}

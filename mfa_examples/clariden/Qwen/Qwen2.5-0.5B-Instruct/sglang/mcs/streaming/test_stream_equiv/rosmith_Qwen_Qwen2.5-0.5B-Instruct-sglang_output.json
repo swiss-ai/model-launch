@@ -1,0 +1,32 @@
+{
+  "id": "ee50e608a8ba43c184e32cc57d9e44b7",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Sure, here are the days of the week listed one per line:\n\nMonday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005325,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 40,
+    "completion_tokens": 28,
+    "total_tokens": 68,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "a795534be6b84ad78c68bc070c2486a4",
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "message": {
+        "content": "The ocean, a vast and mysterious body of water that covers approximately 71",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": null
+    }
+  ],
+  "created": 1790005323,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 37,
+    "completion_tokens": 16,
+    "total_tokens": 53,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

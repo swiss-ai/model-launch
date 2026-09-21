@@ -1,0 +1,18 @@
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Complete the sentence with a single word."
+    },
+    {
+      "role": "assistant",
+      "content": "The capital of France is"
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 1024,
+  "continue_final_message": true,
+  "add_generation_prompt": false
+}

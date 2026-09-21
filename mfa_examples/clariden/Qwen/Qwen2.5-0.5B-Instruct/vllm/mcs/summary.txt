@@ -1,0 +1,7 @@
+model-launch-factory run e153ea5d0e9e470daa6d81ca5beff65c, attempt f3531b65ed2841408e1f92fff6b6512a (vllm)
+gate: PASSED — probe + streaming passed
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 13/13
+streaming 4/4

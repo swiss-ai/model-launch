@@ -1,0 +1,32 @@
+{
+  "id": "fb6f803a19db4e5e88472614424c06be",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "The patient presents with sudden tearing chest pain radiating to the back, unequal arm blood pressures, and a widened mediastinum on chest X-ray. This combination of symptoms is indicative of acute myocardial infarction (AMI), which requires immediate medical attention due to its potential for life-threatening complications.",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005324,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 75,
+    "completion_tokens": 62,
+    "total_tokens": 137,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

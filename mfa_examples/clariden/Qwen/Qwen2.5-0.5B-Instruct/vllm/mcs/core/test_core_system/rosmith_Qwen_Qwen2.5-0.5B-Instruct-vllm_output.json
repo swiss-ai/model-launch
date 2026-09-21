@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-8dcdf2a41d944e0f",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "red",
+        "role": "assistant",
+        "tool_calls": [],
+        "function_call": null,
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "reasoning": null
+      },
+      "logprobs": null,
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "created": 1790005341,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-vllm",
+  "object": "chat.completion",
+  "system_fingerprint": "vllm-0.20.2rc1.dev9+g01d4d1ad3-tp2-de64f56c",
+  "usage": {
+    "prompt_tokens": 42,
+    "completion_tokens": 2,
+    "total_tokens": 44,
+    "prompt_tokens_details": null
+  },
+  "service_tier": null,
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}

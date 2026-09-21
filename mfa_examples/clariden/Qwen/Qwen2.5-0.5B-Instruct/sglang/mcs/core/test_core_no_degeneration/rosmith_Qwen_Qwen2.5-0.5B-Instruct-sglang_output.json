@@ -1,0 +1,32 @@
+{
+  "id": "f385582b42d948c59072deeb06454332",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "The ocean is vast and deep, a vast expanse of blue that stretches for miles and miles.",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005324,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 36,
+    "completion_tokens": 21,
+    "total_tokens": 57,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

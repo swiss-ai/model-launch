@@ -1,0 +1,32 @@
+{
+  "id": "4846be23c2bc4d5c899e68cb4a32f7f0",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "I'm sorry, but I don't understand what you're asking for. Could you please provide more context or clarify your question?",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005323,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 36,
+    "completion_tokens": 27,
+    "total_tokens": 63,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "max_tokens": 32
+}

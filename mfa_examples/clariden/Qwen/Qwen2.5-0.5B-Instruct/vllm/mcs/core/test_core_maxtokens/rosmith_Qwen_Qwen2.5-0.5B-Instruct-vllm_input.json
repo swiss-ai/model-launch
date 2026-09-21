@@ -1,0 +1,12 @@
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-vllm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a long essay about the ocean."
+    }
+  ],
+  "stream": false,
+  "temperature": 0.0,
+  "max_tokens": 16
+}

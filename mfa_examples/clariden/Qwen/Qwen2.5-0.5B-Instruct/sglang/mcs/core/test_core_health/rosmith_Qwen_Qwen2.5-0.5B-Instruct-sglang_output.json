@@ -1,0 +1,32 @@
+{
+  "id": "55c54263d6fe4cf3affc3ee393b51d78",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Pablo Picasso (1857-1957) was a French painter, sculptor, printmaker, and ceramicist. He is widely regarded as one of the most influential artists in history, known for his innovative techniques, bold colors, and expressive compositions.\n\nPicasso's work has been celebrated for its boldness, emotional depth, and unique style that often challenged traditional artistic norms. Some of his most famous works include:\n\n1. **Les Demoiselles d'Avignon** (1907)\n   - A series of self-portraits featuring nude women.\n2. **Guernica** (1937)\n   - A powerful painting depicting the bombing of Guernica by Nazi soldiers during World War II.\n3. **The Persistence of Memory** (1911)\n   - An oil on canvas painting that depicts the melting of a glass of milk into a thin layer of white powder.\n4. **Guernica** (1937)\n   - Another painting from this series, which depicts the bombing of Guernica by Nazi soldiers during World War II.\n5. **Les Demoiselles d'Avignon** (1907)\n   - The first of Picasso's self-portraits, showcasing his mastery of color and composition.\n\nPicasso's contributions to art were not limited to these paintings alone; he also created numerous sculptures, collages, and other artworks throughout his career. His influence can be seen in many modern and contemporary artists who have drawn inspiration from his bold, expressive style.\n\nPicasso's legacy continues to inspire new generations of artists and continue to shape the way we perceive art today.",
+        "role": "assistant",
+        "tool_calls": null,
+        "function_call": null,
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "matched_stop": 151645
+    }
+  ],
+  "created": 1790005323,
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "object": "chat.completion",
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 34,
+    "completion_tokens": 339,
+    "total_tokens": 373,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default"
+  }
+}

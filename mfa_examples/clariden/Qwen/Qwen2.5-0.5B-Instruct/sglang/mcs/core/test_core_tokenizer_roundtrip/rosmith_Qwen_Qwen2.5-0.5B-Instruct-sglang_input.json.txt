@@ -1,0 +1,26 @@
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "prompt": "The quick brown fox jumps over the lazy dog. 42!",
+  "add_special_tokens": false
+}
+
+------------------------------------------------------------
+{
+  "model": "rosmith/Qwen/Qwen2.5-0.5B-Instruct-sglang",
+  "tokens": [
+    785,
+    3974,
+    13876,
+    38835,
+    34208,
+    916,
+    279,
+    15678,
+    5562,
+    13,
+    220,
+    19,
+    17,
+    0
+  ]
+}
