@@ -41,6 +41,14 @@ _TERMINAL_STATES = {
 }
 
 
+def oci_archive_path(image_name: str, arch: str, channel: str) -> str:
+    """Where the App-mode build leaves the OCI archive for the finisher to push: next to
+    the sqsh. GitHub Apps cannot write organization packages ("installation not allowed
+    to Write organization package", 2026-09-24), so the push happens on the runner with
+    GITHUB_TOKEN, which the package grants via model-launch's Actions access."""
+    return sqsh_path(image_name, arch, channel).removesuffix(".sqsh") + ".oci.tar"
+
+
 def sqsh_path(image_name: str, arch: str, channel: str) -> str:
     """Where a build's squashfs lands on the shared capstor store.
 
@@ -77,6 +85,7 @@ def _build_slurm_script(
     # Push to a channel- and arch-specific tag; a later merge step combines the
     # per-arch tags into a single multi-arch manifest list under ":<channel>".
     ghcr_image = f"ghcr.io/swiss-ai/{image_name}:{channel}-{arch}"
+    oci_archive = oci_archive_path(image_name, arch, channel)
     return dedent(
         f"""
         #!/bin/bash
@@ -215,9 +224,20 @@ def _build_slurm_script(
           --label org.opencontainers.image.source="https://github.com/{dispatch_repo or "swiss-ai/model-launch"}" \
           --label org.opencontainers.image.revision="{image_name}-{arch}-{channel}" .
 
-        echo "=== Pushing to GHCR ==="
-        gh_token | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
-        podman push "${{IMAGE_TAG}}" "{ghcr_image}"
+        if [ -z "{app_id}" ]; then
+          echo "=== Pushing to GHCR ==="
+          gh_token | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
+          podman push "${{IMAGE_TAG}}" "{ghcr_image}"
+        else
+          # A GitHub App cannot write organization packages: leave an OCI archive next to
+          # the sqsh; image-builds.yml pushes it to {ghcr_image} with the runner's token.
+          echo "=== Saving OCI archive for the runner to push ==="
+          mkdir -p "$(dirname "{oci_archive}")"
+          rm -f "{oci_archive}.tmp"
+          podman save --format oci-archive -o "{oci_archive}.tmp" "${{IMAGE_TAG}}"
+          mv "{oci_archive}.tmp" "{oci_archive}"
+          chmod o+r "{oci_archive}"
+        fi
 
         echo "=== Converting to sqsh ==="
         rm -f "${{SCRATCH_SQSH}}"
@@ -553,6 +573,8 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
     job_id, adopted = await submit_build(site, image_name, channel)
     external = {"image": image_name, "arch": arch, "channel": channel, "job_id": job_id,
                 "system": site.system_name, "logs_dir": site.logs_dir, "t0": int(time.time())}  # fmt: skip
+    if os.environ.get("IMAGE_BUILD_APP_ID"):
+        external["oci"] = oci_archive_path(image_name, arch, channel)  # the runner pushes it
     run = _gh(
         "POST",
         f"/repos/{repo}/check-runs",
@@ -615,6 +637,12 @@ async def finish_pending() -> list[dict]:
                     _complete(repo, run["id"], "timed_out", f"no answer about job {job_id} for 6 h")
                 continue
             print(f"{run['name']}: job {job_id} {state}")
+            if state == "COMPLETED" and ext.get("oci"):
+                ok, detail = await _push_archive(site, ext)
+                if not ok:
+                    _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED but the GHCR push failed", detail)
+                    done.setdefault(key, {})[arch] = "failure"
+                    continue
             if state == "COMPLETED":
                 _complete(
                     repo,
@@ -657,6 +685,50 @@ def _manifest_done(repo: str, sha: str, image: str, channel: str) -> bool:
         if run["status"] == "completed" and run["conclusion"] == "success":
             return True
     return False
+
+
+async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
+    """Pull the build's OCI archive through FirecREST and push it to GHCR with the runner's
+    GITHUB_TOKEN (skopeo); remove the archive on success. Returns (ok, detail)."""
+    import shutil
+    import subprocess
+
+    image, arch, channel = ext["image"], ext["arch"], ext["channel"]
+    ghcr_image = f"ghcr.io/swiss-ai/{image}:{channel}-{arch}"
+    workdir = Path(os.environ.get("PUSH_WORKDIR") or tempfile.mkdtemp(prefix="image-push-"))
+    workdir.mkdir(parents=True, exist_ok=True)
+    local = workdir / f"{image}-{arch}-{channel}.oci.tar"
+    try:
+        print(f"  downloading {ext['oci']} ...")
+        await call_with_firecrest_retry(
+            lambda: site.client.download(
+                system_name=site.system_name,
+                source_path=ext["oci"],
+                target_path=local,
+                account=site.account,
+                blocking=True,
+            )
+        )
+        print(f"  pushing {local.stat().st_size / 1e9:.1f} GB to {ghcr_image} ...")
+        skopeo = shutil.which("skopeo") or "skopeo"
+        r = subprocess.run(  # noqa: S603 — fixed argv: our paths and the runner's own token
+            [
+                skopeo, "copy", "--dest-creds", f"x-access-token:{os.environ['GITHUB_TOKEN']}",
+                f"oci-archive:{local}", f"docker://{ghcr_image}",
+            ],
+            capture_output=True, text=True, timeout=3600,
+        )  # fmt: skip
+        if r.returncode != 0:
+            return False, (r.stdout + r.stderr)[-6000:]
+        try:
+            await site.client.rm(system_name=site.system_name, path=ext["oci"])
+        except Exception as e:  # noqa: BLE001 — the channel cleanup will get it
+            print(f"  (archive left on capstor: {type(e).__name__})")
+        return True, ""
+    except Exception as e:  # noqa: BLE001
+        return False, f"{type(e).__name__}: {str(e)[:2000]}"
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def _complete(repo: str, run_id: int, conclusion: str, summary: str, text: str = "") -> None:
