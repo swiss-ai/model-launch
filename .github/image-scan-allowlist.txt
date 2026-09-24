@@ -18,3 +18,22 @@ raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
 # "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
 # placeholder markers.
 path:*/site-packages/pydantic/networks.py
+# Test suites shipped inside installed Python packages (numpy, accelerate,
+# runai-model-streamer, … in the upstream vLLM nightly image, model-launch#231):
+# TruffleHog's Lob detector "verifies" any `test_…` string as a Lob test-mode key,
+# so every test_*.py with such a name lights up. Fixtures, not credentials.
+path:*-packages/*/tests/*.py
+# botocore's bundled AWS service definitions carry example GitLab token shapes.
+path:*/botocore/data/*
+# The Lob detector matches any `test_…` token and "verifies" it: Lob's own test-mode
+# keys are `test_…` and the live API accepts them. Torch's testing internals,
+# launchpadlib, … carry thousands. A real Lob key would be `live_…`.
+raw:^test_
+# Same docstring/example-URL classes, wherever the interpreter keeps them: pydantic
+# under dist-packages and as compiled bytecode, conda's URL helper bytecode, Tcl's http
+# library, and criu's bundled source tarball (test keys) in Ubuntu's docs.
+path:*-packages/pydantic/networks.py
+path:*-packages/pydantic/__pycache__/networks*
+path:*/conda/common/__pycache__/url*
+path:*/tcl8/*/http-*.tm
+path:*/share/doc/criu/*
