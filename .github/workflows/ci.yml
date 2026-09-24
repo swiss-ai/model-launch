@@ -199,7 +199,7 @@ jobs:
       # repository_dispatch, hours after this job — and its GITHUB_TOKEN — is gone
       IMAGE_BUILD_APP_ID: ${{ secrets.IMAGE_BUILD_APP_ID }}
       IMAGE_BUILD_APP_PRIVATE_KEY: ${{ secrets.IMAGE_BUILD_APP_PRIVATE_KEY }}
-      GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}  # a machine user's PAT instead, if any
+      GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }} # a machine user's PAT instead, if any
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
