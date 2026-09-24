@@ -574,6 +574,53 @@ def _check_name(image_name: str, arch: str, channel: str) -> str:
     return f"{_CHECK_PREFIX}{image_name} ({arch}, {channel})"
 
 
+# GitHub stores at most 255 characters of a check run's external_id and truncates silently:
+# ten checks registered on 2026-09-24 carried the OCI archive path and came back as cut-off
+# JSON the finisher could not read. Paths are never stored — `finish` derives them.
+_EXTERNAL_ID_MAX = 255
+
+
+def _external_id(image_name: str, arch: str, channel: str, job_id: int, push: bool) -> str:
+    ext = {"image": image_name, "arch": arch, "channel": channel, "job_id": job_id, "t0": int(time.time())}
+    if push:
+        ext["push"] = 1
+    s = json.dumps(ext, separators=(",", ":"))
+    if len(s) > _EXTERNAL_ID_MAX:
+        raise RuntimeError(f"check run external_id would be truncated ({len(s)} > {_EXTERNAL_ID_MAX}): {s}")
+    return s
+
+
+def _parse_external(raw: str | None) -> dict | None:
+    """The check's metadata, or None when it cannot be recovered. A payload GitHub truncated
+    (registered before the size guard) is salvaged field by field: the scalars come first
+    and the cut lands in the trailing path, so image/arch/channel/job_id survive intact."""
+    raw = raw or ""
+    try:
+        ext = json.loads(raw)
+    except ValueError:
+        ext = {}
+        for key, pattern in (
+            ("image", r'"image":\s*"([^"]+)"'),
+            ("arch", r'"arch":\s*"([^"]+)"'),
+            ("channel", r'"channel":\s*"([^"]+)"'),
+            ("job_id", r'"job_id":\s*(\d+)'),
+            ("t0", r'"t0":\s*(\d+)'),
+        ):
+            m = re.search(pattern, raw)
+            if m:
+                ext[key] = int(m.group(1)) if key in ("job_id", "t0") else m.group(1)
+        if '"oci"' in raw:
+            ext["push"] = 1
+    if not isinstance(ext, dict) or not all(k in ext for k in ("image", "arch", "channel", "job_id")):
+        return None
+    try:
+        ext["job_id"] = int(ext["job_id"])
+    except (TypeError, ValueError):
+        return None
+    ext["push"] = bool(ext.get("push") or ext.get("oci"))
+    return ext
+
+
 async def submit_and_register(image_name: str, arch: str, channel: str, head_sha: str) -> int:
     """`submit`: adopt-or-submit the build, register an in_progress check run on `head_sha`
     whose external_id says which SLURM job on which system to finish, and exit."""
@@ -596,10 +643,8 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
             print(f"check run {run['id']} for {name} already in progress; nothing to do")
             return 0
     job_id, adopted = await submit_build(site, image_name, channel)
-    external = {"image": image_name, "arch": arch, "channel": channel, "job_id": job_id,
-                "system": site.system_name, "logs_dir": site.logs_dir, "t0": int(time.time())}  # fmt: skip
-    if os.environ.get("IMAGE_BUILD_APP_ID"):
-        external["oci"] = oci_archive_path(image_name, arch, channel)  # the runner pushes it
+    # the runner pushes the OCI archive when the App (not a PAT) is the build's identity
+    push = bool(os.environ.get("IMAGE_BUILD_APP_ID"))
     run = _gh(
         "POST",
         f"/repos/{repo}/check-runs",
@@ -607,11 +652,11 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
             "name": name,
             "head_sha": head_sha,
             "status": "in_progress",
-            "external_id": json.dumps(external),
+            "external_id": _external_id(image_name, arch, channel, job_id, push),
             "output": {
                 "title": f"SLURM job {job_id} on {site.system_name}" + (" (adopted)" if adopted else ""),
-                "summary": "Building; a scheduled workflow (image-builds.yml, every 15 min) "
-                f"finishes this check. Output: `{sqsh_path(image_name, arch, channel)}`.",
+                "summary": "Building; image-builds.yml finishes this check when the job reports "
+                f"in (daily otherwise). Output: `{sqsh_path(image_name, arch, channel)}`.",
             },
         },
     )
@@ -654,8 +699,6 @@ def _trusted_external(ext: dict, sha: str, expected_channel: str) -> str | None:
         return "malformed image/arch"
     if channel != expected_channel:
         return f"channel {channel!r} is not what {sha[:7]} may publish ({expected_channel})"
-    if ext.get("oci") and ext["oci"] != oci_archive_path(image, arch, channel):
-        return "oci path is not the derived one"
     return None
 
 
@@ -669,12 +712,11 @@ async def finish_pending() -> list[dict]:
     for sha, expected_channel in _heads(repo).items():
         checks = _list_checks(repo, sha)
         for run in checks:
-            try:
-                ext = json.loads(run.get("external_id") or "{}")
-                arch, job_id = ext["arch"], int(ext["job_id"])
-            except (ValueError, KeyError):
+            ext = _parse_external(run.get("external_id"))
+            if ext is None:
                 print(f"check run {run['id']} ({run['name']}) has no usable external_id; skipping")
                 continue
+            arch, job_id = ext["arch"], ext["job_id"]
             why_not = _trusted_external(ext, sha, expected_channel)
             if why_not:
                 print(f"check run {run['id']} ({run['name']}) ignored: {why_not}")
@@ -694,7 +736,7 @@ async def finish_pending() -> list[dict]:
                     _complete(repo, run["id"], "timed_out", f"no answer about job {job_id} for 6 h")
                 continue
             print(f"{run['name']}: job {job_id} {state}")
-            if state == "COMPLETED" and ext.get("oci"):
+            if state == "COMPLETED" and ext["push"]:
                 ok, detail = await _push_archive(site, ext)
                 if not ok:
                     _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED but the GHCR push failed", detail)
@@ -720,12 +762,10 @@ async def finish_pending() -> list[dict]:
             "check_runs", []
         ):
             if run["name"].startswith(_CHECK_PREFIX) and run.get("conclusion") == "success":
-                try:
-                    ext = json.loads(run.get("external_id") or "{}")
+                ext = _parse_external(run.get("external_id"))
+                if ext is not None:
                     key = (ext["image"], ext["channel"], sha)
                     done.setdefault(key, {}).setdefault(ext["arch"], "success")
-                except (ValueError, KeyError):
-                    pass
     ready = [
         {"image": image, "channel": channel, "sha": sha}
         for (image, channel, sha), arches in done.items()
@@ -751,16 +791,17 @@ async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
     import subprocess
 
     image, arch, channel = ext["image"], ext["arch"], ext["channel"]
+    archive = oci_archive_path(image, arch, channel)  # derived, never taken from the check
     ghcr_image = f"ghcr.io/swiss-ai/{image}:{channel}-{arch}"
     workdir = Path(os.environ.get("PUSH_WORKDIR") or tempfile.mkdtemp(prefix="image-push-"))
     workdir.mkdir(parents=True, exist_ok=True)
     local = workdir / f"{image}-{arch}-{channel}.oci.tar"
     try:
-        print(f"  downloading {ext['oci']} ...")
+        print(f"  downloading {archive} ...")
         await call_with_firecrest_retry(
             lambda: site.client.download(
                 system_name=site.system_name,
-                source_path=ext["oci"],
+                source_path=archive,
                 target_path=local,
                 account=site.account,
                 blocking=True,
@@ -778,7 +819,7 @@ async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
         if r.returncode != 0:
             return False, (r.stdout + r.stderr)[-6000:]
         try:
-            await site.client.rm(system_name=site.system_name, path=ext["oci"])
+            await site.client.rm(system_name=site.system_name, path=archive)
         except Exception as e:  # noqa: BLE001 — the channel cleanup will get it
             print(f"  (archive left on capstor: {type(e).__name__})")
         return True, ""
