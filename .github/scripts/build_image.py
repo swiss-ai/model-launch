@@ -332,8 +332,8 @@ async def main(image_name: str, arch: str, channel: str) -> int:
                 await asyncio.sleep(10)
                 try:
                     job_id = await _find_live_job(client, system_name, job_name)
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as look_exc:  # noqa: BLE001 — FirecREST still flapping
+                    print(f"  look-up failed ({type(look_exc).__name__}); retrying")
             if job_id is None:
                 raise
             print(f"Submit had gone through: adopting job {job_id}")
