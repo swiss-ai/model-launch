@@ -1,0 +1,225 @@
+{
+  "passed": true,
+  "reason": "probe + streaming passed; advisory: core 9/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system, core_assistant_prefill); multimodal 0/8 (mm_image_small, mm_image_large, mm_image_multi, mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard, mm_no_degeneration_hard_audio)",
+  "probe": {
+    "ok": true,
+    "status": 200,
+    "text": "HelloThe user wants me to say hello in one word. The simplest one-word greeting is \"Hello.\""
+  },
+  "mcs": {
+    "core": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "core_health",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_system",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_maxtokens",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_usage",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_template_no_leak",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_roundtrip",
+          "status": "broken",
+          "detail": "KeyError: 'prompt'"
+        },
+        {
+          "name": "core_tokenizer_unicode",
+          "status": "broken",
+          "detail": "KeyError: 'prompt'"
+        },
+        {
+          "name": "core_no_degeneration",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_multi_system",
+          "status": "broken",
+          "detail": "mcs.client.ApiError: HTTP 400: {\"object\":\"error\",\"message\":\"System message must be at the beginning.\",\"type\":\"BadRequest\",\"param\":null,\"code\":400}"
+        },
+        {
+          "name": "core_assistant_prefill",
+          "status": "fail",
+          "detail": "AssertionError: prefill produced no content -- the endpoint ignored continue_final_message (the trailing assistant turn was not continued)"
+        },
+        {
+          "name": "core_determinism",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "streaming": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "stream_basic",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_finish",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_equiv",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "reasoning": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "reason_parser_wired",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_produced",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_separation",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_clean_channel",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_answer",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_stream",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_tools",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_tools_stream",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_tools_stream_nothink",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_tools_stream_resumed",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_nothink_no_inner_leak",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_nothink_no_inner_leak_sampled",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reason_disabled",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "multimodal": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "mm_image_small",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_image_large",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_image_multi",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_audio_small",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_audio_large",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_interleaved",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_no_degeneration_hard",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        },
+        {
+          "name": "mm_no_degeneration_hard_audio",
+          "status": "broken",
+          "detail": "Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'"
+        }
+      ]
+    }
+  },
+  "required": ["core", "streaming", "reasoning", "multimodal"],
+  "blocking": ["streaming"],
+  "advisory_failed": ["core", "multimodal"],
+  "record_dir": ".factory/mcs/305ce8b1fa024fffb65291a4f7f104be"
+}
