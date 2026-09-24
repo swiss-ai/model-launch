@@ -1,0 +1,150 @@
+name: Image builds
+
+# Finishes the image builds ci.yml submitted: when a SLURM build ends it fires
+# repository_dispatch (from the build script, with GHCR_PUSH_TOKEN), and this workflow
+# completes the in_progress "Image <name> (<arch>, <channel>)" check runs whose job
+# ended, then scans the layers and merges the multi-arch manifest for images whose
+# arches all succeeded. A daily tick catches a missed dispatch; an idle repo costs one
+# runner-minute a day. The GitHub runner spends minutes per build, not hours.
+
+on:
+  repository_dispatch:
+    types: [image-build-finished]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: image-builds
+  cancel-in-progress: false
+
+jobs:
+  finish:
+    name: Finish pending builds
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: read
+      contents: read
+    outputs:
+      ready: ${{ steps.finish.outputs.ready || steps.none.outputs.ready }}
+      any: ${{ steps.finish.outputs.any || steps.none.outputs.any }}
+    env:
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
+      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
+      SML_PARTITION: ${{ vars.SML_PARTITION }}
+      SML_RESERVATION: ${{ vars.SML_RESERVATION }}
+      SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
+      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
+      SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # Cheap gate first (one gh call, seconds): most ticks find nothing pending and
+      # stop here — a tick that goes on costs a Python setup plus the FirecREST polls.
+      - name: Any image build pending?
+        id: pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          n=0
+          for sha in $(gh api "repos/${{ github.repository }}/pulls?state=open&per_page=100" --jq '.[].head.sha') \
+                     $(gh api "repos/${{ github.repository }}/commits?sha=main&per_page=10" --jq '.[].sha'); do
+            c=$(gh api "repos/${{ github.repository }}/commits/$sha/check-runs?status=in_progress&per_page=100" \
+                  --jq '[.check_runs[] | select(.name | startswith("Image "))] | length')
+            n=$((n + c))
+          done
+          echo "pending=$n" >> "$GITHUB_OUTPUT"
+          echo "pending image checks: $n"
+      - uses: actions/checkout@v5
+        if: steps.pending.outputs.pending != '0'
+      - uses: ./.github/actions/setup
+        if: steps.pending.outputs.pending != '0'
+        with:
+          python-version: "3.12"
+      - name: Complete finished builds
+        id: finish
+        if: steps.pending.outputs.pending != '0'
+        run: python .github/scripts/build_image.py finish
+        timeout-minutes: 20
+      - name: Nothing pending
+        if: steps.pending.outputs.pending == '0'
+        run: |
+          echo "ready=[]" >> "$GITHUB_OUTPUT"
+          echo "any=false" >> "$GITHUB_OUTPUT"
+        id: none
+
+  scan-secrets:
+    name: Secret Scan ${{ matrix.item.image }} (${{ matrix.arch }}, ${{ matrix.item.channel }})
+    needs: finish
+    if: needs.finish.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      matrix:
+        item: ${{ fromJson(needs.finish.outputs.ready) }}
+        arch: [arm64, amd64]
+      fail-fast: false
+    env:
+      CHANNEL: ${{ matrix.item.channel }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.item.sha }}
+      - name: Install trufflehog
+        run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
+      # The runner's root disk is too small for the largest extracted layers;
+      # /mnt has ~65 GB free.
+      - name: Prepare scan workdir
+        run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
+      - name: Scan image layers for secrets
+        env:
+          SCAN_WORKDIR: /mnt/image-scan
+        run: python3 .github/scripts/scan_image.py "${{ matrix.item.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
+        timeout-minutes: 90
+
+  merge-manifests:
+    name: Merge multi-arch manifest ${{ matrix.item.image }} (${{ matrix.item.channel }})
+    needs: [finish, scan-secrets]
+    # Every arch build succeeded (that is what `ready` means) and no scan failed: the
+    # per-arch tags are already pushed, but a failed scan blocks the multi-arch
+    # :<channel> tag from being published.
+    if: needs.finish.outputs.any == 'true' && needs.scan-secrets.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      checks: write
+    strategy:
+      matrix:
+        item: ${{ fromJson(needs.finish.outputs.ready) }}
+      fail-fast: false
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push multi-arch manifest
+        env:
+          IMAGE: ghcr.io/swiss-ai/${{ matrix.item.image }}
+          CHANNEL: ${{ matrix.item.channel }}
+        run: |
+          docker buildx imagetools create -t "${IMAGE}:${CHANNEL}" \
+            "${IMAGE}:${CHANNEL}-arm64" \
+            "${IMAGE}:${CHANNEL}-amd64"
+          docker buildx imagetools inspect "${IMAGE}:${CHANNEL}"
+      - name: Record the manifest check on the commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/check-runs" \
+            -f name="Image ${{ matrix.item.image }} manifest (${{ matrix.item.channel }})" \
+            -f head_sha="${{ matrix.item.sha }}" -f status=completed \
+            -f conclusion="${{ job.status == 'success' && 'success' || 'failure' }}" \
+            -f 'output[title]=multi-arch manifest ghcr.io/swiss-ai/${{ matrix.item.image }}:${{ matrix.item.channel }}' \
+            -f 'output[summary]=${{ job.status }}'
