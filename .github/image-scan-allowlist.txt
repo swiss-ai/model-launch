@@ -25,3 +25,7 @@ path:*/site-packages/pydantic/networks.py
 path:*-packages/*/tests/*.py
 # botocore's bundled AWS service definitions carry example GitLab token shapes.
 path:*/botocore/data/*
+# The Lob detector matches any `test_…` token and "verifies" it: Lob's own test-mode
+# keys are `test_…` and the live API accepts them. Torch's testing internals,
+# launchpadlib, … carry thousands. A real Lob key would be `live_…`.
+raw:^test_
