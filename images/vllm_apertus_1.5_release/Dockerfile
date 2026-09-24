@@ -6,9 +6,11 @@ ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_MAIN_CUDA_VERSION=13.0
 ARG TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
-ARG SWISS_AI_VLLM_COMMIT=a601a9d998ddeb488f0c17e8512874b116aa7658
+ARG SWISS_AI_VLLM_BRANCH=apertus-1-5
+ARG SWISS_AI_VLLM_COMMIT=806a65923b6c3ced8d933abfbd744834ca7bad88
+ARG TRANSFORMERS_BRANCH=add-apertus1p5
 ARG TRANSFORMERS_COMMIT=3797303dda74844e3d1f8977ff5518bb91f818b4
-ARG VLLM_REPO_COMMIT=ae6170f874a7c66512bd24aa714b3a02f8a61838
+ARG VLLM_REPO_COMMIT=8700f86a7012b2354c3f2834c1a0d2b6023b0bcd
 ARG TARGETARCH
 
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
@@ -78,10 +80,10 @@ RUN CUDNN_H="$(find /usr -name cudnn.h -print -quit)" && \
 
 WORKDIR /workspace
 
-RUN git clone --branch apertus-1-5 https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+RUN git clone --branch ${SWISS_AI_VLLM_BRANCH} https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     git -C /workspace/vllm checkout ${SWISS_AI_VLLM_COMMIT}
 
-RUN git clone --branch feature/apertus_1p5_pipeline https://github.com/swiss-ai/transformers.git /workspace/transformers && \
+RUN git clone --branch ${TRANSFORMERS_BRANCH} https://github.com/swiss-ai/transformers.git /workspace/transformers && \
     git -C /workspace/transformers checkout ${TRANSFORMERS_COMMIT}
 
 ENV VLLM_REPO=/workspace/vllm \
@@ -106,10 +108,10 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
         arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
     esac; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_REPO_COMMIT}/vllm-0.23.1rc1.dev977%2Bgae6170f87-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_REPO_COMMIT}/vllm-0.26.1rc1.dev162%2Bg8700f86a7-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
     export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_REPO_COMMIT}}"; \
     VLLM_USE_PRECOMPILED=1 uv pip install \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \
     --no-build-isolation ".[audio]" \
-    --torch-backend=auto;
+    --torch-backend="${VLLM_PRECOMPILED_WHEEL_VARIANT}";
