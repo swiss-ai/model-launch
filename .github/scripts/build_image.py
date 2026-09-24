@@ -13,6 +13,7 @@ import firecrest as f7t
 
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
 from swiss_ai_model_launch.launchers.firecrest_launcher import _primary_group_name
+from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry
 
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
 _RELEASE_CHANNEL = "latest"
@@ -21,6 +22,13 @@ _RELEASE_CHANNEL = "latest"
 _CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
 _POLL_INTERVAL = 60
 _TIMEOUT = 4 * 3600
+# A FirecREST error says nothing about the SLURM job: 2026-09-24 its health checks
+# timed out for hours while jobs ran on. Submits are adopted by job name; status polls
+# ride out this much continuous failure, then the workflow fails *cheaply* (runner
+# minutes) with the job left running — a re-run adopts it by name.
+_ADOPT_WAIT = 120
+_POLL_FAILURE_BUDGET = 5 * 60
+_LIVE_STATES = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED"}
 _TERMINAL_STATES = {
     "COMPLETED",
     "FAILED",
@@ -301,22 +309,56 @@ async def main(image_name: str, arch: str, channel: str) -> int:
         ghcr_actor=ghcr_actor,
     )
 
-    print(f"Submitting SLURM job for {image_name}...")
-    result = await client.submit(
-        system_name=system_name,
-        working_dir=remote_build_dir,
-        script_str=script,
-        account=account,
-    )
-    job_id = int(result["jobId"])
+    job_name = f"build-{image_name}-{arch}-{channel}"
+    job_id = await _find_live_job(client, system_name, job_name)
+    if job_id is not None:
+        # A previous workflow attempt (or a re-run after a FirecREST error) already has
+        # this build running: adopt it rather than build it twice.
+        print(f"Job {job_id} ({job_name}) is already live; adopting it")
+    else:
+        print(f"Submitting SLURM job for {image_name}...")
+        try:
+            result = await client.submit(
+                system_name=system_name,
+                working_dir=remote_build_dir,
+                script_str=script,
+                account=account,
+            )
+            job_id = int(result["jobId"])
+        except Exception as exc:  # noqa: BLE001 — the sbatch may have run regardless
+            print(f"Submit errored ({type(exc).__name__}: {str(exc)[:200]}); looking for {job_name}")
+            job_id = None
+            deadline = time.time() + _ADOPT_WAIT
+            while job_id is None and time.time() < deadline:
+                await asyncio.sleep(10)
+                try:
+                    job_id = await _find_live_job(client, system_name, job_name)
+                except Exception as look_exc:  # noqa: BLE001 — FirecREST still flapping
+                    print(f"  look-up failed ({type(look_exc).__name__}); retrying")
+            if job_id is None:
+                raise
+            print(f"Submit had gone through: adopting job {job_id}")
     print(f"Job ID: {job_id}")
 
     start = time.time()
+    failing_since: float | None = None
     while time.time() - start < _TIMEOUT:
         await asyncio.sleep(_POLL_INTERVAL)
-        info = await client.job_info(system_name=system_name, jobid=str(job_id))
-        state = str(info[0]["status"]["state"])
         elapsed = int(time.time() - start)
+        try:
+            info = await call_with_firecrest_retry(lambda: client.job_info(system_name=system_name, jobid=str(job_id)))
+            state = str(info[0]["status"]["state"])
+        except Exception as exc:  # noqa: BLE001 — the job is still running or done; keep polling
+            failing_since = failing_since or time.time()
+            print(f"[{elapsed}s] Job {job_id}: status poll failed ({type(exc).__name__}), retrying")
+            if time.time() - failing_since > _POLL_FAILURE_BUDGET:
+                print(
+                    f"FirecREST has not answered for {_POLL_FAILURE_BUDGET}s; job {job_id} may "
+                    f"still be running — re-run this workflow to adopt it (state unknown)"
+                )
+                return 1
+            continue
+        failing_since = None
         print(f"[{elapsed}s] Job {job_id}: {state}")
 
         if state == "COMPLETED":
@@ -330,6 +372,19 @@ async def main(image_name: str, arch: str, channel: str) -> int:
 
     print(f"Timed out after {_TIMEOUT}s waiting for job {job_id}.")
     return 1
+
+
+async def _find_live_job(client: f7t.v2.AsyncFirecrest, system_name: str, job_name: str) -> int | None:
+    """This account's pending/running job with that name, if any (FirecREST's own `name`
+    filter needs API >= 2.6, which CSCS does not run — same as the launcher's find_job)."""
+    jobs = await call_with_firecrest_retry(lambda: client.job_info(system_name=system_name))
+    for job in jobs:
+        if job.get("name") != job_name:
+            continue
+        state = str((job.get("status") or {}).get("state", "")).split()[0].rstrip("+")
+        if state in _LIVE_STATES:
+            return int(job["jobId"])
+    return None
 
 
 if __name__ == "__main__":
