@@ -25,3 +25,10 @@ path:*/site-packages/pydantic/networks.py
 path:*-packages/*/tests/*.py
 # botocore's bundled AWS service definitions carry example GitLab token shapes.
 path:*/botocore/data/*
+# conda-based images (vllm_0.30.0): conda's own URL helpers carry example credentialed
+# URLs in docstrings, git's HOWTO docs show `https://user:pass@host` setups, conda's
+# package cache (pkgs/) mirrors installed packages including their bundled tests.
+path:*/conda/common/url*
+path:*/conda_libmamba_solver/*
+path:*/share/doc/git/*
+path:*/conda/pkgs/*/info/test/*
