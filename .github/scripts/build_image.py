@@ -12,6 +12,7 @@ from textwrap import dedent
 import firecrest as f7t
 
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
+from swiss_ai_model_launch.launchers.firecrest_launcher import _primary_group_name
 
 _CAPSTOR_IMAGES = "/capstor/store/cscs/swissai/infra01/container-images/ci"
 _RELEASE_CHANNEL = "latest"
@@ -255,7 +256,9 @@ async def main(image_name: str, arch: str, channel: str) -> int:
 
     user_info = await client.userinfo(system_name)
     username = user_info["user"]["name"]
-    account = user_info["group"]["name"]
+    # FirecREST 2.6.0+ dropped the top-level `group` (#221 fixed the launcher; the CI
+    # build died on the same KeyError for PR #230's vllm_0.30.0 image, 2026-09-24)
+    account = _primary_group_name(user_info)
 
     # Arch- and channel-suffixed so concurrent builds (arm64/amd64, main/PR)
     # don't clobber each other's uploaded build context on a shared home
