@@ -1,0 +1,21 @@
+model-launch-factory run a18b4e4c672142b69e30f7c298f555db, attempt 305ce8b1fa024fffb65291a4f7f104be (sglang)
+gate: PASSED — probe + streaming passed; advisory: core 9/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system, core_assistant_prefill); multimodal 0/8 (mm_image_small, mm_image_large, mm_image_multi, mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard, mm_no_degeneration_hard_audio)
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 9/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system, core_assistant_prefill)
+  - core_tokenizer_roundtrip: broken KeyError: 'prompt'
+  - core_tokenizer_unicode: broken KeyError: 'prompt'
+  - core_multi_system: broken mcs.client.ApiError: HTTP 400: {"object":"error","message":"System message must be at the beginning.","type":"BadRequest","param":null,"code":400}
+  - core_assistant_prefill: fail AssertionError: prefill produced no content -- the endpoint ignored continue_final_message (the trailing assistant turn was not continued)
+streaming 4/4
+reasoning 13/13
+multimodal 0/8 (mm_image_small, mm_image_large, mm_image_multi, mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard, mm_no_degeneration_hard_audio)
+  - mm_image_small: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_image_large: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_image_multi: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_audio_small: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_audio_large: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_interleaved: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_no_degeneration_hard: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
+  - mm_no_degeneration_hard_audio: broken Failed: model 'rosmith/Qwen/Qwen3.8-27B-sglang' could not read the image sentinel (no vision?): '4897'
