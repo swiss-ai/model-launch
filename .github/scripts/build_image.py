@@ -182,7 +182,12 @@ def _build_slurm_script(
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         # --format docker: honor SHELL instructions (OCI format silently
         # ignores SHELL, so RUN steps needing bash/pipefail break under sh).
-        podman build --format docker -t "${{IMAGE_TAG}}" .
+        # The OCI source label links the GHCR package to this repository, so the
+        # package inherits the repo's permissions (the pushing account only needs
+        # write on the repo, not on each org package).
+        podman build --format docker -t "${{IMAGE_TAG}}" \
+          --label org.opencontainers.image.source="https://github.com/{dispatch_repo or "swiss-ai/model-launch"}" \
+          --label org.opencontainers.image.revision="{image_name}-{arch}-{channel}" .
 
         echo "=== Pushing to GHCR ==="
         echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
@@ -329,6 +334,13 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
     for local_file in sorted(local_image_dir.iterdir()):
         if local_file.is_file():
             print(f"  {local_file.name}")
+            # The build dir is reused across submits and FirecREST's upload does not
+            # truncate an existing file: a shorter Dockerfile kept the old tail
+            # (" /opt" became a 13th step, vllm_0.30.0 pr-234, 2026-09-24). Remove first.
+            try:
+                await site.client.rm(system_name=site.system_name, path=f"{remote_build_dir}/{local_file.name}")
+            except Exception as rm_exc:  # noqa: BLE001 — not there yet, usually
+                print(f"  (no previous {local_file.name} to remove: {type(rm_exc).__name__})")
             await site.client.upload(
                 system_name=site.system_name,
                 local_file=str(local_file),
