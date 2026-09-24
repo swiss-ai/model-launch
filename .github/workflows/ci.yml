@@ -194,6 +194,9 @@ jobs:
       # the PR head for pull_request events (github.sha is the merge commit there)
       IMAGE_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # long-lived (classic PAT: write:packages + repo): the SLURM job pushes to GHCR and
+      # fires repository_dispatch hours after this job — and its GITHUB_TOKEN — is gone
+      GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup

@@ -64,6 +64,7 @@ def _build_slurm_script(
     output_sqsh: str,
     ghcr_token: str,
     ghcr_actor: str,
+    dispatch_repo: str = "",
 ) -> str:
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
     # Push to a channel- and arch-specific tag; a later merge step combines the
@@ -163,7 +164,17 @@ def _build_slurm_script(
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
             rm -rf "${{PODMAN_STORAGE}}" "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
         }}
-        trap cleanup EXIT
+        # Tell GitHub the build is over (success or failure) so image-builds.yml
+        # runs on the event instead of polling. Best effort: a missed dispatch is
+        # caught by that workflow's daily tick.
+        notify() {{
+          [ -n "{dispatch_repo}" ] || return 0
+          curl -sS -m 30 -X POST "https://api.github.com/repos/{dispatch_repo}/dispatches" \
+            -H "Authorization: Bearer {ghcr_token}" -H "Accept: application/vnd.github+json" \
+            -d '{{"event_type":"image-build-finished","client_payload":{{"image":"{image_name}","arch":"{arch}","channel":"{channel}","job":"'"${{SLURM_JOB_ID}}"'"}}}}' \
+            || echo "WARNING: repository_dispatch failed"
+        }}
+        trap 'cleanup; notify' EXIT
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         # --format docker: honor SHELL instructions (OCI format silently
@@ -335,8 +346,13 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
         # Arch-suffixed: capstor is a shared store, so per-arch builds must not
         # write to the same path.
         output_sqsh=sqsh_path(image_name, site.arch, channel),
-        ghcr_token=os.environ["GHCR_TOKEN"],
+        # The push (and the dispatch) happen hours after the runner is gone: GITHUB_TOKEN
+        # dies with the job, so the asynchronous mode needs a long-lived GHCR_PUSH_TOKEN
+        # (classic PAT: write:packages + repo). The synchronous `build` mode may still use
+        # the job's own token — the runner is alive until the push.
+        ghcr_token=os.environ.get("GHCR_PUSH_TOKEN") or os.environ["GHCR_TOKEN"],
         ghcr_actor=os.environ["GHCR_ACTOR"],
+        dispatch_repo=os.environ.get("GITHUB_REPOSITORY", "") if os.environ.get("GHCR_PUSH_TOKEN") else "",
     )
     print(f"Submitting SLURM job for {image_name}...")
     try:
@@ -439,6 +455,14 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
     """`submit`: adopt-or-submit the build, register an in_progress check run on `head_sha`
     whose external_id says which SLURM job on which system to finish, and exit."""
     repo = os.environ["GITHUB_REPOSITORY"]
+    if not os.environ.get("GHCR_PUSH_TOKEN"):
+        print(
+            "GHCR_PUSH_TOKEN is not set: the build's GHCR push and its finished-dispatch run "
+            "after this job's GITHUB_TOKEN has expired. Add the secret (classic PAT with "
+            "write:packages + repo) before using the asynchronous mode.",
+            file=sys.stderr,
+        )
+        return 1
     site = await _Site(arch).connect()
     name = _check_name(image_name, arch, channel)
     # an in_progress check for this build already exists (a re-run): nothing to submit

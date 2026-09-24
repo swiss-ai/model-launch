@@ -1,13 +1,17 @@
 name: Image builds
 
-# Finishes the image builds ci.yml submitted: every 15 min, complete the in_progress
-# "Image <name> (<arch>, <channel>)" check runs whose SLURM job ended, then scan the
-# layers and merge the multi-arch manifest for images whose arches all succeeded.
-# The GitHub runner spends minutes per build, not hours (2026-09-24).
+# Finishes the image builds ci.yml submitted: when a SLURM build ends it fires
+# repository_dispatch (from the build script, with GHCR_PUSH_TOKEN), and this workflow
+# completes the in_progress "Image <name> (<arch>, <channel>)" check runs whose job
+# ended, then scans the layers and merges the multi-arch manifest for images whose
+# arches all succeeded. A daily tick catches a missed dispatch; an idle repo costs one
+# runner-minute a day. The GitHub runner spends minutes per build, not hours.
 
 on:
+  repository_dispatch:
+    types: [image-build-finished]
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "17 5 * * *"
   workflow_dispatch:
 
 concurrency:
