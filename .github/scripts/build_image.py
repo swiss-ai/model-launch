@@ -169,6 +169,9 @@ def _build_slurm_script(
 
         IMAGE_TAG="{image_name}-{arch}-{channel}:${{SLURM_JOB_ID}}"
         SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}-{channel}.sqsh"
+        # the App private key goes away whatever happens below — armed first
+        forget_key() {{ [ -n "{app_key_path}" ] && rm -f "{app_key_path}" 2>/dev/null || true; }}
+        trap forget_key EXIT
 
         cleanup() {{
             podman logout ghcr.io 2>/dev/null || true
@@ -211,7 +214,6 @@ def _build_slurm_script(
             -d "$payload" \
             || echo "WARNING: repository_dispatch failed"
         }}
-        forget_key() {{ [ -n "{app_key_path}" ] && rm -f "{app_key_path}" 2>/dev/null || true; }}
         trap 'cleanup; notify; forget_key' EXIT
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
@@ -353,6 +355,11 @@ class _Site:
     def logs_dir(self) -> str:
         return f"/users/{self.username}/.sml/image-builds/logs"
 
+    @property
+    def keys_dir(self) -> str:
+        """Private keys never sit in a build context (a Dockerfile can COPY the context)."""
+        return f"/users/{self.username}/.sml/image-builds/keys"
+
     def build_dir(self, image_name: str, channel: str) -> str:
         # Arch- and channel-suffixed so concurrent builds (arm64/amd64, main/PR)
         # don't clobber each other's uploaded build context on a shared home
@@ -360,13 +367,17 @@ class _Site:
         return f"/users/{self.username}/.sml/image-builds/{image_name}-{self.arch}-{channel}"
 
 
-async def _github_auth(site: _Site, remote_build_dir: str) -> dict:
+async def _github_auth(site: _Site, image_name: str, channel: str) -> dict:
     """What the job script authenticates to GitHub with (see _build_slurm_script)."""
     app_id = os.environ.get("IMAGE_BUILD_APP_ID", "")
     key = os.environ.get("IMAGE_BUILD_APP_PRIVATE_KEY", "")
     if app_id and key:
-        # the private key travels as its own file, mode 600, owned by the CI service user —
-        # never inside the job script (which FirecREST keeps in the working dir)
+        # The private key travels as its own file, mode 600, owned by the CI service user,
+        # in a keys dir *outside* every build context (a Dockerfile can `COPY .` the
+        # context) and never inside the job script (FirecREST keeps that in the workdir).
+        await site.client.mkdir(site.system_name, site.keys_dir, create_parents=True)
+        await site.client.chmod(site.system_name, site.keys_dir, "700")
+        key_name = f"{image_name}-{site.arch}-{channel}.pem"
         with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as f:
             f.write(key if key.endswith("\n") else key + "\n")
             local_key = f.name
@@ -374,14 +385,14 @@ async def _github_auth(site: _Site, remote_build_dir: str) -> dict:
             await site.client.upload(
                 system_name=site.system_name,
                 local_file=local_key,
-                directory=remote_build_dir,
-                filename=".app-key.pem",
+                directory=site.keys_dir,
+                filename=key_name,
                 account=site.account,
                 blocking=True,
             )
         finally:
             os.unlink(local_key)
-        remote_key = f"{remote_build_dir}/.app-key.pem"
+        remote_key = f"{site.keys_dir}/{key_name}"
         await site.client.chmod(site.system_name, remote_key, "600")
         return {
             "ghcr_actor": "x-access-token",
@@ -415,6 +426,20 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
 
     local_image_dir = Path("images") / image_name
     print(f"Uploading {local_image_dir} -> {remote_build_dir}")
+    # nothing secret ever belongs in a build context; make podman refuse it anyway
+    with tempfile.NamedTemporaryFile("w", delete=False) as ign:
+        ign.write("*.pem\n.app-key*\n.git\n")
+    try:
+        await site.client.upload(
+            system_name=site.system_name,
+            local_file=ign.name,
+            directory=remote_build_dir,
+            filename=".containerignore",
+            account=site.account,
+            blocking=True,
+        )
+    finally:
+        os.unlink(ign.name)
     for local_file in sorted(local_image_dir.iterdir()):
         if local_file.is_file():
             print(f"  {local_file.name}")
@@ -450,7 +475,7 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
         # this repo with contents:write + packages:write) whose private key the script
         # turns into one-hour tokens on the node. The synchronous `build` mode may still
         # use the job's own token — the runner is alive until the push.
-        **(await _github_auth(site, remote_build_dir)),
+        **(await _github_auth(site, image_name, channel)),
     )
     print(f"Submitting SLURM job for {image_name}...")
     try:
@@ -595,15 +620,43 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
 
 
 def _list_checks(repo: str, sha: str) -> list[dict]:
+    """In-progress image checks on `sha` that GitHub Actions itself created — a check run
+    is only as trustworthy as its author, and anyone with checks:write could post one."""
     data = _gh("GET", f"/repos/{repo}/commits/{sha}/check-runs?status=in_progress&per_page=100")
-    return [r for r in data.get("check_runs", []) if r["name"].startswith(_CHECK_PREFIX)]
+    return [
+        r
+        for r in data.get("check_runs", [])
+        if r["name"].startswith(_CHECK_PREFIX) and (r.get("app") or {}).get("slug") == "github-actions"
+    ]
 
 
-def _heads(repo: str) -> list[str]:
-    """Commits that may carry pending image checks: open PR heads and recent main."""
-    shas = [pr["head"]["sha"] for pr in _gh("GET", f"/repos/{repo}/pulls?state=open&per_page=100")]
-    shas += [c["sha"] for c in _gh("GET", f"/repos/{repo}/commits?sha=main&per_page=10")]
-    return list(dict.fromkeys(shas))
+def _heads(repo: str) -> dict[str, str]:
+    """Commits that may carry pending image checks → the only channel each may publish to:
+    an open PR's head → `pr-<its number>`, recent main → `latest`. A check claiming any
+    other channel for that commit is ignored (never a release from an unmerged commit)."""
+    heads: dict[str, str] = {}
+    for c in _gh("GET", f"/repos/{repo}/commits?sha=main&per_page=10"):
+        heads[c["sha"]] = _RELEASE_CHANNEL
+    for pr in _gh("GET", f"/repos/{repo}/pulls?state=open&per_page=100"):
+        heads.setdefault(pr["head"]["sha"], f"pr-{pr['number']}")
+    return heads
+
+
+def _trusted_external(ext: dict, sha: str, expected_channel: str) -> str | None:
+    """Why a check's external_id must not be acted on, or None when it is consistent: the
+    channel matches what this commit may publish, and every path is the one *we* derive
+    from image/arch/channel (the metadata is a pointer, never an authority)."""
+    try:
+        image, arch, channel = ext["image"], ext["arch"], ext["channel"]
+    except KeyError as e:
+        return f"missing {e}"
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}", image) or arch not in ("arm64", "amd64"):
+        return "malformed image/arch"
+    if channel != expected_channel:
+        return f"channel {channel!r} is not what {sha[:7]} may publish ({expected_channel})"
+    if ext.get("oci") and ext["oci"] != oci_archive_path(image, arch, channel):
+        return "oci path is not the derived one"
+    return None
 
 
 async def finish_pending() -> list[dict]:
@@ -613,7 +666,7 @@ async def finish_pending() -> list[dict]:
     repo = os.environ["GITHUB_REPOSITORY"]
     sites: dict[str, _Site] = {}
     done: dict[tuple, dict[str, str]] = {}
-    for sha in _heads(repo):
+    for sha, expected_channel in _heads(repo).items():
         checks = _list_checks(repo, sha)
         for run in checks:
             try:
@@ -621,6 +674,10 @@ async def finish_pending() -> list[dict]:
                 arch, job_id = ext["arch"], int(ext["job_id"])
             except (ValueError, KeyError):
                 print(f"check run {run['id']} ({run['name']}) has no usable external_id; skipping")
+                continue
+            why_not = _trusted_external(ext, sha, expected_channel)
+            if why_not:
+                print(f"check run {run['id']} ({run['name']}) ignored: {why_not}")
                 continue
             key = (ext["image"], ext["channel"], sha)
             if arch not in sites:

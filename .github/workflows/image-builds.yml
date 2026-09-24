@@ -100,9 +100,9 @@ jobs:
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GHCR_ACTOR: ${{ github.actor }}
     steps:
+      # The scanner and its allowlist come from main, never from the commit under test:
+      # a PR must not be able to soften its own gate. Allowlist changes merge first.
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ matrix.item.sha }}
       - name: Install trufflehog
         run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
       # The runner's root disk is too small for the largest extracted layers;
