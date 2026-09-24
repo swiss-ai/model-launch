@@ -1,10 +1,10 @@
 {
   "passed": true,
-  "reason": "probe + streaming passed; advisory: core 9/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system, core_assistant_prefill); multimodal 0/8 (mm_image_small, mm_image_large, mm_image_multi, mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard, mm_no_degeneration_hard_audio)",
+  "reason": "probe + streaming passed; advisory: core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_multi_system); multimodal 0/8 (mm_image_small, mm_image_large, mm_image_multi, mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard, mm_no_degeneration_hard_audio)",
   "probe": {
     "ok": true,
     "status": 200,
-    "text": "HelloThe user wants me to say hello in one word. The simplest one-word greeting is \"Hello.\""
+    "text": "HelloWe need answer user: \"Say hello in one word.\" Need final one word likely \"Hello\". Ensure no extra."
   },
   "mcs": {
     "core": {
@@ -67,8 +67,8 @@
         },
         {
           "name": "core_assistant_prefill",
-          "status": "fail",
-          "detail": "AssertionError: prefill produced no content -- the endpoint ignored continue_final_message (the trailing assistant turn was not continued)"
+          "status": "pass",
+          "detail": ""
         },
         {
           "name": "core_determinism",
@@ -221,5 +221,5 @@
   "required": ["core", "streaming", "reasoning", "multimodal"],
   "blocking": ["streaming"],
   "advisory_failed": ["core", "multimodal"],
-  "record_dir": ".factory/mcs/305ce8b1fa024fffb65291a4f7f104be"
+  "record_dir": ".factory/mcs/819d4784faa74d17af001cea33f1f485"
 }
