@@ -23,10 +23,11 @@ _CHANNEL_RE = re.compile(r"^(latest|pr-\d+)$")
 _POLL_INTERVAL = 60
 _TIMEOUT = 4 * 3600
 # A FirecREST error says nothing about the SLURM job: 2026-09-24 its health checks
-# timed out for hours while jobs ran on. Submits are adopted by job name, status polls
-# ride out this much continuous failure before the build counts as unknown.
+# timed out for hours while jobs ran on. Submits are adopted by job name; status polls
+# ride out this much continuous failure, then the workflow fails *cheaply* (runner
+# minutes) with the job left running — a re-run adopts it by name.
 _ADOPT_WAIT = 120
-_POLL_FAILURE_BUDGET = 30 * 60
+_POLL_FAILURE_BUDGET = 5 * 60
 _LIVE_STATES = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED"}
 _TERMINAL_STATES = {
     "COMPLETED",
