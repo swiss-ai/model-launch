@@ -36,3 +36,11 @@ path:*/conda/pkgs/*/info/test/*
 # keys are `test_…` and the live API accepts them. Torch's testing internals,
 # launchpadlib, … carry thousands. A real Lob key would be `live_…`.
 raw:^test_
+# Same docstring/example-URL classes, wherever the interpreter keeps them: pydantic
+# under dist-packages and as compiled bytecode, conda's URL helper bytecode, Tcl's http
+# library, and criu's bundled source tarball (test keys) in Ubuntu's docs.
+path:*-packages/pydantic/networks.py
+path:*-packages/pydantic/__pycache__/networks*
+path:*/conda/common/__pycache__/url*
+path:*/tcl8/*/http-*.tm
+path:*/share/doc/criu/*
