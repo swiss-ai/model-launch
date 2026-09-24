@@ -82,10 +82,26 @@ jobs:
             fi
           fi
 
-          # Keep only entries that are actual image directories
+          # Keep only entries that are actual image directories. Release images
+          # (`*_release*`, e.g. vllm_apertus_1.5_release) are never rebuilt by
+          # detection: a rebuild would overwrite `<name>-<arch>.sqsh` and `:latest`
+          # for an image people run in production. Only a manual dispatch that
+          # names the image exactly may build one.
+          EXPLICIT="${{ github.event_name == 'workflow_dispatch' && inputs.image || '' }}"
           VALID=""
           for dir in $CHANGED; do
-            [ -d "images/$dir" ] && VALID="$VALID $dir"
+            [ -d "images/$dir" ] || continue
+            case "$dir" in
+              *_release*)
+                if [ "$dir" = "$EXPLICIT" ]; then
+                  echo "Release image $dir: building because it was named explicitly"
+                else
+                  echo "Release image $dir: skipped (never rebuilt by detection)"
+                  continue
+                fi
+                ;;
+            esac
+            VALID="$VALID $dir"
           done
 
           IMAGES=$(echo "$VALID" | tr ' ' '\n' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
