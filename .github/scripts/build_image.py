@@ -169,9 +169,12 @@ def _build_slurm_script(
         # caught by that workflow's daily tick.
         notify() {{
           [ -n "{dispatch_repo}" ] || return 0
+          payload='{{"event_type":"image-build-finished","client_payload":'
+          payload="$payload"'{{"image":"{image_name}","arch":"{arch}","channel":"{channel}",'
+          payload="$payload"'"job":"'"${{SLURM_JOB_ID}}"'"}}}}'
           curl -sS -m 30 -X POST "https://api.github.com/repos/{dispatch_repo}/dispatches" \
             -H "Authorization: Bearer {ghcr_token}" -H "Accept: application/vnd.github+json" \
-            -d '{{"event_type":"image-build-finished","client_payload":{{"image":"{image_name}","arch":"{arch}","channel":"{channel}","job":"'"${{SLURM_JOB_ID}}"'"}}}}' \
+            -d "$payload" \
             || echo "WARNING: repository_dispatch failed"
         }}
         trap 'cleanup; notify' EXIT
