@@ -1,7 +1,7 @@
 name: Image builds
 
 # Finishes the image builds ci.yml submitted: when a SLURM build ends it fires
-# repository_dispatch (from the build script, with GHCR_PUSH_TOKEN), and this workflow
+# repository_dispatch (from the build script, as the image-build GitHub App), and this workflow
 # completes the in_progress "Image <name> (<arch>, <channel>)" check runs whose job
 # ended, then scans the layers and merges the multi-arch manifest for images whose
 # arches all succeeded. A daily tick catches a missed dispatch; an idle repo costs one

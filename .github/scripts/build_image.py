@@ -62,10 +62,17 @@ def _build_slurm_script(
     reservation: str | None,
     remote_logs_dir: str,
     output_sqsh: str,
-    ghcr_token: str,
-    ghcr_actor: str,
+    ghcr_token: str = "",
+    ghcr_actor: str = "",
     dispatch_repo: str = "",
+    app_id: str = "",
+    app_key_path: str = "",
 ) -> str:
+    """The job script. Authentication to GitHub (GHCR push, finished-dispatch) is either a
+    static token (`ghcr_token`, the synchronous `build` mode: the runner is alive) or a
+    GitHub App: `app_id` + the installation's private key uploaded to `app_key_path`
+    (mode 600), from which the script mints a one-hour installation token with openssl
+    each time it needs one — hours after the submitting runner is gone."""
     reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
     # Push to a channel- and arch-specific tag; a later merge step combines the
     # per-arch tags into a single multi-arch manifest list under ":<channel>".
@@ -164,6 +171,24 @@ def _build_slurm_script(
             rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
             rm -rf "${{PODMAN_STORAGE}}" "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
         }}
+        # A GitHub token for right now: the static one, or — GitHub App mode — a fresh
+        # installation token (1 h) minted from the app's private key: RS256 JWT with
+        # openssl, exchanged at /app/installations/<id>/access_tokens.
+        gh_token() {{
+          if [ -z "{app_id}" ]; then printf '%s' "{ghcr_token}"; return 0; fi
+          b64() {{ openssl base64 -A | tr '+/' '-_' | tr -d '='; }}
+          now=$(date +%s)
+          hdr=$(printf '{{"alg":"RS256","typ":"JWT"}}' | b64)
+          pl=$(printf '{{"iat":%d,"exp":%d,"iss":"%s"}}' $((now - 60)) $((now + 540)) "{app_id}" | b64)
+          sig=$(printf '%s.%s' "$hdr" "$pl" | openssl dgst -sha256 -sign "{app_key_path}" | b64)
+          jwt="$hdr.$pl.$sig"
+          field() {{ python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$1"; }}
+          api="https://api.github.com"
+          hdrs=(-H "Authorization: Bearer $jwt" -H "Accept: application/vnd.github+json")
+          inst=$(curl -sS -m 30 "${{hdrs[@]}}" "$api/repos/{dispatch_repo}/installation" | field id)
+          curl -sS -m 30 -X POST "${{hdrs[@]}}" "$api/app/installations/$inst/access_tokens" \
+            -d '{{"permissions":{{"contents":"write","packages":"write"}}}}' | field token
+        }}
         # Tell GitHub the build is over (success or failure) so image-builds.yml
         # runs on the event instead of polling. Best effort: a missed dispatch is
         # caught by that workflow's daily tick.
@@ -173,11 +198,12 @@ def _build_slurm_script(
           payload="$payload"'{{"image":"{image_name}","arch":"{arch}","channel":"{channel}",'
           payload="$payload"'"job":"'"${{SLURM_JOB_ID}}"'"}}}}'
           curl -sS -m 30 -X POST "https://api.github.com/repos/{dispatch_repo}/dispatches" \
-            -H "Authorization: Bearer {ghcr_token}" -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $(gh_token)" -H "Accept: application/vnd.github+json" \
             -d "$payload" \
             || echo "WARNING: repository_dispatch failed"
         }}
-        trap 'cleanup; notify' EXIT
+        forget_key() {{ [ -n "{app_key_path}" ] && rm -f "{app_key_path}" 2>/dev/null || true; }}
+        trap 'cleanup; notify; forget_key' EXIT
 
         echo "=== Building {image_name} on $(hostname) at $(date) ==="
         # --format docker: honor SHELL instructions (OCI format silently
@@ -190,7 +216,7 @@ def _build_slurm_script(
           --label org.opencontainers.image.revision="{image_name}-{arch}-{channel}" .
 
         echo "=== Pushing to GHCR ==="
-        echo "{ghcr_token}" | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
+        gh_token | podman login ghcr.io -u "{ghcr_actor}" --password-stdin
         podman push "${{IMAGE_TAG}}" "{ghcr_image}"
 
         echo "=== Converting to sqsh ==="
@@ -314,6 +340,44 @@ class _Site:
         return f"/users/{self.username}/.sml/image-builds/{image_name}-{self.arch}-{channel}"
 
 
+async def _github_auth(site: _Site, remote_build_dir: str) -> dict:
+    """What the job script authenticates to GitHub with (see _build_slurm_script)."""
+    app_id = os.environ.get("IMAGE_BUILD_APP_ID", "")
+    key = os.environ.get("IMAGE_BUILD_APP_PRIVATE_KEY", "")
+    if app_id and key:
+        # the private key travels as its own file, mode 600, owned by the CI service user —
+        # never inside the job script (which FirecREST keeps in the working dir)
+        with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as f:
+            f.write(key if key.endswith("\n") else key + "\n")
+            local_key = f.name
+        try:
+            await site.client.upload(
+                system_name=site.system_name,
+                local_file=local_key,
+                directory=remote_build_dir,
+                filename=".app-key.pem",
+                account=site.account,
+                blocking=True,
+            )
+        finally:
+            os.unlink(local_key)
+        remote_key = f"{remote_build_dir}/.app-key.pem"
+        await site.client.chmod(site.system_name, remote_key, "600")
+        return {
+            "ghcr_actor": "x-access-token",
+            "app_id": app_id,
+            "app_key_path": remote_key,
+            "dispatch_repo": os.environ.get("GITHUB_REPOSITORY", ""),
+        }
+    if os.environ.get("GHCR_PUSH_TOKEN"):  # a machine user's PAT, if one exists instead
+        return {
+            "ghcr_token": os.environ["GHCR_PUSH_TOKEN"],
+            "ghcr_actor": os.environ["GHCR_ACTOR"],
+            "dispatch_repo": os.environ.get("GITHUB_REPOSITORY", ""),
+        }
+    return {"ghcr_token": os.environ["GHCR_TOKEN"], "ghcr_actor": os.environ["GHCR_ACTOR"]}
+
+
 async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int, bool]:
     """Adopt the live build with this name or submit one. Returns (job id, adopted)."""
     job_name = f"build-{image_name}-{site.arch}-{channel}"
@@ -361,13 +425,12 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
         # Arch-suffixed: capstor is a shared store, so per-arch builds must not
         # write to the same path.
         output_sqsh=sqsh_path(image_name, site.arch, channel),
-        # The push (and the dispatch) happen hours after the runner is gone: GITHUB_TOKEN
-        # dies with the job, so the asynchronous mode needs a long-lived GHCR_PUSH_TOKEN
-        # (classic PAT: write:packages + repo). The synchronous `build` mode may still use
-        # the job's own token — the runner is alive until the push.
-        ghcr_token=os.environ.get("GHCR_PUSH_TOKEN") or os.environ["GHCR_TOKEN"],
-        ghcr_actor=os.environ["GHCR_ACTOR"],
-        dispatch_repo=os.environ.get("GITHUB_REPOSITORY", "") if os.environ.get("GHCR_PUSH_TOKEN") else "",
+        # The push (and the dispatch) happen hours after the runner is gone and GITHUB_TOKEN
+        # died with it: the asynchronous mode authenticates as a GitHub App (installed on
+        # this repo with contents:write + packages:write) whose private key the script
+        # turns into one-hour tokens on the node. The synchronous `build` mode may still
+        # use the job's own token — the runner is alive until the push.
+        **(await _github_auth(site, remote_build_dir)),
     )
     print(f"Submitting SLURM job for {image_name}...")
     try:
@@ -470,11 +533,13 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
     """`submit`: adopt-or-submit the build, register an in_progress check run on `head_sha`
     whose external_id says which SLURM job on which system to finish, and exit."""
     repo = os.environ["GITHUB_REPOSITORY"]
-    if not os.environ.get("GHCR_PUSH_TOKEN"):
+    have_app = os.environ.get("IMAGE_BUILD_APP_ID") and os.environ.get("IMAGE_BUILD_APP_PRIVATE_KEY")
+    if not (have_app or os.environ.get("GHCR_PUSH_TOKEN")):
         print(
-            "GHCR_PUSH_TOKEN is not set: the build's GHCR push and its finished-dispatch run "
-            "after this job's GITHUB_TOKEN has expired. Add the secret (classic PAT with "
-            "write:packages + repo) before using the asynchronous mode.",
+            "No long-lived GitHub identity: the build's GHCR push and its finished-dispatch run "
+            "after this job's GITHUB_TOKEN has expired. Install the GitHub App "
+            "(contents:write + packages:write) and set IMAGE_BUILD_APP_ID + "
+            "IMAGE_BUILD_APP_PRIVATE_KEY (or a machine user's GHCR_PUSH_TOKEN).",
             file=sys.stderr,
         )
         return 1
