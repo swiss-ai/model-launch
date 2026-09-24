@@ -14,6 +14,7 @@ WORKDIR /app/build
 # Dockerfile builds on the GH200 (aarch64) and x86_64 CI runners).
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:$PATH
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
@@ -40,6 +41,7 @@ ARG CUDA_VERSION_PATH
 ARG INSTALL_CHANNEL=whl
 
 # PyTorch cu130 first, so sglang's resolver keeps it (the PyPI torch wheel is cu12).
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
     torch==${TORCH_VERSION} torchvision torchaudio==${TORCHAUDIO_VERSION}
 
@@ -56,6 +58,7 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
 RUN pip install --no-cache-dir "sglang[all]==${SGLANG_VERSION}"
 
 # Re-install PyTorch cu130 in case a dependency pulled the cu12 wheel back in.
+# hadolint ignore=DL3013,DL3059
 RUN pip install --no-cache-dir --force-reinstall --no-deps --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
     torch==${TORCH_VERSION} torchvision torchaudio==${TORCHAUDIO_VERSION}
 

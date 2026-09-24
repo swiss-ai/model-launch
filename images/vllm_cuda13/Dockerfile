@@ -14,6 +14,7 @@ WORKDIR /app/build
 # Dockerfile builds on the GH200 (aarch64) and x86_64 CI runners).
 ARG PYTHON_VERSION
 ENV PATH=/opt/conda/bin:$PATH
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
