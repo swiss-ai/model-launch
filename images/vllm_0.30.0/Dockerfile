@@ -29,7 +29,7 @@ RUN set -eux; \
     chmod +x /root/miniconda.sh; \
     bash /root/miniconda.sh -b -p /opt/conda; \
     rm /root/miniconda.sh; \
-    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython git compilers make; \
+    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml ipython git compilers make; \
     /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja; \
     /opt/conda/bin/conda clean -ya
 
