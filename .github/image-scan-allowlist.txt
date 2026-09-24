@@ -32,3 +32,7 @@ path:*/conda/common/url*
 path:*/conda_libmamba_solver/*
 path:*/share/doc/git/*
 path:*/conda/pkgs/*/info/test/*
+# The Lob detector matches any `test_…` token and "verifies" it: Lob's own test-mode
+# keys are `test_…` and the live API accepts them. Torch's testing internals,
+# launchpadlib, … carry thousands. A real Lob key would be `live_…`.
+raw:^test_
