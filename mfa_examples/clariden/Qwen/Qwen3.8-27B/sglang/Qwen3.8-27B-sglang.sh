@@ -4,10 +4,25 @@
 # Full mcs report, evals and benchmarks: see mcs/, evals/, benchmarks/ next to this file.
 # This is the exact `sml advanced` form the factory verified: `sml advanced` has no
 # --model flag; the weights come from the capstor registry via --framework-args.
+#
+# Why these flags (not in the model card or the SGLang cookbook):
+#   --attention-backend flashinfer   SGLang 0.5.20's default on Hopper is FA3, and the
+#                                    sglang-kernel wheel for aarch64 (GH200) ships without
+#                                    it ("Can not import FA3 in sgl_kernel"). FA4 (CuTe) was
+#                                    tried first and crashes on this model's head_dim=256
+#                                    paged-KV tiles ("Expected size in shape to be strictly
+#                                    positive, but got 0"). FlashInfer passed the gate.
+#   --mm-attention-backend triton_attn   Qwen3.8-27B is a Qwen3-VL model; its vision tower
+#                                    picks its own attention kernel and imports FA3 whatever
+#                                    --attention-backend says (sglang/srt/layers/attention/
+#                                    vision.py). triton_attn (or sdpa) avoids that import.
+#   --context-length 131072          bounds the KV cache to what 4 GPUs hold; the model's
+#                                    default is longer.
+# Established by model-launch-factory run 1ecd11f6 on 2026-09-24 (three failed attempts
+# on the same image with fa4 / flashinfer-only before this one passed).
 set -euo pipefail
 sml advanced \
   --system clariden \
-  --partition highprio \
   --framework sglang \
   --served-model-name Qwen/Qwen3.8-27B-sglang \
   --replicas 1 \
