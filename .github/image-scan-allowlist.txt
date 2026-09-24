@@ -18,3 +18,10 @@ raw:hf_94wBhPGp6KrrTH3KDchhKpRxZwd6dmHWLL
 # "https://foo.com:123,foo%3Abar@bar.com") that don't contain the usual
 # placeholder markers.
 path:*/site-packages/pydantic/networks.py
+# Test suites shipped inside installed Python packages (numpy, accelerate,
+# runai-model-streamer, … in the upstream vLLM nightly image, model-launch#231):
+# TruffleHog's Lob detector "verifies" any `test_…` string as a Lob test-mode key,
+# so every test_*.py with such a name lights up. Fixtures, not credentials.
+path:*-packages/*/tests/*.py
+# botocore's bundled AWS service definitions carry example GitLab token shapes.
+path:*/botocore/data/*
