@@ -95,14 +95,15 @@ jobs:
       - name: Detect catalog-only changes
         id: catalog
         run: |
-          # model-launch-factory today only opens PRs that add a catalog entry
-          # (assets/models.json) + an mfa_examples/ folder — no image or launcher
-          # code, so the integration test tiers below have nothing to test and
-          # would just burn real FirecREST/SLURM time for no reason. If it ever
-          # also touches images/ (canary builds, spec's roadmap M3), this still
-          # does the right thing: any file outside those two paths flips
-          # catalog_only to false, and the existing image-build detection below
-          # picks it up normally — nothing here assumes factory PRs stay this way.
+          # A model PR (model-launch-factory, or a person) adds a catalog entry
+          # (assets/models.json), an mfa_examples/ folder, the env TOML the entry
+          # points at (assets/envs/) and sometimes the image that env needs
+          # (images/<name>/Dockerfile). None of that is launcher code, so the
+          # integration test tiers below have nothing to test and would just burn
+          # real FirecREST/SLURM time. A new image is still built, scanned and
+          # merged by the image jobs (their own detection, below) — only the
+          # integration tiers are skipped. Any file outside these paths (src/,
+          # tests/, the workflows, …) flips catalog_only to false.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CHANGED=""  # manual dispatch always runs full CI
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -126,6 +127,8 @@ jobs:
               case "$f" in
                 mfa_examples/*) ;;
                 src/swiss_ai_model_launch/assets/models.json) ;;
+                src/swiss_ai_model_launch/assets/envs/*.toml) ;;
+                images/*/Dockerfile) ;;
                 *) CATALOG_ONLY=false ;;
               esac
             done <<< "$CHANGED"
