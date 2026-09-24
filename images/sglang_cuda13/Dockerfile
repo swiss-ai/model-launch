@@ -45,10 +45,21 @@ ARG INSTALL_CHANNEL=whl
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_VERSION_PATH}/ \
     torch==${TORCH_VERSION} torchvision torchaudio==${TORCHAUDIO_VERSION}
 
-# Symlink cuDNN and NCCL headers into conda include path (flashinfer / FA4 JIT).
-RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
-    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
-    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
+# Symlink cuDNN and NCCL headers into conda include path (tolerant: the x86_64 CUDA image
+# keeps them elsewhere and the JIT paths find them through the wheels' own copies).
+RUN set -eux; \
+    CUDNN_HEADER="$(find /usr /opt/conda -name 'cudnn.h' -print -quit)"; \
+    if [ -n "${CUDNN_HEADER}" ]; then \
+        ln -sf "$(dirname "${CUDNN_HEADER}")"/cudnn*.h /opt/conda/include/; \
+    else \
+        echo "cudnn.h not found; skipping cuDNN header symlink"; \
+    fi; \
+    NCCL_HEADER="$(find /usr /opt/conda -path '*/include/nccl.h' -print -quit)"; \
+    if [ -n "${NCCL_HEADER}" ]; then \
+        ln -sf "${NCCL_HEADER}" /opt/conda/include/nccl.h; \
+    else \
+        echo "nccl.h not found; skipping NCCL header symlink"; \
+    fi
 
 # SGLang with all dependencies. No kernel is compiled from source here: FA3 comes with
 # sglang-kernel where its wheel carries it (x86_64), FA4 is flash-attn-4 (CuTe DSL, JIT at

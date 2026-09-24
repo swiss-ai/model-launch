@@ -38,10 +38,21 @@ RUN pip install --no-cache-dir uv==0.11.7 && \
 # Ensure ray is installed and on PATH.
 RUN pip install --no-cache-dir "ray[default]==2.55.0"
 
-# Symlink cuDNN and NCCL headers into conda include path.
-RUN CUDNN_DIR=$(dirname "$(find /usr -name 'cudnn.h' -print -quit)") && \
-    ln -sf "${CUDNN_DIR}"/cudnn*.h /opt/conda/include/ && \
-    ln -sf "$(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit)" /opt/conda/include/nccl.h
+# Symlink cuDNN and NCCL headers into conda include path (tolerant: the x86_64 CUDA image
+# keeps them elsewhere and the JIT paths find them through the wheels' own copies).
+RUN set -eux; \
+    CUDNN_HEADER="$(find /usr /opt/conda -name 'cudnn.h' -print -quit)"; \
+    if [ -n "${CUDNN_HEADER}" ]; then \
+        ln -sf "$(dirname "${CUDNN_HEADER}")"/cudnn*.h /opt/conda/include/; \
+    else \
+        echo "cudnn.h not found; skipping cuDNN header symlink"; \
+    fi; \
+    NCCL_HEADER="$(find /usr /opt/conda -path '*/include/nccl.h' -print -quit)"; \
+    if [ -n "${NCCL_HEADER}" ]; then \
+        ln -sf "${NCCL_HEADER}" /opt/conda/include/nccl.h; \
+    else \
+        echo "nccl.h not found; skipping NCCL header symlink"; \
+    fi
 
 # Remove nvidia-cublas (pulled as transitive dep) — conflicts with CUDA 13 toolkit's cuBLAS.
 RUN pip uninstall -y nvidia-cublas 2>/dev/null; true
