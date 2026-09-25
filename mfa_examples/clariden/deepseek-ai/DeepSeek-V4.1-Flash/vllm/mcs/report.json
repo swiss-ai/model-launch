@@ -1,0 +1,155 @@
+{
+  "passed": true,
+  "reason": "probe + streaming passed; advisory: core 11/13 (core_assistant_prefill, core_determinism); multimodal 4/8 (mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard_audio)",
+  "probe": {
+    "ok": true,
+    "status": 200,
+    "text": "Hello"
+  },
+  "mcs": {
+    "core": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "core_health",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_system",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_maxtokens",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_usage",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_template_no_leak",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_roundtrip",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_unicode",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_multi_system",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_assistant_prefill",
+          "status": "fail",
+          "detail": "AssertionError: prefill produced no content -- the endpoint ignored continue_final_message (the trailing assistant turn was not continued)"
+        },
+        {
+          "name": "core_determinism",
+          "status": "fail",
+          "detail": "AssertionError: temp=0 output not reproducible:"
+        }
+      ]
+    },
+    "streaming": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "stream_basic",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_finish",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_equiv",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "multimodal": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "mm_image_small",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_image_large",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_image_multi",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_audio_small",
+          "status": "broken",
+          "detail": "mcs.client.ApiError: HTTP 400: {\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+        },
+        {
+          "name": "mm_audio_large",
+          "status": "broken",
+          "detail": "mcs.client.ApiError: HTTP 400: {\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+        },
+        {
+          "name": "mm_interleaved",
+          "status": "broken",
+          "detail": "mcs.client.ApiError: HTTP 400: {\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+        },
+        {
+          "name": "mm_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_no_degeneration_hard_audio",
+          "status": "broken",
+          "detail": "mcs.client.ApiError: HTTP 400: {\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+        }
+      ]
+    }
+  },
+  "required": ["core", "streaming", "multimodal"],
+  "blocking": ["streaming"],
+  "advisory_failed": ["core", "multimodal"],
+  "record_dir": ".factory/mcs/d7071356f3004602aaec61b84ede9b8f"
+}
