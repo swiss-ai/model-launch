@@ -44,3 +44,7 @@ path:*-packages/pydantic/__pycache__/networks*
 path:*/conda/common/__pycache__/url*
 path:*/tcl8/*/http-*.tm
 path:*/share/doc/criu/*
+# PyCryptodome's self-test suite ships RSA/ECC test keys as fixtures (SelfTest/PublicKey,
+# Cipher, Protocol, Signature — sources and their bytecode). Installed by the SGLang
+# images (sglang_0.5.20, sglang_cuda13, model-launch#245/#235). Test vectors, not credentials.
+path:*/site-packages/Cryptodome/SelfTest/*
