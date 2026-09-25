@@ -162,8 +162,8 @@ jobs:
     if: github.event.pull_request.draft != true && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
     runs-on: ubuntu-latest
     permissions:
-      packages: write
       checks: write
+      contents: read
     strategy:
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
@@ -201,12 +201,19 @@ jobs:
       IMAGE_BUILD_APP_PRIVATE_KEY: ${{ secrets.IMAGE_BUILD_APP_PRIVATE_KEY }}
       GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }} # a machine user's PAT instead, if any
     steps:
+      # The PR checkout supplies only images/<name>/ (the untrusted build context). The
+      # script that holds the App key, the FirecREST key and the checks:write token comes
+      # from main — a same-repository PR cannot edit its way to those secrets.
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          path: trusted
+      - uses: ./trusted/.github/actions/setup
         with:
           python-version: "3.12"
       - name: Submit image build
-        run: python .github/scripts/build_image.py submit "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
+        run: python trusted/.github/scripts/build_image.py submit "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
         timeout-minutes: 20
 
   test-lightweight:

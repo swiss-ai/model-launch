@@ -209,7 +209,8 @@ def _extract_layer(repo: str, digest: str, media_type: str, dest: str) -> list[s
     if dec.returncode != 0:
         raise RuntimeError(f"decompression failed for {digest} ({media_type})")
     if tar.returncode != 0:
-        print(f"  WARNING: tar reported errors for {digest}: {tar_err.strip()[:500]}")
+        # a partially extracted layer is an unscanned layer: fail closed
+        raise RuntimeError(f"tar failed for {digest}: {tar_err.strip()[:500]}")
     subprocess.run(["chmod", "-R", "u+rX", dest], check=False)
     return [n for n in names_out.splitlines() if n]
 
@@ -233,12 +234,23 @@ def _run_trufflehog(directory: str) -> list[dict]:
     if result.returncode != 0:
         raise RuntimeError(f"trufflehog failed: {result.stderr.strip()[:500]}")
     findings = []
+    junk = 0
     for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
         try:
             findings.append(json.loads(line))
         except json.JSONDecodeError:
-            continue
+            junk += 1
+    if junk:
+        # output we could not parse is output we did not check: fail closed
+        raise RuntimeError(f"trufflehog emitted {junk} non-JSON line(s)")
     return findings
+
+
+def _redact(text: str) -> str:
+    """Never copy a suspected credential into a log or check summary: keep the shape."""
+    return f"{text[:12]}…({len(text)} chars)" if len(text) > 12 else "…"
 
 
 def _scan_config(repo: str, config_digest: str, rules: list[tuple[str, str]]) -> list[str]:
@@ -249,7 +261,7 @@ def _scan_config(repo: str, config_digest: str, rules: list[tuple[str, str]]) ->
     entries += [("label", f"{k}={v}") for k, v in (config.get("config", {}).get("Labels") or {}).items()]
     for where, text in entries:
         if _CONFIG_SECRET_RE.search(text) and not _allowed(rules, where, text):
-            failures.append(f"config {where}: {text[:200]}")
+            failures.append(f"config {where}: {_redact(text)}")
     return failures
 
 
@@ -315,6 +327,10 @@ def main(image_name: str, arch: str, channel: str) -> int:
             if m.get("platform", {}).get("os") != "unknown"
         ]
 
+    if not manifests:
+        # an index with nothing to scan is not a clean image: fail closed
+        print(f"FAIL: {repo}:{tag} has no scannable manifest")
+        return 1
     failures: list[str] = []
     warnings: list[str] = []
     workdir = os.environ.get("SCAN_WORKDIR") or tempfile.mkdtemp(prefix="image-scan-")
