@@ -84,6 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: read
+      checks: write # one "Image <name> scan (<arch>, <channel>)" check per scan
     strategy:
       matrix:
         item: ${{ fromJson(needs.finish.outputs.ready) }}
@@ -108,14 +109,27 @@ jobs:
           SCAN_WORKDIR: /mnt/image-scan
         run: python3 .github/scripts/scan_image.py "${{ matrix.item.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
         timeout-minutes: 90
+      # The verdict lands on the commit, where the manifest job (and a reviewer) reads it
+      # per image: one image's finding must not hold back another image's manifest.
+      - name: Record the scan check on the commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/check-runs" \
+            -f name="Image ${{ matrix.item.image }} scan (${{ matrix.arch }}, ${{ matrix.item.channel }})" \
+            -f head_sha="${{ matrix.item.sha }}" -f status=completed \
+            -f conclusion="${{ job.status == 'success' && 'success' || 'failure' }}" \
+            -f 'output[title]=secret scan of ghcr.io/swiss-ai/${{ matrix.item.image }}:${{ matrix.item.channel }}-${{ matrix.arch }}' \
+            -f 'output[summary]=${{ job.status }} — details in ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
 
   merge-manifests:
     name: Merge multi-arch manifest ${{ matrix.item.image }} (${{ matrix.item.channel }})
     needs: [finish, scan-secrets]
-    # Every arch build succeeded (that is what `ready` means) and no scan failed: the
-    # per-arch tags are already pushed, but a failed scan blocks the multi-arch
-    # :<channel> tag from being published.
-    if: needs.finish.outputs.any == 'true' && needs.scan-secrets.result == 'success'
+    # Every arch build succeeded (that is what `ready` means). The per-arch tags are
+    # already pushed; a failed scan blocks *that image's* multi-arch :<channel> tag —
+    # checked per image below, because the scan matrix's overall result mixes images.
+    if: always() && needs.finish.outputs.any == 'true' && needs.scan-secrets.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -125,6 +139,17 @@ jobs:
         item: ${{ fromJson(needs.finish.outputs.ready) }}
       fail-fast: false
     steps:
+      - name: Both scans of this image passed?
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for arch in arm64 amd64; do
+            name="Image ${{ matrix.item.image }} scan ($arch, ${{ matrix.item.channel }})"
+            c=$(gh api "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
+                  -f check_name="$name" -f filter=latest --jq '.check_runs[0].conclusion // "missing"')
+            echo "$name: $c"
+            [ "$c" = success ] || { echo "::error::scan of ${{ matrix.item.image }} ($arch) is $c; not publishing :${{ matrix.item.channel }}"; exit 1; }
+          done
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
