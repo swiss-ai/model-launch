@@ -63,17 +63,11 @@ jobs:
         if: steps.pending.outputs.pending != '0'
         with:
           python-version: "3.12"
-      # The runner's root disk is too small for a 15 GB archive; /mnt has ~65 GB free.
-      - name: Prepare push workdir
-        if: steps.pending.outputs.pending != '0'
-        run: |
-          sudo mkdir -p /mnt/image-push && sudo chown "$USER" /mnt/image-push
-          command -v skopeo >/dev/null || (sudo apt-get update && sudo apt-get install -y skopeo)
+      # A finished build's archive is pushed to GHCR by a short SLURM job that borrows this
+      # job's GITHUB_TOKEN (packages:write); the runner waits for it, at most 40 min.
       - name: Complete finished builds
         id: finish
         if: steps.pending.outputs.pending != '0'
-        env:
-          PUSH_WORKDIR: /mnt/image-push
         run: python .github/scripts/build_image.py finish
         timeout-minutes: 90
       - name: Nothing pending

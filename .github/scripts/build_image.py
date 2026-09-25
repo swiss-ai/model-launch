@@ -9,7 +9,7 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
-from textwrap import dedent
+from textwrap import dedent, indent
 
 import firecrest as f7t
 
@@ -61,6 +61,152 @@ def sqsh_path(image_name: str, arch: str, channel: str) -> str:
     return f"{_CAPSTOR_IMAGES}/{channel}/{image_name}-{arch}.sqsh"
 
 
+def _embed(block: str) -> str:
+    """Nest a column-0 block inside the 8-space-indented job-script templates so the
+    outer dedent still lands the shebang, the #SBATCH lines and the heredoc EOFs at
+    column 0 (sbatch ignores an indented #SBATCH; bash never ends an indented EOF)."""
+    return indent(block, " " * 8).lstrip(" ")
+
+
+def _podman_setup() -> str:
+    """Rootless podman on a batch node, shared by the build and push job scripts: runtime
+    dir, tmpfs storage behind fuse-overlayfs, and the `cleanup` that tears it down."""
+    return dedent(
+        """
+        # Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
+        # Point podman's runtime dir to a writable temp location.
+        export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
+        export XDG_RUNTIME_DIR="${TMPDIR:-/tmp}/podman-runtime-$$"
+        mkdir -p "${XDG_RUNTIME_DIR}"
+
+        # Rootless podman ignores graphroot/runroot from /etc/containers/storage.conf
+        # and falls back to $HOME/.local/share/containers/storage. Home is NFS, which
+        # has no user xattrs, so even pulling the base image dies with
+        # "lsetxattr ...: operation not supported". Personal accounts have a
+        # ~/.config/containers/storage.conf pointing at tmpfs; the CI service account
+        # has none, so the job writes its own. tmpfs has no user xattrs either below
+        # kernel 6.6, hence fuse-overlayfs rather than the kernel overlay driver.
+        PODMAN_STORAGE="/dev/shm/${USER}/podman-${SLURM_JOB_ID}"
+        mkdir -p "${PODMAN_STORAGE}/root" "${PODMAN_STORAGE}/runroot"
+
+        FUSE_OVERLAYFS=""
+        for candidate in \\
+            /usr/local/vs-ce-podman/fuse-overlayfs \\
+            /usr/bin/fuse-overlayfs-1.13 \\
+            "$(command -v fuse-overlayfs || true)"; do
+            if [ -x "${candidate}" ]; then
+                FUSE_OVERLAYFS="${candidate}"
+                break
+            fi
+        done
+        if [ -z "${FUSE_OVERLAYFS}" ]; then
+            echo "ERROR: no fuse-overlayfs on $(hostname); podman storage on tmpfs needs it"
+            exit 1
+        fi
+
+        # Kept outside PODMAN_STORAGE: the cleanup below still needs a valid
+        # config to tear that directory down.
+        export CONTAINERS_STORAGE_CONF="${XDG_RUNTIME_DIR}/storage.conf"
+        cat > "${CONTAINERS_STORAGE_CONF}" <<EOF
+        [storage]
+        driver = "overlay"
+        graphroot = "${PODMAN_STORAGE}/root"
+        runroot = "${PODMAN_STORAGE}/runroot"
+
+        [storage.options.overlay]
+        mount_program = "${FUSE_OVERLAYFS}"
+        EOF
+
+        # Seed the same config in this account's home, the way personal accounts
+        # have it, so podman run outside this script (interactive debugging, a
+        # future script that forgets the env var) also lands on tmpfs. The
+        # per-job CONTAINERS_STORAGE_CONF above still wins for this build: two
+        # builds can share a node, and a fixed home-level graphroot would have
+        # them trampling each other's layers and cleanup.
+        HOME_STORAGE_CONF="${HOME}/.config/containers/storage.conf"
+        if [ ! -e "${HOME_STORAGE_CONF}" ]; then
+            mkdir -p "$(dirname "${HOME_STORAGE_CONF}")"
+            cat > "${HOME_STORAGE_CONF}" <<EOF
+        [storage]
+        driver = "overlay"
+        graphroot = "/dev/shm/${USER}/root"
+        runroot = "/dev/shm/${USER}/runroot"
+
+        [storage.options.overlay]
+        mount_program = "${FUSE_OVERLAYFS}"
+        EOF
+            echo "Seeded ${HOME_STORAGE_CONF}"
+        fi
+
+        cleanup() {
+            podman logout ghcr.io 2>/dev/null || true
+            # Storage is job-scoped, so a full reset is safe and is the only
+            # thing that reliably empties it: layers are owned by mapped subuids
+            # and sit behind fuse mounts, so a plain rm hits "Permission denied"
+            # / "Device or resource busy". Left behind they occupy the node's RAM.
+            podman system reset --force 2>/dev/null || true
+            rm -f "${SCRATCH_SQSH:-}" 2>/dev/null || true
+            rm -rf "${PODMAN_STORAGE}" "${XDG_RUNTIME_DIR}" 2>/dev/null || true
+        }
+        """
+    ).strip("\n")
+
+
+def _push_slurm_script(
+    image_name: str,
+    arch: str,
+    channel: str,
+    account: str,
+    partition: str,
+    reservation: str | None,
+    remote_logs_dir: str,
+    token_path: str,
+) -> str:
+    """The push job: load the build's OCI archive from capstor and push it to GHCR with a
+    token the finisher lent it — its own job-scoped GITHUB_TOKEN, written to `token_path`
+    (mode 600) and deleted here as soon as podman has logged in. FirecREST cannot move the
+    archive to the runner (S3 staging: InvalidBucketName for this account; streamer and
+    wormhole not enabled at CSCS, 2026-09-25), so the bytes go straight from the node.
+    Runs on any cluster: capstor is shared and a push never executes the image."""
+    reservation_line = f"#SBATCH --reservation={reservation}" if reservation else ""
+    ghcr_image = f"ghcr.io/swiss-ai/{image_name}:{channel}-{arch}"
+    oci_archive = oci_archive_path(image_name, arch, channel)
+    return dedent(
+        f"""
+        #!/bin/bash
+        #SBATCH --job-name=push-{image_name}-{arch}-{channel}
+        #SBATCH --nodes=1
+        #SBATCH --ntasks=1
+        #SBATCH --cpus-per-task=16
+        #SBATCH --time=01:00:00
+        #SBATCH --account={account}
+        #SBATCH --partition={partition}
+        {reservation_line}
+        #SBATCH --output={remote_logs_dir}/%j.out
+        #SBATCH --error={remote_logs_dir}/%j.err
+
+        set -euo pipefail
+
+        {_embed(_podman_setup())}
+
+        forget_token() {{ rm -f "{token_path}" 2>/dev/null || true; }}
+        trap 'cleanup; forget_token' EXIT
+
+        echo "=== Pushing {image_name} ({arch}, {channel}) from $(hostname) at $(date) ==="
+        [ -s "{token_path}" ] || {{ echo "ERROR: no token at {token_path}"; exit 1; }}
+        [ -s "{oci_archive}" ] || {{ echo "ERROR: no archive at {oci_archive}"; exit 1; }}
+        ref=$(podman load -q -i "{oci_archive}" | sed -n 's/^Loaded image: //p' | head -1)
+        [ -n "$ref" ] || {{ echo "ERROR: podman load reported no image"; exit 1; }}
+        echo "loaded $ref"
+        podman login ghcr.io -u x-access-token --password-stdin < "{token_path}"
+        forget_token
+        podman push "$ref" "{ghcr_image}"
+        rm -f "{oci_archive}"
+        echo "=== Done: {ghcr_image} at $(date) ==="
+    """
+    ).lstrip("\n")
+
+
 def _build_slurm_script(
     image_name: str,
     arch: str,
@@ -102,87 +248,13 @@ def _build_slurm_script(
 
         set -euo pipefail
 
-        # Batch nodes have no D-Bus session and /run/user/<uid> doesn't exist.
-        # Point podman's runtime dir to a writable temp location.
-        export DBUS_SESSION_BUS_ADDRESS=unix:path=/dev/null
-        export XDG_RUNTIME_DIR="${{TMPDIR:-/tmp}}/podman-runtime-$$"
-        mkdir -p "${{XDG_RUNTIME_DIR}}"
-
-        # Rootless podman ignores graphroot/runroot from /etc/containers/storage.conf
-        # and falls back to $HOME/.local/share/containers/storage. Home is NFS, which
-        # has no user xattrs, so even pulling the base image dies with
-        # "lsetxattr ...: operation not supported". Personal accounts have a
-        # ~/.config/containers/storage.conf pointing at tmpfs; the CI service account
-        # has none, so the job writes its own. tmpfs has no user xattrs either below
-        # kernel 6.6, hence fuse-overlayfs rather than the kernel overlay driver.
-        PODMAN_STORAGE="/dev/shm/${{USER}}/podman-${{SLURM_JOB_ID}}"
-        mkdir -p "${{PODMAN_STORAGE}}/root" "${{PODMAN_STORAGE}}/runroot"
-
-        FUSE_OVERLAYFS=""
-        for candidate in \
-            /usr/local/vs-ce-podman/fuse-overlayfs \
-            /usr/bin/fuse-overlayfs-1.13 \
-            "$(command -v fuse-overlayfs || true)"; do
-            if [ -x "${{candidate}}" ]; then
-                FUSE_OVERLAYFS="${{candidate}}"
-                break
-            fi
-        done
-        if [ -z "${{FUSE_OVERLAYFS}}" ]; then
-            echo "ERROR: no fuse-overlayfs on $(hostname); podman storage on tmpfs needs it"
-            exit 1
-        fi
-
-        # Kept outside PODMAN_STORAGE: the cleanup below still needs a valid
-        # config to tear that directory down.
-        export CONTAINERS_STORAGE_CONF="${{XDG_RUNTIME_DIR}}/storage.conf"
-        cat > "${{CONTAINERS_STORAGE_CONF}}" <<EOF
-        [storage]
-        driver = "overlay"
-        graphroot = "${{PODMAN_STORAGE}}/root"
-        runroot = "${{PODMAN_STORAGE}}/runroot"
-
-        [storage.options.overlay]
-        mount_program = "${{FUSE_OVERLAYFS}}"
-        EOF
-
-        # Seed the same config in this account's home, the way personal accounts
-        # have it, so podman run outside this script (interactive debugging, a
-        # future script that forgets the env var) also lands on tmpfs. The
-        # per-job CONTAINERS_STORAGE_CONF above still wins for this build: two
-        # builds can share a node, and a fixed home-level graphroot would have
-        # them trampling each other's layers and cleanup.
-        HOME_STORAGE_CONF="${{HOME}}/.config/containers/storage.conf"
-        if [ ! -e "${{HOME_STORAGE_CONF}}" ]; then
-            mkdir -p "$(dirname "${{HOME_STORAGE_CONF}}")"
-            cat > "${{HOME_STORAGE_CONF}}" <<EOF
-        [storage]
-        driver = "overlay"
-        graphroot = "/dev/shm/${{USER}}/root"
-        runroot = "/dev/shm/${{USER}}/runroot"
-
-        [storage.options.overlay]
-        mount_program = "${{FUSE_OVERLAYFS}}"
-        EOF
-            echo "Seeded ${{HOME_STORAGE_CONF}}"
-        fi
+        {_embed(_podman_setup())}
 
         IMAGE_TAG="{image_name}-{arch}-{channel}:${{SLURM_JOB_ID}}"
         SCRATCH_SQSH="${{SCRATCH}}/{image_name}-{arch}-{channel}.sqsh"
         # the App private key goes away whatever happens below — armed first
         forget_key() {{ [ -n "{app_key_path}" ] && rm -f "{app_key_path}" 2>/dev/null || true; }}
         trap forget_key EXIT
-
-        cleanup() {{
-            podman logout ghcr.io 2>/dev/null || true
-            # Storage is job-scoped, so a full reset is safe and is the only
-            # thing that reliably empties it: layers are owned by mapped subuids
-            # and sit behind fuse mounts, so a plain rm hits "Permission denied"
-            # / "Device or resource busy". Left behind they occupy the node's RAM.
-            podman system reset --force 2>/dev/null || true
-            rm -f "${{SCRATCH_SQSH}}" 2>/dev/null || true
-            rm -rf "${{PODMAN_STORAGE}}" "${{XDG_RUNTIME_DIR}}" 2>/dev/null || true
-        }}
         # A GitHub token for right now: the static one, or — GitHub App mode — a fresh
         # installation token (1 h) minted from the app's private key: RS256 JWT with
         # openssl, exchanged at /app/installations/<id>/access_tokens.
@@ -552,7 +624,9 @@ async def main(image_name: str, arch: str, channel: str) -> int:
 
 _CHECK_PREFIX = "Image "
 _GITHUB_API = "https://api.github.com"
-_STALE_AFTER = 6 * 3600
+# A build may sit in the queue for a long time (beverin's mi300 partition held the #231
+# nightly for 10+ h, 2026-09-25): give up on a check only after this long.
+_STALE_AFTER = 24 * 3600
 
 
 def _gh(method: str, path: str, body: dict | None = None) -> dict | list:
@@ -709,6 +783,7 @@ async def finish_pending() -> list[dict]:
     repo = os.environ["GITHUB_REPOSITORY"]
     sites: dict[str, _Site | None] = {}  # None: that cluster's FirecREST is down this tick
     done: dict[tuple, dict[str, str]] = {}
+    pushes: list[_Push] = []
     for sha, expected_channel in _heads(repo).items():
         checks = _list_checks(repo, sha)
         for run in checks:
@@ -747,17 +822,16 @@ async def finish_pending() -> list[dict]:
                 continue
             print(f"{run['name']}: job {job_id} {state}")
             if state == "COMPLETED" and ext["push"]:
-                outcome, detail = await _push_archive(site, ext, sites)
-                if outcome == "retry":
-                    print(f"{run['name']}: archive transfer failed ({detail[:160]}); next tick")
-                    if time.time() - int(ext.get("t0", time.time())) > _PUSH_RETRY_WINDOW:
-                        _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED; no transfer for 48 h", detail)
-                        done.setdefault(key, {})[arch] = "failure"
+                # the bytes never touch the runner: a push job on the cluster does it with a
+                # token this run lends it (see _push_slurm_script); waited on below
+                push_site = await _push_site(site, sites)
+                try:
+                    push_job = await _submit_push(push_site, ext)
+                except Exception as exc:  # noqa: BLE001 — FirecREST hiccup: next tick
+                    print(f"{run['name']}: push job submit failed ({type(exc).__name__}: {str(exc)[:160]}); next tick")
                     continue
-                if outcome == "failed":
-                    _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED but the GHCR push failed", detail)
-                    done.setdefault(key, {})[arch] = "failure"
-                    continue
+                pushes.append(_Push(run["id"], run["name"], push_site, push_job, ext, key))
+                continue
             if state == "COMPLETED":
                 _complete(
                     repo,
@@ -771,7 +845,7 @@ async def finish_pending() -> list[dict]:
                 _complete(repo, run["id"], "failure", f"job {job_id} {state}", tail)
                 done.setdefault(key, {})[arch] = "failure"
             elif time.time() - int(ext.get("t0", time.time())) > _STALE_AFTER:
-                _complete(repo, run["id"], "timed_out", f"job {job_id} still {state} after 6 h")
+                _complete(repo, run["id"], "timed_out", f"job {job_id} still {state} after 24 h")
                 done.setdefault(key, {})[arch] = "failure"
         # arches that completed on an earlier tick count too
         for run in _gh("GET", f"/repos/{repo}/commits/{sha}/check-runs?status=completed&per_page=100").get(
@@ -782,6 +856,8 @@ async def finish_pending() -> list[dict]:
                 if ext is not None:
                     key = (ext["image"], ext["channel"], sha)
                     done.setdefault(key, {}).setdefault(ext["arch"], "success")
+    if pushes:
+        await _wait_pushes(repo, pushes, done)
     ready = [
         {"image": image, "channel": channel, "sha": sha}
         for (image, channel, sha), arches in done.items()
@@ -800,87 +876,138 @@ def _manifest_done(repo: str, sha: str, image: str, channel: str) -> bool:
     return False
 
 
-# A finished build whose archive cannot be fetched is not a failed build: the transfer is
-# retried on later ticks for this long before the check is given up.
-_PUSH_RETRY_WINDOW = 48 * 3600
+# ---- the push: a cluster job with a lent token ---------------------------------------------
+# FirecREST cannot bring a multi-GB archive to the runner for this account (S3 staging:
+# 500 InvalidBucketName — the bucket is named after the user and `svc_ci-service` is not
+# a legal bucket name; "streamer"/"wormhole": 400 not available at CSCS, 2026-09-25) and a
+# GitHub App cannot write organization packages. So the finisher lends its own job-scoped
+# GITHUB_TOKEN (packages:write on this repo, dead when this run ends) to a short SLURM job
+# that loads the archive and pushes it, and waits for that job for at most _PUSH_WAIT.
+_PUSH_WAIT = 40 * 60
+_PUSH_POLL = 60
 
 
-async def _download_archive(site: _Site, archive: str, local: Path, sites: dict[str, "_Site | None"]) -> str:
-    """Fetch `archive` to `local` through the build's own FirecREST, or through the other
-    cluster's — capstor is one filesystem seen from both. Beverin's FirecREST cannot stage
-    a multi-GB download (500 InvalidBucketName on CreateBucket, 2026-09-25) while
-    clariden's can. Returns the name of the site that delivered, or raises the last error."""
-    last: Exception | None = None
-    tried: list[str] = []
-    for arch in (site.arch, *[a for a in ("arm64", "amd64") if a != site.arch]):
-        if arch not in sites:
-            try:
-                sites[arch] = await _Site(arch).connect()
-            except Exception as exc:  # noqa: BLE001 — that cluster is out this tick
-                print(f"  {arch}: cannot reach its FirecREST ({type(exc).__name__})")
-                sites[arch] = None
-        s = sites[arch]
-        if s is None:
-            continue
-        tried.append(s.system_name)
+class _Push:
+    def __init__(self, run_id: int, name: str, site: _Site, job_id: int, ext: dict, key: tuple[str, str, str]):
+        self.run_id, self.name, self.site, self.job_id, self.ext, self.key = run_id, name, site, job_id, ext, key
+        self.token_path = _token_path(site, ext)
+
+
+def _token_path(site: _Site, ext: dict) -> str:
+    return f"{site.keys_dir}/push-{ext['image']}-{ext['arch']}-{ext['channel']}.token"
+
+
+async def _push_site(site: _Site, sites: dict[str, "_Site | None"]) -> _Site:
+    """Where the push job runs: clariden (arm64 site) for every build — capstor is one
+    filesystem seen from both clusters and a push never executes the image, while
+    beverin's mi300 queue can hold a job for many hours. The build's own cluster if
+    clariden's FirecREST is unreachable this tick."""
+    if "arm64" not in sites:
         try:
-            await call_with_firecrest_retry(
-                lambda s=s: s.client.download(
-                    system_name=s.system_name,
-                    source_path=archive,
-                    target_path=local,
-                    account=s.account,
-                    blocking=True,
-                )
-            )
-            return s.system_name
-        except Exception as exc:  # noqa: BLE001 — try the other cluster's FirecREST
-            print(f"  download via {s.system_name} failed: {type(exc).__name__}: {str(exc)[:200]}")
-            last = exc
-            local.unlink(missing_ok=True)
-    raise last or RuntimeError(f"no reachable FirecREST (tried {tried or 'none'})")
+            sites["arm64"] = await _Site("arm64").connect()
+        except Exception as exc:  # noqa: BLE001
+            print(f"  arm64: cannot reach its FirecREST ({type(exc).__name__}); pushing from {site.system_name}")
+            sites["arm64"] = None
+    return sites["arm64"] or site
 
 
-async def _push_archive(site: _Site, ext: dict, sites: dict[str, "_Site | None"]) -> tuple[str, str]:
-    """Pull the build's OCI archive through FirecREST and push it to GHCR with the runner's
-    GITHUB_TOKEN (skopeo); remove the archive on success. Returns (outcome, detail) with
-    outcome "ok", "retry" (the transfer failed — the archive is still there for a later
-    tick) or "failed" (the push itself was refused)."""
-    import shutil
-    import subprocess
-
+async def _submit_push(site: _Site, ext: dict) -> int:
+    """Adopt the live push job for this build or lend the token and submit one."""
     image, arch, channel = ext["image"], ext["arch"], ext["channel"]
-    archive = oci_archive_path(image, arch, channel)  # derived, never taken from the check
-    ghcr_image = f"ghcr.io/swiss-ai/{image}:{channel}-{arch}"
-    workdir = Path(os.environ.get("PUSH_WORKDIR") or tempfile.mkdtemp(prefix="image-push-"))
-    workdir.mkdir(parents=True, exist_ok=True)
-    local = workdir / f"{image}-{arch}-{channel}.oci.tar"
+    job_name = f"push-{image}-{arch}-{channel}"
+    live = await _find_live_job(site.client, site.system_name or "", job_name)
+    if live is not None:
+        print(f"  push job {live} ({job_name}) already live on {site.system_name}; adopting it")
+        return live
+    token_path = _token_path(site, ext)
+    await site.client.mkdir(site.system_name, site.keys_dir, create_parents=True)
+    await site.client.chmod(site.system_name, site.keys_dir, "700")
+    await site.client.mkdir(site.system_name, site.logs_dir, create_parents=True)
+    with tempfile.NamedTemporaryFile("w", suffix=".token", delete=False) as f:
+        f.write(os.environ["GITHUB_TOKEN"] + "\n")
+        local = f.name
     try:
-        print(f"  downloading {archive} ...")
-        try:
-            via = await _download_archive(site, archive, local, sites)
-        except Exception as e:  # noqa: BLE001
-            return "retry", f"{type(e).__name__}: {str(e)[:2000]}"
-        print(f"  pushing {local.stat().st_size / 1e9:.1f} GB (via {via}) to {ghcr_image} ...")
-        skopeo = shutil.which("skopeo") or "skopeo"
-        r = subprocess.run(  # noqa: S603 — fixed argv: our paths and the runner's own token
-            [
-                skopeo, "copy", "--dest-creds", f"x-access-token:{os.environ['GITHUB_TOKEN']}",
-                f"oci-archive:{local}", f"docker://{ghcr_image}",
-            ],
-            capture_output=True, text=True, timeout=3600,
-        )  # fmt: skip
-        if r.returncode != 0:
-            return "failed", (r.stdout + r.stderr)[-6000:]
-        try:
-            await site.client.rm(system_name=site.system_name, path=archive)
-        except Exception as e:  # noqa: BLE001 — the channel cleanup will get it
-            print(f"  (archive left on capstor: {type(e).__name__})")
-        return "ok", ""
-    except Exception as e:  # noqa: BLE001
-        return "failed", f"{type(e).__name__}: {str(e)[:2000]}"
+        try:  # FirecREST's upload does not truncate an existing file
+            await site.client.rm(system_name=site.system_name, path=token_path)
+        except Exception:  # noqa: BLE001, S110 — none there, usually
+            pass
+        await site.client.upload(
+            system_name=site.system_name,
+            local_file=local,
+            directory=site.keys_dir,
+            filename=token_path.rsplit("/", 1)[1],
+            account=site.account,
+            blocking=True,
+        )
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        os.unlink(local)
+    await site.client.chmod(site.system_name, token_path, "600")
+    script = _push_slurm_script(
+        image_name=image,
+        arch=arch,
+        channel=channel,
+        account=site.account,
+        partition=site.partition or "",
+        reservation=site.reservation,
+        remote_logs_dir=site.logs_dir,
+        token_path=token_path,
+    )
+    result = await site.client.submit(
+        system_name=site.system_name, working_dir=site.logs_dir, script_str=script, account=site.account
+    )
+    job_id = int(result["jobId"])
+    print(f"  push job {job_id} ({job_name}) submitted on {site.system_name}")
+    return job_id
+
+
+async def _wait_pushes(repo: str, pushes: list[_Push], done: dict[tuple, dict[str, str]]) -> None:
+    """Follow the push jobs until each ends or _PUSH_WAIT runs out. A job still queued or
+    running at the deadline is cancelled (its token dies with this run anyway) and its
+    check stays in progress: the archive is still on capstor and the next tick submits a
+    fresh push with a fresh token. The token file is removed whatever happened."""
+    deadline = time.time() + _PUSH_WAIT
+    open_ = list(pushes)
+    while open_ and time.time() < deadline:
+        await asyncio.sleep(_PUSH_POLL)
+        for p in list(open_):
+            try:
+                info = await call_with_firecrest_retry(
+                    lambda p=p: p.site.client.job_info(system_name=p.site.system_name, jobid=str(p.job_id))
+                )
+                state = str(info[0]["status"]["state"])
+            except Exception as exc:  # noqa: BLE001
+                print(f"{p.name}: push job {p.job_id} poll failed ({type(exc).__name__})")
+                continue
+            if state == "COMPLETED":
+                print(f"{p.name}: push job {p.job_id} COMPLETED")
+                _complete(
+                    repo,
+                    p.run_id,
+                    "success",
+                    f"job {p.ext['job_id']} COMPLETED, pushed by job {p.job_id} — "
+                    f"`{sqsh_path(p.ext['image'], p.ext['arch'], p.ext['channel'])}`",
+                )
+                done.setdefault(p.key, {})[p.ext["arch"]] = "success"
+                open_.remove(p)
+            elif state in _TERMINAL_STATES:
+                print(f"{p.name}: push job {p.job_id} {state}")
+                tail = await _log_tail(p.site, p.job_id)
+                _complete(repo, p.run_id, "failure", f"build COMPLETED but push job {p.job_id} {state}", tail)
+                done.setdefault(p.key, {})[p.ext["arch"]] = "failure"
+                open_.remove(p)
+            else:
+                print(f"{p.name}: push job {p.job_id} {state} ({int(deadline - time.time())}s left)")
+    for p in open_:
+        print(f"{p.name}: push job {p.job_id} not finished within {_PUSH_WAIT}s; cancelling, next tick retries")
+        try:
+            await p.site.client.cancel_job(system_name=p.site.system_name, jobid=str(p.job_id))
+        except Exception as exc:  # noqa: BLE001
+            print(f"  cancel failed ({type(exc).__name__}); the job's push will fail on its own")
+    for p in pushes:
+        try:
+            await p.site.client.rm(system_name=p.site.system_name, path=p.token_path)
+        except Exception:  # noqa: BLE001, S110 — the job already removed it
+            pass
 
 
 def _complete(repo: str, run_id: int, conclusion: str, summary: str, text: str = "") -> None:
