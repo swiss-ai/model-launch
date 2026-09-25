@@ -145,7 +145,7 @@ jobs:
         run: |
           for arch in arm64 amd64; do
             name="Image ${{ matrix.item.image }} scan ($arch, ${{ matrix.item.channel }})"
-            c=$(gh api "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
+            c=$(gh api -X GET "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
                   -f check_name="$name" -f filter=latest --jq '.check_runs[0].conclusion // "missing"')
             echo "$name: $c"
             [ "$c" = success ] || { echo "::error::scan of ${{ matrix.item.image }} ($arch) is $c; not publishing :${{ matrix.item.channel }}"; exit 1; }
