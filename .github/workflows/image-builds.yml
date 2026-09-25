@@ -95,16 +95,32 @@ jobs:
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GHCR_ACTOR: ${{ github.actor }}
     steps:
+      # A tick that re-runs for another image's sake must not rescan this one: a scan
+      # verdict is per commit and per tag, and both are unchanged until a new build.
+      - name: Already scanned on this commit?
+        id: prior
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          c=$(gh api -X GET "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
+                -f check_name="Image ${{ matrix.item.image }} scan (${{ matrix.arch }}, ${{ matrix.item.channel }})" \
+                -f filter=latest --jq '.check_runs[0].conclusion // "none"')
+          echo "prior scan verdict: $c"
+          echo "done=$([ "$c" = success ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       # The scanner and its allowlist come from main, never from the commit under test:
       # a PR must not be able to soften its own gate. Allowlist changes merge first.
       - uses: actions/checkout@v5
+        if: steps.prior.outputs.done != 'true'
       - name: Install trufflehog
+        if: steps.prior.outputs.done != 'true'
         run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
       # The runner's root disk is too small for the largest extracted layers;
       # /mnt has ~65 GB free.
       - name: Prepare scan workdir
+        if: steps.prior.outputs.done != 'true'
         run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
       - name: Scan image layers for secrets
+        if: steps.prior.outputs.done != 'true'
         env:
           SCAN_WORKDIR: /mnt/image-scan
         run: python3 .github/scripts/scan_image.py "${{ matrix.item.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
@@ -112,7 +128,7 @@ jobs:
       # The verdict lands on the commit, where the manifest job (and a reviewer) reads it
       # per image: one image's finding must not hold back another image's manifest.
       - name: Record the scan check on the commit
-        if: always()
+        if: always() && steps.prior.outputs.done != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -145,7 +161,7 @@ jobs:
         run: |
           for arch in arm64 amd64; do
             name="Image ${{ matrix.item.image }} scan ($arch, ${{ matrix.item.channel }})"
-            c=$(gh api "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
+            c=$(gh api -X GET "repos/${{ github.repository }}/commits/${{ matrix.item.sha }}/check-runs" \
                   -f check_name="$name" -f filter=latest --jq '.check_runs[0].conclusion // "missing"')
             echo "$name: $c"
             [ "$c" = success ] || { echo "::error::scan of ${{ matrix.item.image }} ($arch) is $c; not publishing :${{ matrix.item.channel }}"; exit 1; }
