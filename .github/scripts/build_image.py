@@ -707,7 +707,7 @@ async def finish_pending() -> list[dict]:
     the (image, channel, sha) triples whose arches are now all successful — the scan and
     manifest jobs take it from there."""
     repo = os.environ["GITHUB_REPOSITORY"]
-    sites: dict[str, _Site] = {}
+    sites: dict[str, _Site | None] = {}  # None: that cluster's FirecREST is down this tick
     done: dict[tuple, dict[str, str]] = {}
     for sha, expected_channel in _heads(repo).items():
         checks = _list_checks(repo, sha)
@@ -723,8 +723,18 @@ async def finish_pending() -> list[dict]:
                 continue
             key = (ext["image"], ext["channel"], sha)
             if arch not in sites:
-                sites[arch] = await _Site(arch).connect()
+                try:
+                    sites[arch] = await _Site(arch).connect()
+                except Exception as exc:  # noqa: BLE001 — one cluster's FirecREST down must not
+                    # sink the other's pushes (clariden 503 "ssh service unhealthy", 2026-09-25)
+                    print(
+                        f"{arch}: cannot reach its FirecREST ({type(exc).__name__}); its checks wait for the next tick"
+                    )
+                    sites[arch] = None
             site = sites[arch]
+            if site is None:
+                print(f"{run['name']}: {arch} site unreachable this tick")
+                continue
             try:
                 info = await call_with_firecrest_retry(
                     lambda s=site, j=job_id: s.client.job_info(system_name=s.system_name, jobid=str(j))
@@ -737,8 +747,14 @@ async def finish_pending() -> list[dict]:
                 continue
             print(f"{run['name']}: job {job_id} {state}")
             if state == "COMPLETED" and ext["push"]:
-                ok, detail = await _push_archive(site, ext)
-                if not ok:
+                outcome, detail = await _push_archive(site, ext, sites)
+                if outcome == "retry":
+                    print(f"{run['name']}: archive transfer failed ({detail[:160]}); next tick")
+                    if time.time() - int(ext.get("t0", time.time())) > _PUSH_RETRY_WINDOW:
+                        _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED; no transfer for 48 h", detail)
+                        done.setdefault(key, {})[arch] = "failure"
+                    continue
+                if outcome == "failed":
                     _complete(repo, run["id"], "failure", f"job {job_id} COMPLETED but the GHCR push failed", detail)
                     done.setdefault(key, {})[arch] = "failure"
                     continue
@@ -784,9 +800,52 @@ def _manifest_done(repo: str, sha: str, image: str, channel: str) -> bool:
     return False
 
 
-async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
+# A finished build whose archive cannot be fetched is not a failed build: the transfer is
+# retried on later ticks for this long before the check is given up.
+_PUSH_RETRY_WINDOW = 48 * 3600
+
+
+async def _download_archive(site: _Site, archive: str, local: Path, sites: dict[str, "_Site | None"]) -> str:
+    """Fetch `archive` to `local` through the build's own FirecREST, or through the other
+    cluster's — capstor is one filesystem seen from both. Beverin's FirecREST cannot stage
+    a multi-GB download (500 InvalidBucketName on CreateBucket, 2026-09-25) while
+    clariden's can. Returns the name of the site that delivered, or raises the last error."""
+    last: Exception | None = None
+    tried: list[str] = []
+    for arch in (site.arch, *[a for a in ("arm64", "amd64") if a != site.arch]):
+        if arch not in sites:
+            try:
+                sites[arch] = await _Site(arch).connect()
+            except Exception as exc:  # noqa: BLE001 — that cluster is out this tick
+                print(f"  {arch}: cannot reach its FirecREST ({type(exc).__name__})")
+                sites[arch] = None
+        s = sites[arch]
+        if s is None:
+            continue
+        tried.append(s.system_name)
+        try:
+            await call_with_firecrest_retry(
+                lambda s=s: s.client.download(
+                    system_name=s.system_name,
+                    source_path=archive,
+                    target_path=local,
+                    account=s.account,
+                    blocking=True,
+                )
+            )
+            return s.system_name
+        except Exception as exc:  # noqa: BLE001 — try the other cluster's FirecREST
+            print(f"  download via {s.system_name} failed: {type(exc).__name__}: {str(exc)[:200]}")
+            last = exc
+            local.unlink(missing_ok=True)
+    raise last or RuntimeError(f"no reachable FirecREST (tried {tried or 'none'})")
+
+
+async def _push_archive(site: _Site, ext: dict, sites: dict[str, "_Site | None"]) -> tuple[str, str]:
     """Pull the build's OCI archive through FirecREST and push it to GHCR with the runner's
-    GITHUB_TOKEN (skopeo); remove the archive on success. Returns (ok, detail)."""
+    GITHUB_TOKEN (skopeo); remove the archive on success. Returns (outcome, detail) with
+    outcome "ok", "retry" (the transfer failed — the archive is still there for a later
+    tick) or "failed" (the push itself was refused)."""
     import shutil
     import subprocess
 
@@ -798,16 +857,11 @@ async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
     local = workdir / f"{image}-{arch}-{channel}.oci.tar"
     try:
         print(f"  downloading {archive} ...")
-        await call_with_firecrest_retry(
-            lambda: site.client.download(
-                system_name=site.system_name,
-                source_path=archive,
-                target_path=local,
-                account=site.account,
-                blocking=True,
-            )
-        )
-        print(f"  pushing {local.stat().st_size / 1e9:.1f} GB to {ghcr_image} ...")
+        try:
+            via = await _download_archive(site, archive, local, sites)
+        except Exception as e:  # noqa: BLE001
+            return "retry", f"{type(e).__name__}: {str(e)[:2000]}"
+        print(f"  pushing {local.stat().st_size / 1e9:.1f} GB (via {via}) to {ghcr_image} ...")
         skopeo = shutil.which("skopeo") or "skopeo"
         r = subprocess.run(  # noqa: S603 — fixed argv: our paths and the runner's own token
             [
@@ -817,14 +871,14 @@ async def _push_archive(site: _Site, ext: dict) -> tuple[bool, str]:
             capture_output=True, text=True, timeout=3600,
         )  # fmt: skip
         if r.returncode != 0:
-            return False, (r.stdout + r.stderr)[-6000:]
+            return "failed", (r.stdout + r.stderr)[-6000:]
         try:
             await site.client.rm(system_name=site.system_name, path=archive)
         except Exception as e:  # noqa: BLE001 — the channel cleanup will get it
             print(f"  (archive left on capstor: {type(e).__name__})")
-        return True, ""
+        return "ok", ""
     except Exception as e:  # noqa: BLE001
-        return False, f"{type(e).__name__}: {str(e)[:2000]}"
+        return "failed", f"{type(e).__name__}: {str(e)[:2000]}"
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
