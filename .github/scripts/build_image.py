@@ -324,7 +324,9 @@ def _build_slurm_script(
 
         echo "=== Saving to capstor ==="
         mkdir -p "$(dirname "{output_sqsh}")"
-        chmod o+rx "$(dirname "{output_sqsh}")"
+        # The release dir (container-images/ci) belongs to a person and is group-writable;
+        # only the pr-N subdirs are ours to chmod. A dir we cannot chmod is already open.
+        chmod o+rx "$(dirname "{output_sqsh}")" 2>/dev/null || true
         cp "${{SCRATCH_SQSH}}" "{output_sqsh}.tmp"
         mv "{output_sqsh}.tmp" "{output_sqsh}"
         chmod o+rx "{output_sqsh}"
