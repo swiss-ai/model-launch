@@ -797,6 +797,24 @@ async def finish_pending() -> list[dict]:
                 print(f"check run {run['id']} ({run['name']}) ignored: {why_not}")
                 continue
             key = (ext["image"], ext["channel"], sha)
+            if ext["push"]:
+                # the registry is the ground truth for "pushed": a tag whose image was built
+                # after this check was registered is this build's image, up — whether the
+                # push job did it or a person pushed the archive by hand while the build
+                # cluster's FirecREST was out (clariden, 2026-09-25). No cluster call needed.
+                tag = f"{ext['channel']}-{arch}"
+                created = _ghcr_created(ext["image"], tag)
+                if created and created > int(ext.get("t0", 0)):
+                    print(f"{run['name']}: ghcr.io/swiss-ai/{ext['image']}:{tag} exists (pushed after registration)")
+                    _complete(
+                        repo,
+                        run["id"],
+                        "success",
+                        f"job {job_id} pushed — ghcr.io/swiss-ai/{ext['image']}:{tag} · "
+                        f"`{sqsh_path(ext['image'], arch, ext['channel'])}`",
+                    )
+                    done.setdefault(key, {})[arch] = "success"
+                    continue
             if arch not in sites:
                 try:
                     sites[arch] = await _Site(arch).connect()
@@ -1008,6 +1026,49 @@ async def _wait_pushes(repo: str, pushes: list[_Push], done: dict[tuple, dict[st
             await p.site.client.rm(system_name=p.site.system_name, path=p.token_path)
         except Exception:  # noqa: BLE001, S110 — the job already removed it
             pass
+
+
+_MANIFEST_TYPES = (
+    "application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, "
+    "application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
+)
+
+
+def _ghcr_created(image: str, tag: str) -> int | None:
+    """Epoch seconds of the image config's `created` for ghcr.io/swiss-ai/<image>:<tag>, or
+    None when the tag does not exist or cannot be read. Authenticates with GITHUB_TOKEN
+    the way `docker login ghcr.io` does; a package linked to this repo grants it pull."""
+    import base64
+    from datetime import datetime, timezone
+
+    def get(url: str, headers: dict[str, str]) -> dict:
+        req = urllib.request.Request(url, headers=headers)  # noqa: S310 — ghcr.io only
+        with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
+            return json.loads(resp.read() or b"{}")
+
+    try:
+        basic = base64.b64encode(f"x-access-token:{os.environ['GITHUB_TOKEN']}".encode()).decode()
+        bearer = get(
+            f"https://ghcr.io/token?service=ghcr.io&scope=repository:swiss-ai/{image}:pull",
+            {"Authorization": f"Basic {basic}"},
+        )["token"]
+        auth = {"Authorization": f"Bearer {bearer}", "Accept": _MANIFEST_TYPES}
+        base = f"https://ghcr.io/v2/swiss-ai/{image}"
+        manifest = get(f"{base}/manifests/{tag}", auth)
+        if "manifests" in manifest:  # an index: take the first real image
+            entries = [m for m in manifest["manifests"] if (m.get("platform") or {}).get("os") != "unknown"]
+            manifest = get(f"{base}/manifests/{entries[0]['digest']}", auth)
+        config = get(f"{base}/blobs/{manifest['config']['digest']}", auth)
+        created = str(config.get("created", "")).strip()
+        if not created:
+            return None
+        when = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if when.tzinfo is None:  # the OCI spec says RFC 3339, so this is UTC either way
+            when = when.replace(tzinfo=timezone.utc)
+        return int(when.timestamp())
+    except Exception as exc:  # noqa: BLE001 — 404 for a tag that is not there, or a blip
+        print(f"  (no readable ghcr.io/swiss-ai/{image}:{tag}: {type(exc).__name__})")
+        return None
 
 
 def _complete(repo: str, run_id: int, conclusion: str, summary: str, text: str = "") -> None:
