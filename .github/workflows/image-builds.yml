@@ -69,6 +69,8 @@ jobs:
         run: |
           sudo mkdir -p /mnt/image-push && sudo chown "$USER" /mnt/image-push
           command -v skopeo >/dev/null || (sudo apt-get update && sudo apt-get install -y skopeo)
+          # FirecREST's "wormhole" transfer method drives the magic-wormhole CLI
+          command -v wormhole >/dev/null || pipx install magic-wormhole
       - name: Complete finished builds
         id: finish
         if: steps.pending.outputs.pending != '0'

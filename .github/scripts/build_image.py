@@ -805,11 +805,23 @@ def _manifest_done(repo: str, sha: str, image: str, channel: str) -> bool:
 _PUSH_RETRY_WINDOW = 48 * 3600
 
 
+# FirecREST moves a multi-GB file one of three ways; each is tried in this order on each
+# cluster. S3 staging fails for this account on both clusters (500 InvalidBucketName on
+# CreateBucket, 2026-09-25 — the bucket is named after the user and `svc_ci-service`
+# is not a legal bucket name), so it comes last. Override with SML_TRANSFER_METHODS.
+_TRANSFER_METHODS = ("streamer", "wormhole", "s3")
+
+
+def _transfer_methods() -> tuple[str, ...]:
+    raw = os.environ.get("SML_TRANSFER_METHODS", "")
+    chosen = tuple(m.strip() for m in raw.split(",") if m.strip())
+    return chosen or _TRANSFER_METHODS
+
+
 async def _download_archive(site: _Site, archive: str, local: Path, sites: dict[str, "_Site | None"]) -> str:
     """Fetch `archive` to `local` through the build's own FirecREST, or through the other
-    cluster's — capstor is one filesystem seen from both. Beverin's FirecREST cannot stage
-    a multi-GB download (500 InvalidBucketName on CreateBucket, 2026-09-25) while
-    clariden's can. Returns the name of the site that delivered, or raises the last error."""
+    cluster's — capstor is one filesystem seen from both. Returns "<system> (<method>)"
+    for the transfer that delivered, or raises the last error."""
     last: Exception | None = None
     tried: list[str] = []
     for arch in (site.arch, *[a for a in ("arm64", "amd64") if a != site.arch]):
@@ -822,22 +834,26 @@ async def _download_archive(site: _Site, archive: str, local: Path, sites: dict[
         s = sites[arch]
         if s is None:
             continue
-        tried.append(s.system_name)
-        try:
-            await call_with_firecrest_retry(
-                lambda s=s: s.client.download(
-                    system_name=s.system_name,
-                    source_path=archive,
-                    target_path=local,
-                    account=s.account,
-                    blocking=True,
+        for method in _transfer_methods():
+            tried.append(f"{s.system_name}/{method}")
+            t0 = time.time()
+            try:
+                await call_with_firecrest_retry(
+                    lambda s=s, m=method: s.client.download(
+                        system_name=s.system_name,
+                        source_path=archive,
+                        target_path=local,
+                        account=s.account,
+                        blocking=True,
+                        transfer_method=m,
+                    )
                 )
-            )
-            return s.system_name
-        except Exception as exc:  # noqa: BLE001 — try the other cluster's FirecREST
-            print(f"  download via {s.system_name} failed: {type(exc).__name__}: {str(exc)[:200]}")
-            last = exc
-            local.unlink(missing_ok=True)
+                print(f"  downloaded via {s.system_name} ({method}) in {int(time.time() - t0)}s")
+                return f"{s.system_name} ({method})"
+            except Exception as exc:  # noqa: BLE001 — next method, then the other cluster
+                print(f"  download via {s.system_name} ({method}) failed: {type(exc).__name__}: {str(exc)[:200]}")
+                last = exc
+                local.unlink(missing_ok=True)
     raise last or RuntimeError(f"no reachable FirecREST (tried {tried or 'none'})")
 
 
