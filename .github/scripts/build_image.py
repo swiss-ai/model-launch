@@ -707,7 +707,7 @@ async def finish_pending() -> list[dict]:
     the (image, channel, sha) triples whose arches are now all successful — the scan and
     manifest jobs take it from there."""
     repo = os.environ["GITHUB_REPOSITORY"]
-    sites: dict[str, _Site] = {}
+    sites: dict[str, _Site | None] = {}  # None: that cluster's FirecREST is down this tick
     done: dict[tuple, dict[str, str]] = {}
     for sha, expected_channel in _heads(repo).items():
         checks = _list_checks(repo, sha)
@@ -723,8 +723,18 @@ async def finish_pending() -> list[dict]:
                 continue
             key = (ext["image"], ext["channel"], sha)
             if arch not in sites:
-                sites[arch] = await _Site(arch).connect()
+                try:
+                    sites[arch] = await _Site(arch).connect()
+                except Exception as exc:  # noqa: BLE001 — one cluster's FirecREST down must not
+                    # sink the other's pushes (clariden 503 "ssh service unhealthy", 2026-09-25)
+                    print(
+                        f"{arch}: cannot reach its FirecREST ({type(exc).__name__}); its checks wait for the next tick"
+                    )
+                    sites[arch] = None
             site = sites[arch]
+            if site is None:
+                print(f"{run['name']}: {arch} site unreachable this tick")
+                continue
             try:
                 info = await call_with_firecrest_retry(
                     lambda s=site, j=job_id: s.client.job_info(system_name=s.system_name, jobid=str(j))
