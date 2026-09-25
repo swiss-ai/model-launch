@@ -221,6 +221,7 @@ def _build_slurm_script(
     dispatch_repo: str = "",
     app_id: str = "",
     app_key_path: str = "",
+    revision: str = "",
 ) -> str:
     """The job script. Authentication to GitHub (GHCR push, finished-dispatch) is either a
     static token (`ghcr_token`, the synchronous `build` mode: the runner is alive) or a
@@ -296,7 +297,7 @@ def _build_slurm_script(
         # write on the repo, not on each org package).
         podman build --format docker -t "${{IMAGE_TAG}}" \
           --label org.opencontainers.image.source="https://github.com/{dispatch_repo or "swiss-ai/model-launch"}" \
-          --label org.opencontainers.image.revision="{image_name}-{arch}-{channel}" .
+          --label org.opencontainers.image.revision="{revision or f"{image_name}-{arch}-{channel}"}" .
 
         if [ -z "{app_id}" ]; then
           echo "=== Pushing to GHCR ==="
@@ -481,7 +482,7 @@ async def _github_auth(site: _Site, image_name: str, channel: str) -> dict:
     return {"ghcr_token": os.environ["GHCR_TOKEN"], "ghcr_actor": os.environ["GHCR_ACTOR"]}
 
 
-async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int, bool]:
+async def submit_build(site: _Site, image_name: str, channel: str, revision: str = "") -> tuple[int, bool]:
     """Adopt the live build with this name or submit one. Returns (job id, adopted)."""
     job_name = f"build-{image_name}-{site.arch}-{channel}"
     job_id = await _find_live_job(site.client, site.system_name, job_name)
@@ -535,6 +536,10 @@ async def submit_build(site: _Site, image_name: str, channel: str) -> tuple[int,
         image_name=image_name,
         arch=site.arch,
         channel=channel,
+        # the commit this build is for, as the OCI revision label: the finisher matches a
+        # registry tag to a check by it, so a newer commit's check never accepts an older
+        # commit's image (the tag is per channel, shared by every commit of the PR)
+        revision=revision,
         account=site.account,
         partition=site.partition,
         reservation=site.reservation,
@@ -716,7 +721,7 @@ async def submit_and_register(image_name: str, arch: str, channel: str, head_sha
         if run["name"] == name:
             print(f"check run {run['id']} for {name} already in progress; nothing to do")
             return 0
-    job_id, adopted = await submit_build(site, image_name, channel)
+    job_id, adopted = await submit_build(site, image_name, channel, revision=head_sha)
     # the runner pushes the OCI archive when the App (not a PAT) is the build's identity
     push = bool(os.environ.get("IMAGE_BUILD_APP_ID"))
     run = _gh(
@@ -797,6 +802,30 @@ async def finish_pending() -> list[dict]:
                 print(f"check run {run['id']} ({run['name']}) ignored: {why_not}")
                 continue
             key = (ext["image"], ext["channel"], sha)
+            if ext["push"]:
+                # the registry is the ground truth for "pushed": a tag whose image was built
+                # after this check was registered is this build's image, up — whether the
+                # push job did it or a person pushed the archive by hand while the build
+                # cluster's FirecREST was out (clariden, 2026-09-25). No cluster call needed.
+                tag = f"{ext['channel']}-{arch}"
+                created, revision = _ghcr_image(ext["image"], tag)
+                if _SHA_RE.fullmatch(revision):
+                    # built by a submit that stamped its commit: exact match or nothing
+                    pushed = revision == sha
+                else:
+                    # older label or a hand-built image: built after this check registered
+                    pushed = bool(created and created > int(ext.get("t0", 0)))
+                if pushed:
+                    print(f"{run['name']}: ghcr.io/swiss-ai/{ext['image']}:{tag} is this build's image")
+                    _complete(
+                        repo,
+                        run["id"],
+                        "success",
+                        f"job {job_id} pushed — ghcr.io/swiss-ai/{ext['image']}:{tag} · "
+                        f"`{sqsh_path(ext['image'], arch, ext['channel'])}`",
+                    )
+                    done.setdefault(key, {})[arch] = "success"
+                    continue
             if arch not in sites:
                 try:
                     sites[arch] = await _Site(arch).connect()
@@ -1008,6 +1037,54 @@ async def _wait_pushes(repo: str, pushes: list[_Push], done: dict[tuple, dict[st
             await p.site.client.rm(system_name=p.site.system_name, path=p.token_path)
         except Exception:  # noqa: BLE001, S110 — the job already removed it
             pass
+
+
+_MANIFEST_TYPES = (
+    "application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, "
+    "application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json"
+)
+
+
+_SHA_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def _ghcr_image(image: str, tag: str) -> tuple[int | None, str]:
+    """(`created` as epoch seconds, `org.opencontainers.image.revision` label) of
+    ghcr.io/swiss-ai/<image>:<tag>, or (None, "") when the tag does not exist or cannot be
+    read. Authenticates with GITHUB_TOKEN the way `docker login ghcr.io` does; a package
+    linked to this repo grants it pull."""
+    import base64
+    from datetime import datetime, timezone
+
+    def get(url: str, headers: dict[str, str]) -> dict:
+        req = urllib.request.Request(url, headers=headers)  # noqa: S310 — ghcr.io only
+        with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
+            return json.loads(resp.read() or b"{}")
+
+    try:
+        basic = base64.b64encode(f"x-access-token:{os.environ['GITHUB_TOKEN']}".encode()).decode()
+        bearer = get(
+            f"https://ghcr.io/token?service=ghcr.io&scope=repository:swiss-ai/{image}:pull",
+            {"Authorization": f"Basic {basic}"},
+        )["token"]
+        auth = {"Authorization": f"Bearer {bearer}", "Accept": _MANIFEST_TYPES}
+        base = f"https://ghcr.io/v2/swiss-ai/{image}"
+        manifest = get(f"{base}/manifests/{tag}", auth)
+        if "manifests" in manifest:  # an index: take the first real image
+            entries = [m for m in manifest["manifests"] if (m.get("platform") or {}).get("os") != "unknown"]
+            manifest = get(f"{base}/manifests/{entries[0]['digest']}", auth)
+        config = get(f"{base}/blobs/{manifest['config']['digest']}", auth)
+        revision = str(((config.get("config") or {}).get("Labels") or {}).get("org.opencontainers.image.revision", ""))
+        created = str(config.get("created", "")).strip()
+        if not created:
+            return None, revision
+        when = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if when.tzinfo is None:  # the OCI spec says RFC 3339, so this is UTC either way
+            when = when.replace(tzinfo=timezone.utc)
+        return int(when.timestamp()), revision
+    except Exception as exc:  # noqa: BLE001 — 404 for a tag that is not there, or a blip
+        print(f"  (no readable ghcr.io/swiss-ai/{image}:{tag}: {type(exc).__name__})")
+        return None, ""
 
 
 def _complete(repo: str, run_id: int, conclusion: str, summary: str, text: str = "") -> None:
