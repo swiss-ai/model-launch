@@ -1,0 +1,54 @@
+# Muse-Glimmer-30B.
+#
+# The image is vLLM's own pinned build rather than a CI-built sqsh, because
+# MuseGlimmerForConditionalGeneration is not in any vLLM release and not on
+# main either -- the support lives on an unmerged branch, and this tag is built
+# from it (build commit 99a10304, which carries vllm/model_executor/models/
+# muse_glimmer.py plus the tool and reasoning parsers). A nightly wheel does
+# not contain the model. Point this at a CI-built sqsh once the branch merges.
+#
+# The tag is arm64 and amd64, CUDA 13.0.2, TORCH_CUDA_ARCH_LIST covering 9.0,
+# so it runs on Grace-Hopper. The tag is mutable upstream; pin it by digest if
+# a launch ever needs to be reproducible.
+image = "vllm/vllm-openai:muse-glimmer"
+
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",
+  "/capstor",
+  "/iopsstor",
+  "/usr/lib64/libhwloc.so.15:/usr/lib/libhwloc.so.15",
+  "/usr/lib64/libpciaccess.so.0:/usr/lib/libpciaccess.so.0",
+  "/usr/lib64/libxml2.so.2:/usr/lib/libxml2.so.2",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
+]
+
+# Matches the image's own WorkingDir.
+workdir = "/vllm-workspace"
+
+[env]
+# NCCL_DEBUG = "INFO"  # uncomment for debugging
+# NCCL_DEBUG_SUBSYS = "INIT,NET"  # uncomment for debugging
+NCCL_NET = "AWS Libfabric"
+NCCL_CROSS_NIC = "1"
+NCCL_NET_GDR_LEVEL = "PHB"
+NCCL_SOCKET_IFNAME = "hsn"
+NCCL_PROTO = "^LL128"
+FI_CXI_COMPAT = "0"
+FI_MR_CACHE_MONITOR = "userfaultfd"
+FI_CXI_RX_MATCH_MODE = "software"
+FI_CXI_DEFAULT_CQ_SIZE = "131072"
+FI_CXI_DEFAULT_TX_SIZE = "32768"
+FI_CXI_DISABLE_HOST_REGISTER = "1"
+OFI_NCCL_DISABLE_DMABUF = "1"
+VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
+
+# See vllm_base.toml for why these are literal paths on capstor.
+VLLM_CACHE_ROOT = "/capstor/store/cscs/swissai/infra01/jit-cache/vllm"
+TRITON_CACHE_DIR = "/capstor/store/cscs/swissai/infra01/jit-cache/triton"
+CUDA_CACHE_PATH = "/capstor/store/cscs/swissai/infra01/jit-cache/nv"
+
+[annotations]
+com.hooks.aws_ofi_nccl.enabled = "true"
+com.hooks.aws_ofi_nccl.variant = "cuda13"
+com.hooks.cxi.enabled = "true"
