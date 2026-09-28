@@ -13,7 +13,7 @@ A recipe is the lowest-friction contribution and the prerequisite for the other 
 
 - **Weights on the cluster.** The model must be under `/capstor/store/cscs/swissai/infra01/hf_models/models/<vendor>/<model>`.
 - **A layout that fits.** Work out GPUs, TP, and nodes per replica — see [How to size a model](sizing.md).
-- **A framework that supports the architecture.** Check the framework version in the [env toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/) you plan to use. If the architecture is too new, you may need a new image — see [Building Container Images](building-images.md).
+- **A framework that supports the architecture.** Check the framework version in the [env toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/) you plan to use. If the architecture is too new, you may need a new image — see [Container Images](building-images.md).
 
 ## Step 1 — get it serving
 
@@ -82,7 +82,7 @@ Narrow the failure before filing an issue:
 
 - **Does the model work with the framework directly, no SML?** If not, it's a framework issue — report upstream.
 - **Does it OOM?** See [Sizing](sizing.md) — bigger TP, more nodes, or quantization.
-- **Does it fail to load?** The architecture may be unsupported by the framework version in the [env toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/). Try the other framework, or a newer image ([Building Container Images](building-images.md)).
+- **Does it fail to load?** The architecture may be unsupported by the framework version in the [env toml](https://github.com/swiss-ai/model-launch/tree/main/src/swiss_ai_model_launch/assets/envs/). Try the other framework, or a newer image ([Container Images](building-images.md)).
 - **Not sure what SML submitted?** Render without submitting: `sml advanced ... --output-script /tmp/check` ([details](usage-advanced.md#inspecting-what-would-be-submitted-output-script-dir)).
 
 ## Filing it
