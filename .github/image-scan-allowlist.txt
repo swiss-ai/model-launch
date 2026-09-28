@@ -25,6 +25,13 @@ path:*/site-packages/pydantic/networks.py
 path:*-packages/*/tests/*.py
 # botocore's bundled AWS service definitions carry example GitLab token shapes.
 path:*/botocore/data/*
+# conda-based images (vllm_0.30.0): conda's own URL helpers carry example credentialed
+# URLs in docstrings, git's HOWTO docs show `https://user:pass@host` setups, conda's
+# package cache (pkgs/) mirrors installed packages including their bundled tests.
+path:*/conda/common/url*
+path:*/conda_libmamba_solver/*
+path:*/share/doc/git/*
+path:*/conda/pkgs/*/info/test/*
 # The Lob detector matches any `test_…` token and "verifies" it: Lob's own test-mode
 # keys are `test_…` and the live API accepts them. Torch's testing internals,
 # launchpadlib, … carry thousands. A real Lob key would be `live_…`.
@@ -37,3 +44,7 @@ path:*-packages/pydantic/__pycache__/networks*
 path:*/conda/common/__pycache__/url*
 path:*/tcl8/*/http-*.tm
 path:*/share/doc/criu/*
+# PyCryptodome's self-test suite ships RSA/ECC test keys as fixtures (SelfTest/PublicKey,
+# Cipher, Protocol, Signature — sources and their bytecode). Installed by the SGLang
+# images (sglang_0.5.20, sglang_cuda13, model-launch#245/#235). Test vectors, not credentials.
+path:*/site-packages/Cryptodome/SelfTest/*
