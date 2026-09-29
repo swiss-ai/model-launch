@@ -1,0 +1,56 @@
+name: Manual cancel stale job
+
+# One-off, disabled by default: cancels a single named SLURM job as the CI service
+# account, for the rare case a build is wedged and neither the account nor the
+# repository owner can scancel it themselves (only the job's own owner, or an
+# operator, can). Dispatch with the system and job id; deletes itself from history
+# is not needed since this workflow never touches build state, only cancels.
+
+on:
+  workflow_dispatch:
+    inputs:
+      system:
+        description: "clariden or beverin"
+        required: true
+      job_id:
+        description: "SLURM job id to cancel"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    env:
+      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
+      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
+      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
+      SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
+      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.12"
+      - name: Cancel
+        run: |
+          python - <<'PY'
+          import asyncio, os
+          from swiss_ai_model_launch.launchers.firecrest_auth import build_client_from_env
+
+          system = "${{ inputs.system }}"
+          job_id = "${{ inputs.job_id }}"
+          url = os.environ["SML_FIRECREST_URL"] if system != "beverin" else os.environ["SML_FIRECREST_URL_AMD64"]
+
+          async def main():
+              client = build_client_from_env(url)
+              info = await client.job_info(system_name=system, jobid=job_id)
+              print("before:", info[0]["status"]["state"])
+              await client.cancel_job(system_name=system, jobid=job_id)
+              print(f"cancel_job({system}, {job_id}) sent")
+              info = await client.job_info(system_name=system, jobid=job_id)
+              print("after:", info[0]["status"]["state"])
+
+          asyncio.run(main())
+          PY
