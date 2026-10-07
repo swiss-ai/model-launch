@@ -57,6 +57,7 @@ class SlurmLauncher(Launcher):
         qos: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
         telemetry_endpoint: str | None = None,
+        working_dir: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -69,8 +70,16 @@ class SlurmLauncher(Launcher):
             model_registry=model_registry,
         )
 
+        # See FirecRESTLauncher.working_dir. None: ~/.sml.
+        self.working_dir = working_dir
+
     def _get_working_dir(self) -> Path:
+        if self.working_dir:
+            return Path(self.working_dir)
         return Path.home() / _APP_WORKING_DIRECTORY
+
+    def get_log_dir(self, job_id: int) -> str:
+        return str(self._get_working_dir() / "logs" / str(job_id))
 
     def _get_launch_args_from_request(self, launch_request: LaunchRequest) -> LaunchArgs:
         model = launch_request.model
@@ -297,7 +306,7 @@ class SlurmLauncher(Launcher):
         return out_log, err_log
 
     def get_tail_hint(self, job_id: int) -> str:
-        return f"tail -f ~/.sml/logs/{job_id}/log.out"
+        return f"tail -f {self.get_log_dir(job_id)}/log.out"
 
     def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
         # SLURM launches assume we're already on the cluster (an `srun` away from

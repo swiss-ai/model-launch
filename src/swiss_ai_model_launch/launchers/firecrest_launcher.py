@@ -88,6 +88,7 @@ class FirecRESTLauncher(Launcher):
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
+        working_dir: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -104,6 +105,11 @@ class FirecRESTLauncher(Launcher):
         # a shell on a replica's compute node (FirecREST itself offers no PTY).
         # None disables the terminal button (it falls back to copying the command).
         self.ssh_host = ssh_host
+        # Where jobs run from and keep their env files, rank scripts and logs
+        # on the cluster. None: ~/.sml of the FirecREST user. A service that
+        # launches for many people may want it off that home directory's
+        # small quota.
+        self.working_dir = working_dir
 
     @classmethod
     async def from_client(
@@ -116,6 +122,7 @@ class FirecRESTLauncher(Launcher):
         account: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
+        working_dir: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
@@ -128,13 +135,19 @@ class FirecRESTLauncher(Launcher):
             qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
+            working_dir=working_dir,
         )
 
     def _get_user_dir(self) -> str:
         return f"/users/{self.username}"
 
     def _get_working_dir(self) -> str:
+        if self.working_dir:
+            return self.working_dir.rstrip("/")
         return str(Path(self._get_user_dir()) / _APP_WORKING_DIRECTORY)
+
+    def get_log_dir(self, job_id: int) -> str:
+        return f"{self._get_working_dir()}/logs/{job_id}"
 
     def _get_launch_args_from_request(
         self,
@@ -366,7 +379,7 @@ class FirecRESTLauncher(Launcher):
             return out_log, err_log
 
     def get_tail_hint(self, job_id: int) -> str:
-        return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
+        return f"ssh <host> tail -f {self.get_log_dir(job_id)}/log.out\n  (replace <host> with your cluster SSH alias)"
 
     def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
         # FirecREST runs off-cluster (a REST gateway, no PTY), so reach the node by
