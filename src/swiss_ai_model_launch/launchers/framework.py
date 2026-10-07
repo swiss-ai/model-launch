@@ -790,10 +790,11 @@ MASTER_FILENAME = "master.sh"
 def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
     blocks = [
         "# Self-extract rank scripts: this master.sh was submitted standalone\n"
-        "# (no sibling files), so we materialise the rank scripts under HOME\n"
-        "# (shared FS, visible to all compute nodes) at job start time. The\n"
+        "# (no sibling files), so we materialise the rank scripts in the\n"
+        "# launcher's working directory, which the job runs from (shared FS,\n"
+        "# visible to all compute nodes), at job start time. The\n"
         "# single-quoted heredoc keeps each body literal.",
-        'RANKS_DIR="$HOME/.sml/job-${SLURM_JOB_ID}"',
+        'RANKS_DIR="$PWD/job-${SLURM_JOB_ID}"',
         'mkdir -p "$RANKS_DIR"',
     ]
     for filename, content in rank_scripts.items():
