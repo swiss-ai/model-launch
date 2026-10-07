@@ -57,7 +57,8 @@ async def test_firecrest_uses_the_configured_working_dir(tmp_path: Path) -> None
     remote = await launcher._upload_env_file(str(env), "vllm")
     assert remote.startswith("/capstor/store/x/model_launch/env_vllm_")
     assert await launcher._submit_script("#!/bin/bash\n") == 7
-    assert client.mkdirs == client.uploads == client.submits == ["/capstor/store/x/model_launch"]
+    assert client.mkdirs == ["/capstor/store/x/model_launch/logs"]
+    assert client.uploads == client.submits == ["/capstor/store/x/model_launch"]
 
 
 def test_slurm_uses_the_configured_working_dir() -> None:

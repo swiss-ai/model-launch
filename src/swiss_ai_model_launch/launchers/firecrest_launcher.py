@@ -193,10 +193,13 @@ class FirecRESTLauncher(Launcher):
 
     async def _upload_env_file(self, local_env_path: str, framework: str) -> str:
         working_dir = self._get_working_dir()
+        # logs/ too: the job's --output is logs/%j/log.out, opened by SLURM
+        # before the job can create anything itself, and a newly configured
+        # working directory has no logs/ yet.
         await call_with_firecrest_retry(
             lambda: self.client.mkdir(
                 system_name=self.system_name,
-                path=working_dir,
+                path=f"{working_dir}/logs",
                 create_parents=True,
             )
         )

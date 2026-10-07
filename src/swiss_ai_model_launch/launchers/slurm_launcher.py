@@ -122,10 +122,11 @@ class SlurmLauncher(Launcher):
 
     async def _sbatch(self, launch_args: LaunchArgs) -> int:
         working_dir = self._get_working_dir()
-        working_dir.mkdir(parents=True, exist_ok=True)
+        # logs/ too: see FirecRESTLauncher._upload_env_file.
+        (working_dir / "logs").mkdir(parents=True, exist_ok=True)
 
         # Master.sh self-extracts its rank scripts at job start time
-        # (under $HOME/.sml/job-${SLURM_JOB_ID}/). We only write master
+        # (under <working dir>/job-${SLURM_JOB_ID}/). We only write master
         # locally so sbatch has something to submit.
         script_path = working_dir / f"job_{launch_args.job_name}.sh"
         script_path.write_text("#!/bin/bash\n" + render_master(launch_args))
