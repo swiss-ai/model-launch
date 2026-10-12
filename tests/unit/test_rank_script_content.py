@@ -129,6 +129,39 @@ def test_opentela_keeps_a_node_local_identity_per_job():
             assert s.count("$OPENTELA_BIN start") == s.count('--config-dir "/tmp/opentela-${SLURM_JOB_ID}"') == 1
 
 
+def test_opentela_config_dir_starts_from_the_users_own_cfg(tmp_path):
+    # --config-dir also moves cfg.yaml: the user's settings must come along.
+    import os
+    import shutil
+    import subprocess
+    import uuid
+
+    head = render_rank_scripts(_make_args(topology=Topology(replicas=1, nodes_per_replica=1)))["head.sh"]
+    seed = head[head.index('mkdir -p "/tmp/opentela-') : head.index("$OPENTELA_BIN start")]
+    for i, (location, expected) in enumerate(((".config/opentela", "new"), (".config/ocf", "legacy"), (None, None))):
+        home = tmp_path / f"home{i}"
+        home.mkdir()
+        if location:
+            (home / location).mkdir(parents=True)
+            (home / location / "cfg.yaml").write_text(expected)
+        job = f"test-{uuid.uuid4().hex}"
+        config_dir = f"/tmp/opentela-{job}"  # noqa: S108 -- the path the script itself uses
+        try:
+            subprocess.run(  # noqa: S603
+                ["bash", "-ec", seed],  # noqa: S607
+                check=True,
+                env={**os.environ, "HOME": str(home), "SLURM_JOB_ID": job},
+            )
+            copied = os.path.join(config_dir, "cfg.yaml")
+            if expected:
+                with open(copied) as f:
+                    assert f.read() == expected
+            else:
+                assert os.path.isdir(config_dir) and not os.path.exists(copied)
+        finally:
+            shutil.rmtree(config_dir, ignore_errors=True)
+
+
 def test_opentela_bootstrap_addr_dev_override():
     args = _make_args(
         topology=Topology(replicas=1, nodes_per_replica=2),
