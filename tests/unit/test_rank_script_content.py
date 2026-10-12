@@ -120,6 +120,15 @@ def test_opentela_bootstrap_addr_defaults_to_prod():
         assert OPENTELA_BOOTSTRAP_ADDR_DEV not in s
 
 
+def test_opentela_keeps_a_node_local_identity_per_job():
+    # $HOME is shared by all nodes: one key there means one peer ID for every node.
+    for framework in ("sglang", "vllm"):
+        args = _make_args(framework=framework, topology=Topology(replicas=1, nodes_per_replica=2))
+        scripts = render_rank_scripts(args)
+        for s in (scripts["head.sh"], scripts["follower.sh"]):
+            assert s.count("$OPENTELA_BIN start") == s.count('--config-dir "/tmp/opentela-${SLURM_JOB_ID}"') == 1
+
+
 def test_opentela_bootstrap_addr_dev_override():
     args = _make_args(
         topology=Topology(replicas=1, nodes_per_replica=2),

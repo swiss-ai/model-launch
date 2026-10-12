@@ -107,6 +107,15 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
     )
 
 
+# OpenTela's identity key lives under ~/.config/opentela unless --config-dir
+# says otherwise. $HOME is the same shared filesystem on every node, so all
+# nodes of a multi-node replica (and concurrent jobs) would load one key,
+# announce one peer ID and write one ~/.ocfcore/ocfcore.<id>.db -- seen as
+# "stale file handle" errors and a gateway 503 "No provider found". Node-local
+# /tmp gives each node its own fresh key per job.
+_OPENTELA_CONFIG_DIR_ARG = '    --config-dir "/tmp/opentela-${SLURM_JOB_ID}" \\\n'
+
+
 def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
     return launch_args.opentela_bootstrap_addr or OPENTELA_BOOTSTRAP_ADDR
 
@@ -115,6 +124,7 @@ def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = 
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_CONFIG_DIR_ARG}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
@@ -145,6 +155,7 @@ def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_CONFIG_DIR_ARG}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
