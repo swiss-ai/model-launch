@@ -116,9 +116,17 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
 # cfg.yaml is read, so the user's own one (or its legacy location, which
 # OpenTela still falls back to) is copied in first: settings stay, only the
 # identity is new.
+#
+# OpenTela always keeps its peer database in $HOME/.ocfcore/ocfcore.<id>.db
+# (badger, hundreds of MB) and only clears its own id's one on start. With a
+# fresh id per job none is ever cleared, and they fill the 50 GB home quota.
+# So OpenTela itself runs with HOME set to the per-job dir, the database lands
+# next to the key, and the dir is removed when the rank script exits. The
+# subprocess gets the rank script's real HOME back.
 _OPENTELA_CONFIG_DIR_ARG = '    --config-dir "/tmp/opentela-${SLURM_JOB_ID}" \\\n'
 _OPENTELA_CONFIG_SEED = (
     'mkdir -p "/tmp/opentela-${SLURM_JOB_ID}"\n'
+    "trap 'rm -rf \"/tmp/opentela-${SLURM_JOB_ID}\"' EXIT\n"
     'for cfg in "$HOME/.config/opentela/cfg.yaml" "$HOME/.config/ocf/cfg.yaml"; do\n'
     '    if [ -f "$cfg" ]; then cp "$cfg" "/tmp/opentela-${SLURM_JOB_ID}/cfg.yaml"; break; fi\n'
     "done\n"
@@ -133,13 +141,13 @@ def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = 
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"{_OPENTELA_CONFIG_SEED}"
-        f"$OPENTELA_BIN start \\\n"
+        f'env HOME="/tmp/opentela-${{SLURM_JOB_ID}}" $OPENTELA_BIN start \\\n'
         f"{_OPENTELA_CONFIG_DIR_ARG}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
         f"{_opentela_labels(launch_args)}"
-        f'    --subprocess "{inner_cmd}"'
+        f'    --subprocess "env HOME=$HOME {inner_cmd}"'
     )
 
 
@@ -165,11 +173,11 @@ def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"{_OPENTELA_CONFIG_SEED}"
-        f"$OPENTELA_BIN start \\\n"
+        f'env HOME="/tmp/opentela-${{SLURM_JOB_ID}}" $OPENTELA_BIN start \\\n'
         f"{_OPENTELA_CONFIG_DIR_ARG}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
-        f'    --subprocess "{inner_cmd}"'
+        f'    --subprocess "env HOME=$HOME {inner_cmd}"'
     )
 
 
