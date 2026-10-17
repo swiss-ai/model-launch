@@ -120,11 +120,11 @@ uv run pytest tests/unit/test_rendered_scripts_lint.py -q
 
 ## Container images
 
-The containers models run in are built from `images/<name>/Dockerfile` — on the cluster, by CI. See [Building Container Images](building-images.md) for how to add or change one.
+The containers models run in are built by the `swiss-ai/model-launch-images` repository. See [Container Images](building-images.md) for how this repository uses them.
 
 ## CI / CD
 
-See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → image build → integration tests; each stage gates the next.
+See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → integration tests; the first gates the second.
 
 ## Filing issues / PRs
 
