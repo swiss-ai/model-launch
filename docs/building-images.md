@@ -25,4 +25,4 @@ workdir = "/workspace/"
 
 To try an image before it is merged, point the env toml at its `pr-<N>` path, then revert before merging.
 
-Replacing an image's contents changes what every env toml that names it gets, with no rollback; breaking changes get a new image name instead (`vllm_cuda13` → `vllm_cuda13_v2`).
+Images are updated in place (a vLLM upgrade is a change to `vllm_base`, not a new image), so every env toml that names one gets the new build when it merges, with no rollback.
