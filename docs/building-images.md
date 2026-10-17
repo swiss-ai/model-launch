@@ -26,3 +26,5 @@ workdir = "/workspace/"
 Then launch with it: `sml advanced --environment src/.../envs/my_image.toml ...`. See [Adding a new model recipe](development.md#adding-a-new-model-recipe).
 
 To try an image from an open images-repository PR, point the env toml at its `pr-<N>` path, and revert before merging — those artifacts are deleted when that PR closes.
+
+Images are updated in place (a vLLM upgrade is a change to `vllm_base`, not a new image), so every env toml that names one gets the new build when it merges, with no rollback.
