@@ -1,5 +1,4 @@
-# Review required from a code owner for everything that builds, scans or publishes images
-# and for the CI itself (2026-09-25 security review). Owners: the people who push here most.
+# Review required from a code owner for the CI itself and for the env tomls that pick the images
+# (2026-09-25 security review). Owners: the people who push here most.
 /.github/                                   @robmsmt @AryanAhadinia @FarukZahiragic
-/images/                                    @robmsmt @AryanAhadinia @FarukZahiragic
 /src/swiss_ai_model_launch/assets/envs/     @robmsmt @AryanAhadinia @FarukZahiragic

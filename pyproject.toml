@@ -58,9 +58,6 @@ select = [
 # under the HPC batch node's own python3), so it cannot adopt the modern typing
 # syntax (PEP 585/604) that pyupgrade would rewrite it to.
 "src/swiss_ai_model_launch/assets/replica_health_checker.py" = ["UP"]
-# The image scanner shells out to curl/tar/zstd/trufflehog with fixed argv
-# lists (no shell), and its CLI inputs are validated against strict patterns.
-".github/scripts/scan_image.py" = ["S603", "S607"]
 
 [tool.mypy]
 files = ["src"]
@@ -95,7 +92,6 @@ dev = [
   "pytest-xdist>=3.8.0",
   "pre-commit>=4.6.0",
   "shellcheck-py>=0.9",
-  "hadolint-py==2.14.0.1", # 2.15.1.2's macOS wheel has a corrupted deflate stream on PyPI
   "types-PyYAML>=6.0",
 ]
 docs = ["mkdocs-material>=9.5", "mkdocs-autorefs>=1.0"]

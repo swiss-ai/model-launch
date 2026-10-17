@@ -25,12 +25,6 @@ repos:
         entry: shellcheck
         language: system
         types: [shell]
-      - id: hadolint
-        name: hadolint
-        entry: hadolint
-        language: system
-        files: ^images/.*Dockerfile
-        types_or: [dockerfile, file]
 
       - id: taplo
         name: taplo

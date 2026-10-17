@@ -1,4 +1,4 @@
-.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint dockerlint tomlfmt prettier static test _test-paths _test-lightweight _test-std _test-comprehensive test-paths test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
+.PHONY: install-dev lint format check mypy dmypy shellcheck markdownlint tomlfmt prettier static test _test-paths _test-lightweight _test-std _test-comprehensive test-paths test-lightweight test-std test-comprehensive docs docs-build demo demo-raw clean-cache clean-dev
 
 install-dev:
 	uv sync --python 3.12
@@ -37,16 +37,13 @@ shellcheck:
 markdownlint:
 	npx markdownlint-cli2 --config .markdownlint.yaml "**/*.md" "!.venv/**/*.md" "!.claude/worktrees/**/*.md"
 
-dockerlint:
-	find images/ -name "Dockerfile*" | xargs uv run --frozen hadolint
-
 tomlfmt:
 	find . -name "*.toml" -not -path "./.venv/*" -not -path "./.claude/worktrees/*" | xargs taplo fmt --check
 
 prettier:
 	find . \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" \) -not -path "./.venv/*" -not -path "./.claude/worktrees/*" | xargs npx prettier --check
 
-static: lint mypy shellcheck markdownlint dockerlint tomlfmt prettier
+static: lint mypy shellcheck markdownlint tomlfmt prettier
 
 test:
 	uv run --frozen pytest tests/unit/ --cov=src --cov-report=term-missing

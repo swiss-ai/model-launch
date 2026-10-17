@@ -35,16 +35,6 @@ jobs:
           python-version: "3.12"
       - run: make shellcheck
 
-  dockerlint:
-    name: Docker Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup
-        with:
-          python-version: "3.12"
-      - run: make dockerlint
-
   markdownlint:
     name: Markdown Lint
     runs-on: ubuntu-latest
