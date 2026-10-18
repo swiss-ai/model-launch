@@ -7,11 +7,6 @@ on:
     branches: [main]
     types: [opened, reopened, synchronize, labeled, ready_for_review]
   workflow_dispatch:
-    inputs:
-      image:
-        description: "Single image dir under images/ to build (leave empty to build all)."
-        required: false
-        default: ""
 
 jobs:
   static-checks:
@@ -19,94 +14,16 @@ jobs:
 
   detect-changes:
     needs: [static-checks]
-    name: Docker Changed Images Detection
-    # Draft PRs run static checks only; skip the heavier build/test pipeline.
+    name: Catalog-only Change Detection
+    # Draft PRs run static checks only; skip the heavier test pipeline.
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.detect.outputs.images }}
-      channel: ${{ steps.channel.outputs.channel }}
       catalog_only: ${{ steps.catalog.outputs.catalog_only }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: Resolve release channel
-        id: channel
-        run: |
-          # PR builds publish to a per-PR pre-release channel so they can never
-          # overwrite what main published. Merging to main republishes under
-          # ":latest". build_image.py rejects any other channel value.
-          #
-          # ":latest" means "built from main" — gate on the ref, not the event.
-          # A workflow_dispatch runs against whatever branch it was dispatched
-          # from, and with an empty `image` input it rebuilds every image, so
-          # an ungated dispatch could republish all of :latest from unmerged
-          # code. Refuse rather than publish.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANNEL="pr-${{ github.event.pull_request.number }}"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            CHANNEL="latest"
-          else
-            echo "Refusing to publish images from ${{ github.ref }}." >&2
-            echo "Open a pull request to build under a pr-<number> channel." >&2
-            exit 1
-          fi
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "Release channel: $CHANNEL"
-
-      - name: Detect changed image directories
-        id: detect
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image }}" ]; then
-            # Manual run targeting one image; validated against images/ below.
-            CHANGED="${{ inputs.image }}"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}" -- images/ \
-              | grep '^images/' \
-              | cut -d/ -f2 \
-              | sort -u)
-          else
-            BEFORE="${{ github.event.before }}"
-            AFTER="${{ github.sha }}"
-
-            # First push to branch or workflow_dispatch has all-zero before SHA
-            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
-              CHANGED=$(ls images/)
-            else
-              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- images/ \
-                | grep '^images/' \
-                | cut -d/ -f2 \
-                | sort -u)
-            fi
-          fi
-
-          # Keep only entries that are actual image directories. Release images
-          # (`*_release*`, e.g. vllm_apertus_1.5_release) are never rebuilt by
-          # detection: a rebuild would overwrite `<name>-<arch>.sqsh` and `:latest`
-          # for an image people run in production. Only a manual dispatch that
-          # names the image exactly may build one.
-          EXPLICIT="${{ github.event_name == 'workflow_dispatch' && inputs.image || '' }}"
-          VALID=""
-          for dir in $CHANGED; do
-            [ -d "images/$dir" ] || continue
-            case "$dir" in
-              *_release*)
-                if [ "$dir" = "$EXPLICIT" ]; then
-                  echo "Release image $dir: building because it was named explicitly"
-                else
-                  echo "Release image $dir: skipped (never rebuilt by detection)"
-                  continue
-                fi
-                ;;
-            esac
-            VALID="$VALID $dir"
-          done
-
-          IMAGES=$(echo "$VALID" | tr ' ' '\n' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
-          echo "Detected images: $IMAGES"
 
       - name: Detect catalog-only changes
         id: catalog
@@ -116,10 +33,9 @@ jobs:
           # points at (assets/envs/) and sometimes the image that env needs
           # (images/<name>/Dockerfile). None of that is launcher code, so the
           # integration test tiers below have nothing to test and would just burn
-          # real FirecREST/SLURM time. A new image is still built, scanned and
-          # merged by the image jobs (their own detection, below) — only the
-          # integration tiers are skipped. Any file outside these paths (src/,
-          # tests/, the workflows, …) flips catalog_only to false.
+          # real FirecREST/SLURM time. Images are built by the
+          # swiss-ai/model-launch-images repository, not here. Any file outside
+          # these paths (src/, tests/, the workflows, …) flips catalog_only to false.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CHANGED=""  # manual dispatch always runs full CI
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -152,77 +68,11 @@ jobs:
           echo "catalog_only=$CATALOG_ONLY" >> "$GITHUB_OUTPUT"
           echo "Catalog-only change: $CATALOG_ONLY"
 
-  build:
-    # Submits the SLURM build (or adopts a live one) and registers an in_progress check
-    # run "Image <name> (<arch>, <channel>)" on the commit — then exits. The scheduled
-    # workflow image-builds.yml finishes those checks, scans the layers and merges the
-    # multi-arch manifest. The runner no longer waits hours on a build (2026-09-24).
-    name: Docker Build ${{ matrix.image }} (${{ matrix.arch }})
-    needs: [detect-changes, static-checks]
-    if: github.event.pull_request.draft != true && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      contents: read
-    strategy:
-      matrix:
-        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
-        # Each arch is built natively on its own cluster, reached via a
-        # different FireCREST endpoint, and pushed to a :<channel>-<arch> tag.
-        # image-builds.yml (scheduled) finishes them and merges the multi-arch :<channel>.
-        arch: [arm64, amd64]
-      fail-fast: false
-    env:
-      # Service-account API key, sent as X-API-Key to the PAT gateway.
-      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
-      # arm64 (Grace) cluster — base vars.
-      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
-      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
-      SML_PARTITION: ${{ vars.SML_PARTITION }}
-      SML_RESERVATION: ${{ vars.SML_RESERVATION }}
-      # amd64 (x86_64) cluster — different URL / system / partition, same creds.
-      # No reservation on this cluster.
-      SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
-      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
-      SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
-      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GHCR_ACTOR: ${{ github.actor }}
-      # The channel is part of the cache key: a PR build only proves the
-      # pr-<N> artifacts exist. Without it, merging an already-built PR would
-      # hit the cache on main, skip the build, and never publish ":latest".
-      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
-      # the PR head for pull_request events (github.sha is the merge commit there)
-      IMAGE_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # GitHub App installed on this repo (contents:write + packages:write): the SLURM
-      # job mints one-hour tokens from the key to push to GHCR and fire
-      # repository_dispatch, hours after this job — and its GITHUB_TOKEN — is gone
-      IMAGE_BUILD_APP_ID: ${{ secrets.IMAGE_BUILD_APP_ID }}
-      IMAGE_BUILD_APP_PRIVATE_KEY: ${{ secrets.IMAGE_BUILD_APP_PRIVATE_KEY }}
-      GHCR_PUSH_TOKEN: ${{ secrets.GHCR_PUSH_TOKEN }} # a machine user's PAT instead, if any
-    steps:
-      # The PR checkout supplies only images/<name>/ (the untrusted build context). The
-      # script that holds the App key, the FirecREST key and the checks:write token comes
-      # from main — a same-repository PR cannot edit its way to those secrets.
-      - uses: actions/checkout@v5
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-          path: trusted
-      - uses: ./trusted/.github/actions/setup
-        with:
-          python-version: "3.12"
-      - name: Submit image build
-        run: python trusted/.github/scripts/build_image.py submit "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
-        timeout-minutes: 20
-
   test-lightweight:
     name: Integration Tests (lightweight)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
       needs.detect-changes.outputs.catalog_only != 'true' &&
       github.event_name != 'workflow_dispatch' &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
@@ -244,11 +94,9 @@ jobs:
 
   test-std:
     name: Integration Tests (std)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
       needs.detect-changes.outputs.catalog_only != 'true' &&
       contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
@@ -269,11 +117,9 @@ jobs:
 
   test-comprehensive:
     name: Integration Tests (comprehensive)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
       needs.detect-changes.outputs.catalog_only != 'true' &&
       (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests'))
     runs-on: ubuntu-latest
