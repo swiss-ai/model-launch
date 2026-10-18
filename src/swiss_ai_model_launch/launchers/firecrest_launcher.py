@@ -30,7 +30,7 @@ from swiss_ai_model_launch.launchers.utils import (
 _PATH_UNREACHABLE_STATUSES = frozenset({403, 404})
 
 _SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
-_VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
+_VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm_base.toml")
 
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
 
