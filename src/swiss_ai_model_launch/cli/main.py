@@ -834,6 +834,10 @@ def build_launch_args_from_advanced(
         lambda m: m.group(1) + served_model_name,
         framework_args,
     )
+    # A name given only as `sml advanced --served-model-name` must still reach
+    # the framework, or it serves the model path and nothing routes to it.
+    if not re.search(r"--served-model-name\s", framework_args):
+        framework_args = f"{framework_args} --served-model-name {served_model_name}".strip()
     job_name = f"sml_{served_model_name.replace('/', '_')}_{create_salt(8)}"
 
     opentela_bootstrap_addr: str | None

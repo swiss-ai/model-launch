@@ -72,6 +72,23 @@ def test_advanced_namespaces_the_name_inside_framework_args():
     assert "--model-path /models/Apertus" in la.framework_args
 
 
+def test_advanced_passes_a_flag_only_name_to_the_framework():
+    # Without it the framework serves the model path, which is what OpenTela
+    # routes on, so requests for the labelled name find no provider.
+    args = _advanced_args("--model /models/DeepSeek", "--served-model-name", "deepseek-ai/DeepSeek-V4.1-Flash")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
+
+    assert la.served_model_name == "alice/deepseek-ai/DeepSeek-V4.1-Flash"
+    assert la.framework_args == "--model /models/DeepSeek --served-model-name alice/deepseek-ai/DeepSeek-V4.1-Flash"
+
+
+def test_advanced_flag_name_does_not_duplicate_one_in_framework_args():
+    args = _advanced_args("--served-model-name swiss-ai/Apertus-70B", "--served-model-name", "swiss-ai/Apertus-70B")
+    la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
+
+    assert la.framework_args.count("--served-model-name") == 1
+
+
 def test_advanced_leaves_an_already_namespaced_name_alone():
     args = _advanced_args("--served-model-name alice/swiss-ai/Apertus-70B")
     la = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
