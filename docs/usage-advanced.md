@@ -45,7 +45,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 \
@@ -67,7 +67,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --time 36:00:00 \
   --consecutive \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
@@ -150,7 +150,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 --enable-metrics" \
@@ -212,7 +212,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --framework-args "..." \
   --dev
 ```
