@@ -1,0 +1,155 @@
+{
+  "passed": true,
+  "reason": "probe + streaming passed; advisory: core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_determinism); multimodal 7/8 (mm_image_small)",
+  "probe": {
+    "ok": true,
+    "status": 200,
+    "text": "HelloUser wants hello in one word. Just say \"Hello\". Possibly \"Hello.\" But one word.\n\nWe should comply. Just say Hello.\n\nProbably just \"Hello\". Possibly Hello alone.\n\nInstructions: Say hello in one wo"
+  },
+  "mcs": {
+    "core": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "core_health",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_system",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_maxtokens",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_usage",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_template_no_leak",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_tokenizer_roundtrip",
+          "status": "broken",
+          "detail": "KeyError: 'prompt'"
+        },
+        {
+          "name": "core_tokenizer_unicode",
+          "status": "broken",
+          "detail": "KeyError: 'prompt'"
+        },
+        {
+          "name": "core_no_degeneration",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_multi_system",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_assistant_prefill",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "core_determinism",
+          "status": "fail",
+          "detail": "AssertionError: temp=0 output not reproducible:"
+        }
+      ]
+    },
+    "streaming": {
+      "passed": true,
+      "checks": [
+        {
+          "name": "stream_basic",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_finish",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_stop",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "stream_equiv",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    },
+    "multimodal": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "mm_image_small",
+          "status": "broken",
+          "detail": "TimeoutError: The read operation timed out"
+        },
+        {
+          "name": "mm_image_large",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_image_multi",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_audio_small",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_audio_large",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_interleaved",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_no_degeneration_hard",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mm_no_degeneration_hard_audio",
+          "status": "pass",
+          "detail": ""
+        }
+      ]
+    }
+  },
+  "required": ["core", "streaming", "multimodal"],
+  "blocking": ["streaming"],
+  "advisory_failed": ["core", "multimodal"],
+  "record_dir": ".factory/mcs/050975c634584863ad1e3d2f771686d6"
+}
