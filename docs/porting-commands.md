@@ -92,7 +92,7 @@ sml advanced \
   --partition normal \
   --nodes-per-replica 4 \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 \
     --served-model-name deepseek-ai/DeepSeek-V3.1 \
     --tensor-parallel-size 16 \

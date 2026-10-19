@@ -32,7 +32,7 @@ examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh
 examples/beverin/cli/swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm.sh
 ```
 
-Match the flag style of its neighbours — explicit `--system` / `--partition`, one `--framework-args` string. Pick the env toml that matches the cluster: `sglang.toml` / `vllm.toml` on clariden, the `*_rocm.toml` variants on AMD systems.
+Match the flag style of its neighbours — explicit `--system` / `--partition`, one `--framework-args` string. Pick the env toml that matches the cluster: `sglang.toml` / `vllm_base.toml` on clariden, the `*_rocm.toml` variants on AMD systems.
 
 `tests/unit/test_examples.py` renders a selection of real examples through the production CLI parser and shellchecks the output, so a flag that breaks one of them fails there:
 
@@ -58,7 +58,7 @@ Only needed if the model should appear in interactive `sml`. Add an object to `m
 | --- | --- |
 | `model` | HF repo id; resolved to `<registry>/<vendor>/<model>` |
 | `framework` | `sglang` or `vllm` |
-| `environment` | Path to an env toml, or `null` for the framework default (`sglang.toml` / `vllm.toml`) |
+| `environment` | Path to an env toml, or `null` for the framework default (`sglang.toml` / `vllm_base.toml`) |
 | `nodes_per_replica` | Nodes one replica spans |
 | `framework_args` | **Extra** flags only — see below |
 | `pre_launch_cmds` | Optional shell commands before the framework starts |
