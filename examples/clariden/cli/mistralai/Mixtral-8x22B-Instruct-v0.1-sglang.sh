@@ -4,7 +4,7 @@ sml advanced \
   --partition normal \
   --nodes-per-replica 2 \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/mistralai/Mixtral-8x22B-Instruct-v0.1 \
     --host 0.0.0.0 \
     --tp-size 8 \

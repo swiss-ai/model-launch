@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Snowflake/snowflake-arctic-embed-l-v2.0 \
     --served-model-name Snowflake/snowflake-arctic-embed-l-v2.0 \
     --host 0.0.0.0 \
