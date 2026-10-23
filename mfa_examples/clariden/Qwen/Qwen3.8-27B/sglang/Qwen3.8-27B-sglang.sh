@@ -9,7 +9,7 @@
 #   (no attention-backend overrides) The factory run below needed --attention-backend
 #                                    flashinfer and --mm-attention-backend triton_attn because
 #                                    the aarch64 sgl-kernel wheel shipped without FA3 ("Can
-#                                    not import FA3 in sgl_kernel"). sglang_base ships FA3, so
+#                                    not import FA3 in sgl_kernel"). sglang_nvidia ships FA3, so
 #                                    SGLang's defaults (FA3 for text and the vision tower) work.
 #   --host 0.0.0.0                   SGLang binds to localhost by default; the in-job replica
 #                                    health checker probes the node IP, so without it the
@@ -26,5 +26,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 1 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.8-27B --tp-size 4 --context-length 131072 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --host 0.0.0.0"

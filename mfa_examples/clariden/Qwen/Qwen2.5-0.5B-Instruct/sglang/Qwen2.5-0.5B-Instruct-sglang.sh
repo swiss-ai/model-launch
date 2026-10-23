@@ -11,5 +11,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 1 \
   --time 02:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --tp-size 2"
