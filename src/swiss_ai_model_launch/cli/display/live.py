@@ -40,6 +40,7 @@ _MODEL_HEALTH_STYLE: dict[ModelHealth, str] = {
     ModelHealth.ERROR: "[orange]ERROR[/orange]",
     ModelHealth.NOT_DEPLOYED: "[dim]NOT DEPLOYED[/dim]",
     ModelHealth.NOT_RESPONDING: "[red]NOT RESPONDING[/red]",
+    ModelHealth.SHADOW: "[cyan]SHADOW (not routed)[/cyan]",
 }
 
 _STATUS_LABEL_ID = "status-label"

@@ -703,6 +703,7 @@ async def _run_monitor(
     *,
     expected_replicas: int,
     router: RouterMode = ROUTER_OPENTELA,
+    shadow: bool = False,
 ) -> None:
     sources = _log_sources(expected_replicas, router)
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
@@ -774,8 +775,14 @@ async def _run_monitor(
         state.update(
             job_id=scheduled[0].job_id,
             served_model_name=served,
-            model_health=ModelHealth.NOT_DEPLOYED,
+            model_health=ModelHealth.SHADOW if shadow else ModelHealth.NOT_DEPLOYED,
         )
+        if shadow:
+            # The gateway never routes to a shadow, so the end-to-end probe would
+            # either 404 or, when the baseline shares the served name, probe the
+            # baseline instead. Per-replica /health still covers the shadow.
+            await _monitor_jobs(scheduled, served)
+            return
         await asyncio.gather(_monitor_model_health(served), _monitor_jobs(scheduled, served))
 
     kill_job = await LiveDisplay(state).run(_monitor())
@@ -990,6 +997,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             swissai_research_api_key,
             expected_replicas=launch_args.topology.replicas,
             router=launch_args.router,
+            shadow=launch_args.shadow_of is not None,
         )
     else:
         scheduled = await submit_coro
