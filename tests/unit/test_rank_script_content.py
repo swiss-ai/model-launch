@@ -1,3 +1,5 @@
+import pytest
+
 from swiss_ai_model_launch.launchers.framework import (
     OPENTELA_BOOTSTRAP_ADDR,
     OPENTELA_BOOTSTRAP_ADDR_DEV,
@@ -274,3 +276,72 @@ def test_master_binds_ranks_dir_into_container():
     assert len(srun_lines) >= 1
     for ln in srun_lines:
         assert "$RANKS_DIR:$RANKS_DIR" in ln
+
+
+# ── shadow deployments ──────────────────────────────────────────────────────
+# A shadow registers its servable endpoint as `llm-shadow`, which OpenTela never
+# matches for model requests, and tags every peer of the job with its base id.
+# The exact `--service.name <name> \` line is asserted because a substring check
+# for `llm` would also match `llm-shadow`.
+
+_SHADOW_OF = "SwissAI-Research/swiss-ai/Apertus-8B-Instruct-2509"
+_LLM_SERVICE_LINE = "    --service.name llm \\\n"
+_SHADOW_SERVICE_LINE = "    --service.name llm-shadow \\\n"
+_SHADOW_LABELS = ("    --label shadow=true \\\n", f"    --label shadow_of={_SHADOW_OF} \\\n")
+
+
+@pytest.mark.parametrize("framework", ["sglang", "vllm"])
+@pytest.mark.parametrize("nodes_per_replica", [1, 2])
+def test_shadow_head_registers_as_llm_shadow(framework, nodes_per_replica):
+    args = _make_args(
+        framework=framework,
+        topology=Topology(replicas=1, nodes_per_replica=nodes_per_replica),
+        shadow_of=_SHADOW_OF,
+    )
+    head = render_rank_scripts(args)["head.sh"]
+    assert _SHADOW_SERVICE_LINE in head
+    assert _LLM_SERVICE_LINE not in head
+    for label in _SHADOW_LABELS:
+        assert label in head
+
+
+@pytest.mark.parametrize("framework", ["sglang", "vllm"])
+def test_shadow_follower_stays_metrics_only_with_shadow_labels(framework):
+    args = _make_args(
+        framework=framework,
+        topology=Topology(replicas=1, nodes_per_replica=2),
+        shadow_of=_SHADOW_OF,
+    )
+    follower = render_rank_scripts(args)["follower.sh"]
+    assert "--service.name" not in follower
+    for label in _SHADOW_LABELS:
+        assert label in follower
+
+
+def test_shadow_router_registers_as_llm_shadow_and_heads_stay_metrics_only():
+    args = _make_args(
+        topology=Topology(replicas=2, nodes_per_replica=1),
+        router="sglang",
+        shadow_of=_SHADOW_OF,
+    )
+    scripts = render_rank_scripts(args)
+    assert _SHADOW_SERVICE_LINE in scripts["router.sh"]
+    assert _LLM_SERVICE_LINE not in scripts["router.sh"]
+    assert "--service.name" not in scripts["head.sh"]
+    for label in _SHADOW_LABELS:
+        assert label in scripts["router.sh"]
+        assert label in scripts["head.sh"]
+
+
+def test_non_shadow_head_registers_as_llm_without_shadow_labels():
+    head = render_rank_scripts(_make_args())["head.sh"]
+    assert _LLM_SERVICE_LINE in head
+    assert "llm-shadow" not in head
+    assert "shadow" not in head
+
+
+def test_shadow_telemetry_reports_llm_shadow_service():
+    master = render_master(_make_args(telemetry_endpoint="https://telemetry.example.com/jobs", shadow_of=_SHADOW_OF))
+    assert '"ocf_service_name": "llm-shadow"' in master
+    plain = render_master(_make_args(telemetry_endpoint="https://telemetry.example.com/jobs"))
+    assert '"ocf_service_name": "llm"' in plain
