@@ -32,3 +32,23 @@ def test_disabled_metrics_allow_no_remote_write_url() -> None:
         metrics_remote_write_url="",
         disable_dcgm_exporter=True,
     )
+
+
+def test_shadow_of_defaults_to_none() -> None:
+    assert _make_args().shadow_of is None
+
+
+def test_shadow_of_accepts_three_segment_model_id() -> None:
+    args = _make_args(shadow_of="SwissAI-Research/swiss-ai/Apertus-8B-Instruct-2509")
+    assert args.shadow_of == "SwissAI-Research/swiss-ai/Apertus-8B-Instruct-2509"
+
+
+@pytest.mark.parametrize("shadow_of", ["", "vendor/model", "a/b/c/d", "a//c", "/b/c"])
+def test_shadow_of_rejects_malformed_model_id(shadow_of: str) -> None:
+    with pytest.raises(ValidationError, match="shadow_of must be a model id"):
+        _make_args(shadow_of=shadow_of)
+
+
+def test_shadow_of_rejects_disabled_opentela() -> None:
+    with pytest.raises(ValidationError, match="cannot be combined with disable_opentela"):
+        _make_args(shadow_of="alice/vendor/model", disable_opentela=True)

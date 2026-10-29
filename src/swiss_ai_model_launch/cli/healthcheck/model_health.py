@@ -6,3 +6,5 @@ class ModelHealth(Enum):
     ERROR = "ERROR"
     NOT_DEPLOYED = "NOT_DEPLOYED"
     NOT_RESPONDING = "NOT_RESPONDING"
+    # A shadow deployment: deliberately unreachable through the gateway.
+    SHADOW = "SHADOW"

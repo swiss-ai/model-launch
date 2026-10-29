@@ -7,7 +7,9 @@ from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
+    LLM_SERVICE_NAME,
     ROUTER_SGLANG,
+    SHADOW_SERVICE_NAME,
     LaunchArgs,
     time_str_to_seconds,
 )
@@ -96,6 +98,8 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
         f"served_model_name={launch_args.served_model_name}",
         f"framework_args={framework_args_normalised}",
     ]
+    if launch_args.shadow_of is not None:
+        user_input += ["shadow=true", f"shadow_of={launch_args.shadow_of}"]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     seconds = time_str_to_seconds(launch_args.time)
     return (
@@ -113,12 +117,19 @@ def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
     return launch_args.opentela_bootstrap_addr or OPENTELA_BOOTSTRAP_ADDR
 
 
+def _opentela_service_name(launch_args: LaunchArgs) -> str:
+    # A shadow deployment advertises its servable endpoint under a name the
+    # gateway never routes to: OpenTela only matches a request against peers of
+    # the requested service, and only `llm` gets `model=<id>` identity groups.
+    return SHADOW_SERVICE_NAME if launch_args.shadow_of is not None else LLM_SERVICE_NAME
+
+
 def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
         f"$OPENTELA_BIN start \\\n"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
-        f"    --service.name llm \\\n"
+        f"    --service.name {_opentela_service_name(launch_args)} \\\n"
         f"    --service.port {service_port} \\\n"
         f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
@@ -404,7 +415,7 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
         f'"router_args": "{launch_args.router_args}", '
         f'"ocf_enabled": {use_opentela}, '
         f'"ocf_bootstrap_addr": "{_resolve_opentela_bootstrap_addr(launch_args)}", '
-        '"ocf_service_name": "llm", '
+        f'"ocf_service_name": "{_opentela_service_name(launch_args)}", '
         f'"ocf_service_port": {opentela_service_port}, '
         f'"model_launch_version": "{sml_version}"'
         "}"
@@ -602,6 +613,11 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         f'        -remoteWrite.label="framework={fw}" \\\n'
         '        -remoteWrite.label="user=${SLURM_JOB_USER}" \\\n'
     )
+    # A shadow's series carry the same model/job labels as any launch, so tag
+    # them to keep them out of the baseline's dashboards (and findable later).
+    shadow_labels = [] if launch_args.shadow_of is None else ["shadow=true", f"shadow_of={launch_args.shadow_of}"]
+    common_labels += "".join(f'        -remoteWrite.label="{kv}" \\\n' for kv in shadow_labels)
+    worker_shadow_labels = "".join(f'                    -remoteWrite.label=\\"{kv}\\" \\\n' for kv in shadow_labels)
 
     batch_block = (
         "# vmagent runs on the batch node; pyxis containers share the host network\n"
@@ -665,6 +681,7 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         f'                    -remoteWrite.label=\\"model={served}\\" \\\n'
         f'                    -remoteWrite.label=\\"framework={fw}\\" \\\n'
         f'                    -remoteWrite.label=\\"user=\\${{SLURM_JOB_USER}}\\" \\\n'
+        f"{worker_shadow_labels}"
         f'                    -remoteWrite.label=\\"node=\\$(hostname)\\" \\\n'
         f"                    -remoteWrite.tmpDataPath=/tmp/vmagent-data-\\${{SLURM_JOB_ID}} \\\n"
         f"                    > /tmp/vmagent-\\${{SLURM_JOB_ID}}.log 2>&1 &\n"

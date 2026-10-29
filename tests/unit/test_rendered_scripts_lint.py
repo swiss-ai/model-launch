@@ -33,9 +33,11 @@ _MATRIX_CONFIGS = [
         use_router,
         disable_opentela,
         telemetry,
+        shadow,
         id=f"{fw}-r{replicas}-n{npr}-{'router' if use_router else 'norouter'}-"
         f"{'noopentela' if disable_opentela else 'opentela'}-"
-        f"{'tele' if telemetry else 'notele'}",
+        f"{'tele' if telemetry else 'notele'}"
+        f"{'-shadow' if shadow else ''}",
     )
     for fw in ("sglang", "vllm")
     for replicas in (1, 2)
@@ -43,10 +45,14 @@ _MATRIX_CONFIGS = [
     for use_router in (False, True)
     for disable_opentela in (False, True)
     for telemetry in (False, True)
+    for shadow in (False, True)
+    # A shadow deployment requires OpenTela (rejected by LaunchArgs validation).
+    if not (shadow and disable_opentela)
 ]
+_SHADOW_OF = "SwissAI-Research/swiss-ai/Apertus-8B-Instruct-2509"
 
 
-@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry", _MATRIX_CONFIGS)
+@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry,shadow", _MATRIX_CONFIGS)
 def test_rendered_scripts_pass_bash_n(
     tmp_path: Path,
     framework: str,
@@ -55,6 +61,7 @@ def test_rendered_scripts_pass_bash_n(
     use_router: bool,
     disable_opentela: bool,
     telemetry: bool,
+    shadow: bool,
 ):
     args = _make_args(
         framework=framework,
@@ -62,6 +69,7 @@ def test_rendered_scripts_pass_bash_n(
         router="sglang" if use_router else "opentela",
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
+        shadow_of=_SHADOW_OF if shadow else None,
     )
     master_path = tmp_path / "master.sh"
     master_path.write_text("#!/bin/bash\n" + render_master(args))
@@ -75,7 +83,7 @@ def test_rendered_scripts_pass_bash_n(
 
 
 @pytest.mark.skipif(not _HAS_SHELLCHECK, reason="shellcheck not installed")
-@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry", _MATRIX_CONFIGS)
+@pytest.mark.parametrize("framework,replicas,npr,use_router,disable_opentela,telemetry,shadow", _MATRIX_CONFIGS)
 def test_rendered_scripts_pass_shellcheck(
     tmp_path: Path,
     framework: str,
@@ -84,6 +92,7 @@ def test_rendered_scripts_pass_shellcheck(
     use_router: bool,
     disable_opentela: bool,
     telemetry: bool,
+    shadow: bool,
 ):
     args = _make_args(
         framework=framework,
@@ -91,6 +100,7 @@ def test_rendered_scripts_pass_shellcheck(
         router="sglang" if use_router else "opentela",
         disable_opentela=disable_opentela,
         telemetry_endpoint="https://telemetry.example.com/jobs" if telemetry else None,
+        shadow_of=_SHADOW_OF if shadow else None,
     )
     master_path = tmp_path / "master.sh"
     master_path.write_text("#!/bin/bash\n" + render_master(args))

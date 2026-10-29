@@ -284,6 +284,18 @@ def _add_advanced_launch_arguments(
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
+        "--shadow-of",
+        dest="shadow_of",
+        default=None,
+        metavar="MODEL_ID",
+        help=(
+            "Launch as a shadow deployment of the public model id MODEL_ID "
+            "(<owner>/<hf_org>/<hf_model>). It registers on OpenTela as `llm-shadow`, "
+            "so it receives no traffic, and its peers and metrics are labelled "
+            "shadow=true and shadow_of=MODEL_ID. Not supported with --consecutive chains."
+        ),
+    )
+    advanced_parser.add_argument(
         "--router",
         dest="router",
         choices=[ROUTER_OPENTELA, ROUTER_SGLANG],
@@ -691,6 +703,7 @@ async def _run_monitor(
     *,
     expected_replicas: int,
     router: RouterMode = ROUTER_OPENTELA,
+    shadow: bool = False,
 ) -> None:
     sources = _log_sources(expected_replicas, router)
     source_files = {label: (out_file, err_file) for label, out_file, err_file in sources}
@@ -762,8 +775,14 @@ async def _run_monitor(
         state.update(
             job_id=scheduled[0].job_id,
             served_model_name=served,
-            model_health=ModelHealth.NOT_DEPLOYED,
+            model_health=ModelHealth.SHADOW if shadow else ModelHealth.NOT_DEPLOYED,
         )
+        if shadow:
+            # The gateway never routes to a shadow, so the end-to-end probe would
+            # either 404 or, when the baseline shares the served name, probe the
+            # baseline instead. Per-replica /health still covers the shadow.
+            await _monitor_jobs(scheduled, served)
+            return
         await asyncio.gather(_monitor_model_health(served), _monitor_jobs(scheduled, served))
 
     kill_job = await LiveDisplay(state).run(_monitor())
@@ -875,6 +894,7 @@ def build_launch_args_from_advanced(
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
+        shadow_of=getattr(args, "shadow_of", None),
     )
 
 
@@ -916,6 +936,9 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
     if is_chain:
+        if launch_args.shadow_of is not None:
+            print("--shadow-of does not support --consecutive chains yet.", file=sys.stderr)
+            return
         if time_str_to_seconds(args.handover_time) >= max_job_seconds:
             print(
                 f"--handover-time ({args.handover_time}) must be shorter than --max-job-time ({args.max_job_time}).",
@@ -924,6 +947,12 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             return
         # Each job in the chain runs for the per-job cap, not the full --time.
         launch_args = launch_args.model_copy(update={"time": args.max_job_time})
+    if launch_args.shadow_of is not None:
+        print(
+            f"Shadow deployment of {launch_args.shadow_of}: registered on OpenTela as `llm-shadow`; "
+            "it receives no traffic.",
+            file=sys.stderr,
+        )
 
     if args.output_script:
         # Write master.sh + per-shape rank scripts to a user-supplied dir.
@@ -968,6 +997,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             swissai_research_api_key,
             expected_replicas=launch_args.topology.replicas,
             router=launch_args.router,
+            shadow=launch_args.shadow_of is not None,
         )
     else:
         scheduled = await submit_coro

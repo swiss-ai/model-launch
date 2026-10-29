@@ -213,3 +213,14 @@ async def test_chain_last_job_trim_never_exceeds_cap():
     assert last == "02:00:00"  # 13h total - 11h last-offset
     assert all(a.time == "12:00:00" for a in launcher.submitted[:-1])
     assert scheduled  # sanity
+
+
+async def test_chain_rejects_shadow_deployments():
+    launcher = _FakeLauncher()
+    with pytest.raises(ValueError, match="do not support consecutive chains"):
+        await launcher.launch_consecutive_with_args(
+            _make_args(time="12:00:00", shadow_of="alice/vendor/model"),
+            total_time="20:00:00",
+            handover_time="01:00:00",
+        )
+    assert launcher.submitted == []
