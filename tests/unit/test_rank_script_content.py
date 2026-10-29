@@ -345,3 +345,19 @@ def test_shadow_telemetry_reports_llm_shadow_service():
     assert '"ocf_service_name": "llm-shadow"' in master
     plain = render_master(_make_args(telemetry_endpoint="https://telemetry.example.com/jobs"))
     assert '"ocf_service_name": "llm"' in plain
+
+
+def test_shadow_vmagent_labels_on_batch_and_worker_nodes():
+    # 2 nodes with DCGM on: the batch node's vmagent plus one per-worker vmagent.
+    args = _make_args(topology=Topology(replicas=1, nodes_per_replica=2), shadow_of=_SHADOW_OF)
+    master = render_master(args)
+    assert '        -remoteWrite.label="shadow=true" \\\n' in master
+    assert f'        -remoteWrite.label="shadow_of={_SHADOW_OF}" \\\n' in master
+    assert '-remoteWrite.label=\\"shadow=true\\" \\\n' in master
+    assert f'-remoteWrite.label=\\"shadow_of={_SHADOW_OF}\\" \\\n' in master
+
+
+def test_non_shadow_vmagent_has_no_shadow_labels():
+    master = render_master(_make_args(topology=Topology(replicas=1, nodes_per_replica=2)))
+    assert "-remoteWrite.label" in master
+    assert "shadow" not in master

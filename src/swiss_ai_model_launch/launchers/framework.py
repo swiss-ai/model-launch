@@ -611,6 +611,11 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         f'        -remoteWrite.label="framework={fw}" \\\n'
         '        -remoteWrite.label="user=${SLURM_JOB_USER}" \\\n'
     )
+    # A shadow's series carry the same model/job labels as any launch, so tag
+    # them to keep them out of the baseline's dashboards (and findable later).
+    shadow_labels = [] if launch_args.shadow_of is None else ["shadow=true", f"shadow_of={launch_args.shadow_of}"]
+    common_labels += "".join(f'        -remoteWrite.label="{kv}" \\\n' for kv in shadow_labels)
+    worker_shadow_labels = "".join(f'                    -remoteWrite.label=\\"{kv}\\" \\\n' for kv in shadow_labels)
 
     batch_block = (
         "# vmagent runs on the batch node; pyxis containers share the host network\n"
@@ -674,6 +679,7 @@ def _render_vmagent(launch_args: LaunchArgs) -> str:
         f'                    -remoteWrite.label=\\"model={served}\\" \\\n'
         f'                    -remoteWrite.label=\\"framework={fw}\\" \\\n'
         f'                    -remoteWrite.label=\\"user=\\${{SLURM_JOB_USER}}\\" \\\n'
+        f"{worker_shadow_labels}"
         f'                    -remoteWrite.label=\\"node=\\$(hostname)\\" \\\n'
         f"                    -remoteWrite.tmpDataPath=/tmp/vmagent-data-\\${{SLURM_JOB_ID}} \\\n"
         f"                    > /tmp/vmagent-\\${{SLURM_JOB_ID}}.log 2>&1 &\n"
