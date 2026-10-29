@@ -29,6 +29,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
 | `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
 | `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
+| `--shadow-of MODEL_ID`      |                      | Launch as a traffic-free shadow of the public model id `MODEL_ID` — see [Shadow deployments](#shadow-deployments-shadow-of)    |
 | `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
 | `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
 | `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                   |
@@ -226,6 +227,33 @@ sml advanced \
 ```
 
 The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry payload, so launches against different environments are distinguishable downstream.
+
+## Shadow deployments (`--shadow-of`)
+
+A shadow deployment is a second serving instance of a model that receives **no traffic**. It is the building block for
+shadow serving ([serving-api#149](https://github.com/swiss-ai/serving-api/issues/149)): later, part of the real traffic
+of a public ("base") model id will be mirrored to the shadow, and only the telemetry of baseline and shadow compared, to
+evaluate serving optimizations on real workloads.
+
+```bash
+sml advanced \
+  ... \
+  --shadow-of SwissAI-Research/swiss-ai/Apertus-8B-Instruct-2509
+```
+
+- **No traffic.** The job's servable endpoint (each replica head, or the router with `--router sglang`) registers on
+  OpenTela as service `llm-shadow` instead of `llm`. OpenTela only routes a model request to peers of the requested
+  service whose model id matches, and only `llm` advertises model ids, so the gateway never reaches a shadow — even
+  when it serves the same model. It is not listed on the gateway either.
+- **Same or different config.** The shadow is an ordinary launch, so any framework, args or topology works. For a
+  same-config shadow, reuse the baseline's arguments; the shadow keeps its own `<your-username>/...` served name.
+- **Identifiable.** Every OpenTela peer of the job is labelled `shadow=true` and `shadow_of=<MODEL_ID>`, and its
+  pushed metrics carry the same two labels, so shadow series stay out of the baseline's dashboards.
+- **Monitoring.** The live view shows `SHADOW (not routed)` instead of probing the gateway; per-replica health still
+  checks the shadow's own `/health`.
+- **Requirements and limits.** `MODEL_ID` must be `<owner>/<hf_org>/<hf_model>`. Needs OpenTela `sai-v0.0.7` or newer
+  (older versions don't register non-`llm` services). Not supported with `--disable-opentela` or `--consecutive`
+  chains.
 
 ## Notes on flag style
 
