@@ -284,6 +284,18 @@ def _add_advanced_launch_arguments(
         help="Name under which the model will be served. Auto-generated if omitted.",
     )
     advanced_parser.add_argument(
+        "--shadow-of",
+        dest="shadow_of",
+        default=None,
+        metavar="MODEL_ID",
+        help=(
+            "Launch as a shadow deployment of the public model id MODEL_ID "
+            "(<owner>/<hf_org>/<hf_model>). It registers on OpenTela as `llm-shadow`, "
+            "so it receives no traffic, and its peers and metrics are labelled "
+            "shadow=true and shadow_of=MODEL_ID. Not supported with --consecutive chains."
+        ),
+    )
+    advanced_parser.add_argument(
         "--router",
         dest="router",
         choices=[ROUTER_OPENTELA, ROUTER_SGLANG],
@@ -875,6 +887,7 @@ def build_launch_args_from_advanced(
         disable_dcgm_exporter=args.disable_dcgm_exporter,
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
+        shadow_of=getattr(args, "shadow_of", None),
     )
 
 
@@ -916,6 +929,9 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
     if is_chain:
+        if launch_args.shadow_of is not None:
+            print("--shadow-of does not support --consecutive chains yet.", file=sys.stderr)
+            return
         if time_str_to_seconds(args.handover_time) >= max_job_seconds:
             print(
                 f"--handover-time ({args.handover_time}) must be shorter than --max-job-time ({args.max_job_time}).",
@@ -924,6 +940,12 @@ async def _run_advanced(args: argparse.Namespace) -> None:
             return
         # Each job in the chain runs for the per-job cap, not the full --time.
         launch_args = launch_args.model_copy(update={"time": args.max_job_time})
+    if launch_args.shadow_of is not None:
+        print(
+            f"Shadow deployment of {launch_args.shadow_of}: registered on OpenTela as `llm-shadow`; "
+            "it receives no traffic.",
+            file=sys.stderr,
+        )
 
     if args.output_script:
         # Write master.sh + per-shape rank scripts to a user-supplied dir.
