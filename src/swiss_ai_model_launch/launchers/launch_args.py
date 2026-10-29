@@ -20,6 +20,11 @@ ROUTER_SGLANG: RouterMode = "sglang"
 # it as a knob just creates ways for the three to drift.
 FRAMEWORK_PORT = 8080
 
+# OpenTela service names. Only `llm` gets model identity groups derived from the
+# framework's /v1/models, so it is the only one that model requests are routed to.
+LLM_SERVICE_NAME = "llm"
+SHADOW_SERVICE_NAME = "llm-shadow"
+
 TELEMETRY_ENDPOINT = "https://sml-dev.swissai.svc.cscs.ch/launches"
 
 # SLURM caps a single job at 12h on the target clusters. A model that needs to
@@ -102,11 +107,23 @@ class LaunchArgs(BaseModel):
     dcgm_exporter_binary: str = "/capstor/store/cscs/swissai/infra01/opentela-share/dcgm-exporter"
     disable_dcgm_exporter: bool = False
     disable_metrics: bool = False
+    # Public model id (<owner>/<hf_org>/<hf_model>) this launch shadows. A shadow
+    # deployment registers on the mesh under SHADOW_SERVICE_NAME instead of `llm`,
+    # so neither OpenTela nor the gateway routes any traffic to it.
+    shadow_of: str | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "LaunchArgs":
         if not self.disable_metrics and not self.metrics_remote_write_url:
             raise ValueError("Metrics require a remote write URL when metrics are enabled.")
+        if self.shadow_of is not None:
+            segments = self.shadow_of.split("/")
+            if len(segments) != 3 or not all(segments):
+                raise ValueError(f"shadow_of must be a model id <owner>/<hf_org>/<hf_model>, got {self.shadow_of!r}.")
+            if self.disable_opentela:
+                raise ValueError(
+                    "A shadow deployment registers on OpenTela; it cannot be combined with disable_opentela."
+                )
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

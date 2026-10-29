@@ -160,6 +160,8 @@ class Launcher(ABC):
         Returns a ``ScheduledJob`` for every job, in chain order; the served model
         name is shared so the endpoint stays continuous across the handover.
         """
+        if launch_args.shadow_of is not None:
+            raise ValueError("Shadow deployments do not support consecutive chains yet.")
         total_seconds = time_str_to_seconds(total_time)
         job_seconds = time_str_to_seconds(launch_args.time)
         offsets = plan_consecutive_offsets(total_seconds, job_seconds, time_str_to_seconds(handover_time))
