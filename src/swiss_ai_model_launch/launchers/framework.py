@@ -113,6 +113,13 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
         # shlex-quoted like the other user-supplied labels because an email
         # list is one comma-separated argument.
         f"authorization={launch_args.authorization}",
+        # Who may CHANGE the policy above once the model is running. The
+        # gateway keys post-launch access changes off these two: the email
+        # says whose model it is (launched_by, next to it, is a shell account
+        # and matches no platform identity), and the id scopes any change to
+        # this launch so it cannot outlive the job.
+        f"launched_by_email={launch_args.launched_by_email}",
+        f"launch_id={launch_args.launch_id}",
         f"framework_args={framework_args_normalised}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)

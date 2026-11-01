@@ -17,6 +17,7 @@ from swiss_ai_model_launch.cli.authorization import (
     is_valid_authorization,
     requested_from_args,
     resolve_authorization,
+    resolve_launcher_email,
     warn_or_refuse_conflict,
 )
 from swiss_ai_model_launch.cli.configuration import InitConfig, optional_value
@@ -788,7 +789,12 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
     swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_request = await _get_launch_request(launcher, args)
     authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
-    launch_request = launch_request.model_copy(update={"authorization": authorization})
+    launch_request = launch_request.model_copy(
+        update={
+            "authorization": authorization,
+            "launched_by_email": await resolve_launcher_email(swissai_research_api_key),
+        }
+    )
     await warn_or_refuse_conflict(
         swissai_research_api_key,
         cast(str, launch_request.served_model_name),
@@ -820,6 +826,7 @@ def build_launch_args_from_advanced(
     partition: str,
     telemetry_endpoint: str | None = None,
     authorization: str = PUBLIC,
+    launched_by_email: str = "",
 ) -> LaunchArgs:
     """Build a LaunchArgs from a parsed `sml advanced` namespace.
 
@@ -885,6 +892,7 @@ def build_launch_args_from_advanced(
         disable_metrics=args.disable_metrics,
         telemetry_endpoint=telemetry_endpoint,
         authorization=authorization,
+        launched_by_email=launched_by_email,
     )
 
 
@@ -905,6 +913,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
         partition=launcher.partition,
         telemetry_endpoint=TELEMETRY_ENDPOINT,
         authorization=authorization,
+        launched_by_email=await resolve_launcher_email(swissai_research_api_key),
     )
     if not args.output_script:
         # --output-script only renders scripts; nothing joins the mesh, so

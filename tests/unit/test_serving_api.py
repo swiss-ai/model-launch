@@ -24,6 +24,16 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def _clear_whoami_cache():
+    """whoami memoizes per API key for the life of the process, which is right
+    for a CLI run and wrong for a test session: without this, the first test to
+    resolve a key would decide the answer for every later one."""
+    serving_api._reset_whoami_cache_for_tests()
+    yield
+    serving_api._reset_whoami_cache_for_tests()
+
+
 class _FakeClient:
     """Stands in for httpx.AsyncClient: records the request and replays a
     caller-supplied response (or raises the given exception)."""

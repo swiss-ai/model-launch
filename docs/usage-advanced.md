@@ -74,8 +74,15 @@ sml advanced ... --authorization user1@epfl.ch,user2@ethz.ch   # only these user
 The policy is attached to the job as an OpenTela peer label, and the Serving API
 enforces it in two places: `/v1/models` hides models you may not use, and every
 inference route answers `403` if you are not on the list. It lives and dies with the
-job — there is nothing to clean up when the model goes away, and changing the policy
-means relaunching.
+job — there is nothing to clean up when the model goes away.
+
+**You can change it later without relaunching.** The label itself is fixed for the
+life of the job, so the flag above sets the policy the model *starts* with; to change
+who may use a model that is already running, open its card at
+<https://serving.swissai.svc.cscs.ch> and use **Manage access**. **Reset** puts it back
+to the policy it launched with. Only the person who launched the model (or an admin)
+sees that menu, and the change applies until it is reset or the job ends — a relaunch
+starts again at whatever `--authorization` says.
 
 A few things worth knowing:
 
@@ -88,6 +95,11 @@ A few things worth knowing:
   working key, a `private` launch stops rather than falling back to public.
 - **Emails are the ones the Serving API knows you by** — the address you log in with,
   which is the owner of your API key. Case and spacing don't matter.
+- **Every launch is stamped with who you are and which launch it is.** SML resolves
+  your email once via `/v1/whoami` and attaches it (`launched_by_email`) alongside a
+  per-launch id (`launch_id`); together they are what lets the web UI know the model is
+  yours to manage. Unlike `private`, this lookup is best-effort — if the Serving API
+  can't be reached the launch still goes ahead, and the model is admin-managed.
 - **One name, one policy.** OpenTela load-balances a served name across every peer
   advertising it, so if two launches share a name with *different* policies, the
   gateway refuses to route that name for everyone until the conflict is gone. Served

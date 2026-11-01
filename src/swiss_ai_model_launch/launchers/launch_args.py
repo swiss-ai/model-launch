@@ -1,5 +1,6 @@
 import math
 import re
+import uuid
 import warnings
 from typing import Literal
 
@@ -98,6 +99,18 @@ class LaunchArgs(BaseModel):
     # comma-separated email list. "private" is resolved to the launcher's own
     # email by the CLI before we get here — see the validator below.
     authorization: str = PUBLIC
+    # The launcher's platform identity, resolved from /v1/whoami by the CLI.
+    # Distinct from the `launched_by` label, which is the cluster shell
+    # account ($USER) and cannot be matched against a Serving API key's owner.
+    # This is what lets the gateway decide who may change the model's access
+    # after launch; empty means nobody but an admin can.
+    launched_by_email: str = ""
+    # Identifies THIS launch, for the life of the job. A post-launch access
+    # change is recorded against it rather than against the served model
+    # name, so that an access rule can never outlive its job and re-apply to
+    # a different launch that later takes the same name. Generated per
+    # LaunchArgs, so every path that builds one gets a fresh id for free.
+    launch_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
 
     framework: str
     framework_args: str = ""

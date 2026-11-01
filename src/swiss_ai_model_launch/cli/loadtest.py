@@ -12,6 +12,7 @@ import questionary
 from swiss_ai_model_launch.cli.authorization import (
     requested_from_args,
     resolve_authorization,
+    resolve_launcher_email,
     warn_or_refuse_conflict,
 )
 from swiss_ai_model_launch.cli.configuration import InitConfig
@@ -71,6 +72,7 @@ class _BuildLaunchArgsFromAdvanced(Protocol):
         partition: str,
         telemetry_endpoint: str | None = None,
         authorization: str = PUBLIC,
+        launched_by_email: str = "",
     ) -> LaunchArgs: ...
 
 
@@ -488,7 +490,12 @@ async def _run_loadtest_preconfigured(
     swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
     launch_request = await get_launch_request(launcher, args)
     authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
-    launch_request = launch_request.model_copy(update={"authorization": authorization})
+    launch_request = launch_request.model_copy(
+        update={
+            "authorization": authorization,
+            "launched_by_email": await resolve_launcher_email(swissai_research_api_key),
+        }
+    )
     await warn_or_refuse_conflict(
         swissai_research_api_key,
         str(launch_request.served_model_name),
@@ -529,6 +536,7 @@ async def _run_loadtest_advanced(
         partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
         authorization=authorization,
+        launched_by_email=await resolve_launcher_email(swissai_research_api_key),
     )
     await warn_or_refuse_conflict(swissai_research_api_key, launch_args.served_model_name, authorization)
     loadtest_config = make_loadtest_config(args)

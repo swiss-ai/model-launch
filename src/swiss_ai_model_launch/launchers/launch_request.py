@@ -29,6 +29,10 @@ class LaunchRequest(BaseModel):
     # list. Never "private" — the CLI resolves that to the launcher's email
     # before a request is built.
     authorization: str = PUBLIC
+    # The launcher's platform identity (from /v1/whoami), stamped on the mesh
+    # so the gateway knows whose model this is when someone asks to change its
+    # access later. Empty is allowed and means admin-managed.
+    launched_by_email: str = ""
 
     @classmethod
     def from_catalog_entry(
@@ -40,6 +44,7 @@ class LaunchRequest(BaseModel):
         served_model_name: str | None = None,
         router: RouterMode = ROUTER_OPENTELA,
         authorization: str = PUBLIC,
+        launched_by_email: str = "",
     ) -> Self:
         return cls(
             model=entry.model,
@@ -54,4 +59,5 @@ class LaunchRequest(BaseModel):
             router=router,
             model_path=entry.model_path,
             authorization=authorization,
+            launched_by_email=launched_by_email,
         )

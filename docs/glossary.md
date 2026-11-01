@@ -60,13 +60,17 @@ A SLURM concept — a slot of nodes pre-allocated to a user/group, bypassing the
 
 Facts about a launch that SML attaches to its [OpenTela](#opentela) peer, which the gateway reads back — visible per model in `/v1/models_detailed`. Set at peer start and fixed for the job's life:
 
-`launched_by`, `slurm_job_id`, `slurm_partition`, `worker_group_id`, `framework`, `framework_args`, `served_model_name`, `started_at`, `expires_at`, [`authorization`](#model-authorization), and `sml_version` — the version of SML that rendered the launch script, resolved on the submitting machine (SML isn't installed on the compute node). It answers "which SML launched this?" when a running model behaves unexpectedly, e.g. whether it predates a fix.
+`launched_by`, `slurm_job_id`, `slurm_partition`, `worker_group_id`, `framework`, `framework_args`, `served_model_name`, `started_at`, `expires_at`, [`authorization`](#model-authorization), `launched_by_email`, `launch_id`, and `sml_version` — the version of SML that rendered the launch script, resolved on the submitting machine (SML isn't installed on the compute node). It answers "which SML launched this?" when a running model behaves unexpectedly, e.g. whether it predates a fix.
+
+Two of those identify the launch rather than describe it. `launched_by_email` is your platform identity, resolved once via the Serving API's `/v1/whoami` — distinct from `launched_by`, which is `$USER`, a cluster shell account that matches no Serving API identity. `launch_id` is a UUID unique to this launch. Together they are what lets the Serving API decide who may [change a running model's access](#model-authorization), and scope that change to one job. Both are best-effort: a launch whose identity couldn't be resolved still goes ahead, and its access is then admin-managed.
 
 ## Model authorization
 
 Who may list and use a served model. Set at launch via `--authorization`: `public` (the default — anyone), `private` (only you), or a comma-separated email list (exactly those users — it does not implicitly include you). It travels to the mesh as an OpenTela peer label and is enforced by the Serving API, which hides unauthorized models from `/v1/models` and answers `403` on inference routes.
 
-`private` never reaches the mesh: the gateway has no idea who launched a job, so SML resolves it to your own email via the Serving API's `/v1/whoami` before submitting. Because OpenTela load-balances a [served-model name](#served-model-name) across every peer advertising it, two launches sharing a name with *different* policies make that name unroutable for everyone — SML refuses such a launch up front. See [Model authorization](usage-advanced.md#model-authorization).
+`private` never reaches the mesh: the gateway has no idea who launched a job, so SML resolves it to your own email via the Serving API's `/v1/whoami` before submitting. Because OpenTela load-balances a [served-model name](#served-model-name) across every peer advertising it, two launches sharing a name with *different* policies make that name unroutable for everyone — SML refuses such a launch up front.
+
+A peer label cannot be edited once the job is running, so `--authorization` sets the policy the model *starts* with. To change who may use a model that is already up, use **Manage access** on its card in the Serving API web UI; **Reset** returns it to the launch-time policy. The label itself is never rewritten, and a relaunch starts again at whatever `--authorization` says. See [Model authorization](usage-advanced.md#model-authorization).
 
 ## Router
 

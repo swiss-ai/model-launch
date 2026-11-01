@@ -66,6 +66,33 @@ async def resolve_authorization(requested: str | None, api_key: str) -> str:
     return normalize_authorization(email)
 
 
+async def resolve_launcher_email(api_key: str) -> str:
+    """The launcher's email, for the ``launched_by_email`` label — or "" if we
+    could not find out.
+
+    That label is what lets the Serving API decide, later, who is allowed to
+    change this model's access from the web UI: the ``launched_by`` label
+    next to it is a cluster shell account (``$USER``), which no platform
+    identity can be compared against.
+
+    Best effort ON PURPOSE, unlike the ``private`` resolution in
+    ``resolve_authorization``. There the email IS the access policy, so not
+    knowing it has to fail the launch. Here it only decides who can edit the
+    policy afterwards, and refusing to launch a public model because the
+    Serving API was briefly unreachable would be a much worse trade. The cost
+    of an empty label is that the model becomes admin-managed.
+    """
+    try:
+        return await whoami(api_key)
+    except ServingApiError as exc:
+        print(
+            f"warning: could not resolve your identity for the launch owner label: {exc}\n"
+            "         The model will launch, but its access will only be changeable by an admin.",
+            file=sys.stderr,
+        )
+        return ""
+
+
 async def warn_or_refuse_conflict(api_key: str, served_model_name: str, authorization: str) -> None:
     """Refuse a launch that would make ``served_model_name`` unroutable.
 

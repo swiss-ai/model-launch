@@ -269,7 +269,8 @@ async def launch_preconfigured_model(
         "'private': only the launching user — resolved to their email via the Serving API's "
         "/v1/whoami, which needs SWISSAI_RESEARCH_API_KEY to be configured. Or a "
         "comma-separated email list, e.g. 'user1@epfl.ch,user2@ethz.ch' (literal: it does "
-        "not implicitly include the launcher).",
+        "not implicitly include the launcher). This is the policy the model STARTS with; "
+        "the launcher can change it later from the Serving API web UI without relaunching.",
     ] = PUBLIC,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
@@ -321,6 +322,16 @@ async def launch_preconfigured_model(
     except (ValueError, ServingApiError) as e:
         return f"Could not apply authorization={authorization!r}: {e}"
 
+    # Best effort, unlike the resolution above: this label only decides who
+    # may change the model's access later, so an unreachable Serving API
+    # costs the launch its owner (admin-managed from then on), not the launch.
+    launched_by_email = ""
+    if swissai_research_api_key:
+        try:
+            launched_by_email = await whoami(swissai_research_api_key)
+        except ServingApiError:
+            pass
+
     request = LaunchRequest.from_catalog_entry(
         entry,
         replicas=replicas,
@@ -328,6 +339,7 @@ async def launch_preconfigured_model(
         served_model_name=derive_served_model_name(model, framework, launcher.username),
         router=router,
         authorization=resolved_authorization,
+        launched_by_email=launched_by_email,
     )
     job_id, served = await launcher.launch_model(request)
     await ctx.info(f"Job submitted — job_id={job_id}, served_model_name={served}")

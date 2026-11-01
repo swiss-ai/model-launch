@@ -447,3 +447,82 @@ def test_sml_version_falls_back_when_the_package_is_not_installed(monkeypatch):
     monkeypatch.setattr(framework_module.importlib.metadata, "version", missing)
     assert framework_module._sml_version() == "unknown"
     assert "--label sml_version=unknown" in framework_module._opentela_labels(_launch_args())
+
+
+# ── launch identity: who owns the model, and which launch is it ─────────────
+
+
+def test_every_launch_gets_a_unique_id():
+    """The id is what a post-launch access change is recorded against, so two
+    launches — even of the same name — must never share one."""
+    assert _launch_args().launch_id != _launch_args().launch_id
+    assert len(_launch_args().launch_id) == 32
+
+
+def test_launch_id_is_stable_for_one_launch_args():
+    """It identifies the launch, not the render: asking twice must not
+    produce a script whose labels disagree with themselves."""
+    args = _launch_args()
+    assert args.launch_id == args.launch_id
+    assert f"--label launch_id={args.launch_id}" in _opentela_labels(args)
+
+
+def test_labels_carry_the_launch_owner_email():
+    """`launched_by` next to it is $USER — a cluster shell account, which no
+    Serving API identity can be compared against. This is the label that says
+    whose model it is."""
+    labels = _opentela_labels(_launch_args(launched_by_email="a@epfl.ch"))
+    assert "--label launched_by_email=a@epfl.ch" in labels
+    assert "--label launched_by=$USER" in labels
+
+
+def test_owner_email_defaults_to_empty_not_to_a_guess():
+    """An unresolvable identity must leave the label empty — which the
+    gateway reads as admin-managed — rather than inventing an owner who could
+    then change the model's access."""
+    assert _launch_args().launched_by_email == ""
+    assert "--label launched_by_email=" in _opentela_labels(_launch_args())
+
+
+def test_resolve_launcher_email_is_best_effort(monkeypatch, capsys):
+    """Unlike `private` resolution, a failure here must not fail the launch:
+    it only decides who may edit the policy later, and refusing to launch a
+    public model over a blip would be the worse trade."""
+    from swiss_ai_model_launch.cli.authorization import resolve_launcher_email
+
+    async def _boom(_key):
+        raise ServingApiError("Serving API unreachable")
+
+    monkeypatch.setattr("swiss_ai_model_launch.cli.authorization.whoami", _boom)
+    assert asyncio.run(resolve_launcher_email("sk-rc-x")) == ""
+    assert "admin" in capsys.readouterr().err
+
+
+def test_resolve_launcher_email_returns_the_identity(monkeypatch):
+    from swiss_ai_model_launch.cli.authorization import resolve_launcher_email
+
+    async def _ok(_key):
+        return "a@epfl.ch"
+
+    monkeypatch.setattr("swiss_ai_model_launch.cli.authorization.whoami", _ok)
+    assert asyncio.run(resolve_launcher_email("sk-rc-x")) == "a@epfl.ch"
+
+
+def test_a_consecutive_chain_shares_one_launch_id():
+    """A chain of jobs keeping one model up is one logical launch, and every
+    link is built by `model_copy` off the same LaunchArgs. Sharing the id is
+    what makes a post-launch access change survive a handover instead of
+    silently reverting to the label when the next job takes over."""
+    prepared = _launch_args()
+    successor = prepared.model_copy(update={"time": "01:00:00", "dependency": "after:1+5", "previous_job_id": 1})
+    assert successor.launch_id == prepared.launch_id
+    assert successor.launched_by_email == prepared.launched_by_email
+
+
+def test_replicas_of_one_launch_share_its_id():
+    """One LaunchArgs renders one script for every replica, so the peers of a
+    launch agree on the id — which is what keeps them agreeing on the
+    effective policy once an override exists."""
+    args = _launch_args(replicas=2)
+    labels = _opentela_labels(args)
+    assert labels.count(f"launch_id={args.launch_id}") == 1

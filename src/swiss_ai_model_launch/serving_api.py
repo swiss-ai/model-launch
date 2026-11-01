@@ -21,13 +21,30 @@ class ServingApiError(RuntimeError):
     """The Serving API could not answer — network failure, or a non-2xx."""
 
 
+# One launch asks who you are for two reasons — resolving `--authorization
+# private`, and stamping the launched_by_email label the gateway uses to
+# decide who may change the model's access later. The answer is the same and
+# does not change mid-run, so cache it rather than pay a second round-trip.
+_whoami_cache: dict[str, str] = {}
+
+
+def _reset_whoami_cache_for_tests() -> None:
+    """Test helper — the cache is process-global and a CLI process only ever
+    launches with one key, so nothing clears it in normal use."""
+    _whoami_cache.clear()
+
+
 async def whoami(api_key: str) -> str:
     """The email the gateway associates with ``api_key``.
 
     Raises ServingApiError on an invalid key (401) or an unreachable API, so
     the caller can fail the launch loudly: silently falling back to public
     would be the opposite of what `--authorization private` asked for.
+
+    Only successful answers are cached; a failure stays retryable.
     """
+    if api_key in _whoami_cache:
+        return _whoami_cache[api_key]
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -49,6 +66,7 @@ async def whoami(api_key: str) -> str:
     email = (response.json() or {}).get("email")
     if not email:
         raise ServingApiError("GET /v1/whoami returned no email address.")
+    _whoami_cache[api_key] = str(email)
     return str(email)
 
 
