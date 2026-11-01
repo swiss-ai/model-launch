@@ -90,29 +90,34 @@ def test_predicates_and_description():
 # ── LaunchArgs guardrail + label emission ───────────────────────────────────
 
 
+_BASE_ARGS = dict(
+    job_name="job",
+    served_model_name="alice/swiss-ai/Apertus-70B",
+    account="proj01",
+    partition="normal",
+    environment="/env.toml",
+    framework="sglang",
+    time="02:00:00",
+)
+
+
 def _launch_args(**overrides) -> LaunchArgs:
-    base = dict(
-        job_name="job",
-        served_model_name="alice/swiss-ai/Apertus-70B",
-        account="proj01",
-        partition="normal",
-        environment="/env.toml",
-        framework="sglang",
-        time="02:00:00",
-    )
-    base.update(overrides)
-    return LaunchArgs(**base)
+    """Resolved, as anything that gets rendered is: the default "private"
+    becomes the launcher's email first. The default and its resolution have
+    tests of their own."""
+    return LaunchArgs(**{**_BASE_ARGS, "authorization": "alice@epfl.ch", **overrides})
 
 
-def test_launch_args_default_is_public():
-    assert _launch_args().authorization == "public"
+def test_launch_args_default_is_private():
+    assert LaunchArgs(**_BASE_ARGS).authorization == "private"
 
 
-def test_launch_args_refuses_an_unresolved_private():
-    """The mesh grammar has no 'private'; emitting it literally would publish
-    the model to everyone. Any path that forgets to resolve must fail loudly."""
+def test_an_unresolved_private_is_never_rendered():
+    """The mesh grammar has no 'private': the gateway would read the literal
+    as an allowlist naming nobody, locking everyone out of the model, its
+    launcher included. Any path that forgets to resolve must fail loudly."""
     with pytest.raises(ValueError, match="must be resolved"):
-        _launch_args(authorization="private")
+        _opentela_labels(LaunchArgs(**_BASE_ARGS))
 
 
 def test_launch_args_normalizes_the_label():
@@ -129,7 +134,7 @@ def test_labels_carry_the_authorization_policy():
 def test_public_launch_still_emits_the_label():
     """An explicit 'public' label and a missing one mean the same thing to the
     gateway, but emitting it keeps the policy visible in the DNT."""
-    assert "authorization=public" in _opentela_labels(_launch_args())
+    assert "authorization=public" in _opentela_labels(_launch_args(authorization="public"))
 
 
 # ── CLI plumbing ────────────────────────────────────────────────────────────
@@ -152,9 +157,16 @@ def _advanced_args(*extra: str):
     )
 
 
-def test_advanced_defaults_to_public():
+def test_advanced_defaults_to_private(monkeypatch):
+    """SML's default audience is the launcher alone, resolved to their email
+    before anything is built."""
+
+    async def _me(_key):
+        return "Alice@EPFL.ch"
+
+    monkeypatch.setattr(cli_authorization, "whoami", _me)
     args = _advanced_args()
-    assert args.authorization == "public"
+    assert args.authorization == "private"
     la = build_launch_args_from_advanced(
         args,
         username="alice",
@@ -162,7 +174,7 @@ def test_advanced_defaults_to_public():
         partition="normal",
         authorization=_run(resolve_authorization(requested_from_args(args), "sk-rc-key")),
     )
-    assert la.authorization == "public"
+    assert la.authorization == "alice@epfl.ch"
 
 
 def test_advanced_accepts_an_email_list():
@@ -438,10 +450,23 @@ def test_loadtest_advanced_applies_the_policy_too(monkeypatch, tmp_path):
     assert seen["authorization"] == "a@epfl.ch"
 
 
-def test_argparse_namespace_without_the_flag_defaults_to_public():
-    """Callers that build a Namespace by hand (tests, example scripts) must
-    not accidentally launch with no policy at all."""
-    assert _run(resolve_authorization(requested_from_args(argparse.Namespace()), "sk-rc-key")) == "public"
+def test_argparse_namespace_without_the_flag_defaults_to_private(monkeypatch):
+    """Callers that build a Namespace by hand get SML's default too — never
+    an accidental public launch."""
+
+    async def _me(_key):
+        return "a@epfl.ch"
+
+    monkeypatch.setattr(cli_authorization, "whoami", _me)
+    assert _run(resolve_authorization(requested_from_args(argparse.Namespace()), "sk-rc-key")) == "a@epfl.ch"
+
+
+def test_the_guided_prompt_defaults_to_private():
+    from swiss_ai_model_launch.cli.main import _make_launch_request_config
+
+    config = _make_launch_request_config()
+    prompt = next(c for c in config.chain if getattr(c, "name", None) == "authorization")
+    assert prompt.default == "private"
 
 
 # ── launch provenance ───────────────────────────────────────────────────────

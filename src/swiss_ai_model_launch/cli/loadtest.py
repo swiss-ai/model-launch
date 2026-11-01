@@ -19,7 +19,7 @@ from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import Launcher
-from swiss_ai_model_launch.launchers.authorization import PUBLIC
+from swiss_ai_model_launch.launchers.authorization import PRIVATE
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.loadtest.cluster import (
@@ -71,7 +71,7 @@ class _BuildLaunchArgsFromAdvanced(Protocol):
         account: str,
         partition: str,
         telemetry_endpoint: str | None = None,
-        authorization: str = PUBLIC,
+        authorization: str = PRIVATE,
         launched_by_email: str = "",
     ) -> LaunchArgs: ...
 

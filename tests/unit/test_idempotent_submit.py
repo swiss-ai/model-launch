@@ -65,6 +65,7 @@ def _request(job_name=None) -> LaunchRequest:
         replicas=1,
         time="01:00:00",
         job_name=job_name,
+        authorization="alice@epfl.ch",
     )
 
 

@@ -23,6 +23,9 @@ def _make_args(**overrides):
         environment="/path/to/env.toml",
         framework="sglang",
         time="12:00:00",
+        # Resolved already, as the CLI hands it over; the default "private"
+        # and its resolution are covered at the end of this file.
+        authorization="alice@epfl.ch",
     )
     return LaunchArgs(**{**defaults, **overrides})
 

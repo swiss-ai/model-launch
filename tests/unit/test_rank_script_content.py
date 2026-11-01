@@ -17,6 +17,9 @@ def _make_args(**overrides) -> LaunchArgs:
         environment="/path/to/env.toml",
         framework="sglang",
         framework_args="--model /path/to/model",
+        # The default "private" is resolved to the launcher's email before
+        # anything is rendered; these tests start from the resolved form.
+        authorization="alice@epfl.ch",
     )
     return LaunchArgs(**{**defaults, **overrides})
 

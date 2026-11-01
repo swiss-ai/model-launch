@@ -89,6 +89,7 @@ class FirecRESTLauncher(Launcher):
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
         working_dir: str | None = None,
+        serving_api_key: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -99,6 +100,7 @@ class FirecRESTLauncher(Launcher):
             qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
+            serving_api_key=serving_api_key,
         )
         self.client = client
         # SSH alias/host used to reach the cluster's login node so the TUI can open
@@ -123,6 +125,7 @@ class FirecRESTLauncher(Launcher):
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         working_dir: str | None = None,
+        serving_api_key: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
@@ -136,6 +139,7 @@ class FirecRESTLauncher(Launcher):
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
             working_dir=working_dir,
+            serving_api_key=serving_api_key,
         )
 
     def _get_user_dir(self) -> str:
@@ -254,7 +258,7 @@ class FirecRESTLauncher(Launcher):
         return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        prepared = await self._prepare_launch_args(launch_args)
+        prepared = await self._prepare_launch_args(await self.resolve_identity(launch_args))
         job_id = await self._submit_one(prepared)
         return job_id, prepared.served_model_name
 
@@ -311,6 +315,7 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
+        launch_args = await self.resolve_identity(launch_args)
         job_id = await self._submit_one(launch_args)
         return job_id, launch_args.served_model_name
 

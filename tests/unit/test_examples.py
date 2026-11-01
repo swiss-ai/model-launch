@@ -76,6 +76,8 @@ def test_example_renders_valid_bash(tmp_path: Path, example_path: str):
         username=_TEST_USERNAME,
         account="proj01-test",
         partition="normal",
+        # What `sml advanced` resolves the default "private" to before rendering.
+        authorization=f"{_TEST_USERNAME}@epfl.ch",
     )
 
     master_path = tmp_path / "master.sh"
@@ -104,6 +106,8 @@ def test_example_passes_shellcheck(tmp_path: Path, example_path: str):
         username=_TEST_USERNAME,
         account="proj01-test",
         partition="normal",
+        # What `sml advanced` resolves the default "private" to before rendering.
+        authorization=f"{_TEST_USERNAME}@epfl.ch",
     )
 
     master_path = tmp_path / "master.sh"

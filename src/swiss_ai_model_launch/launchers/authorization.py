@@ -3,15 +3,19 @@
 Every model SML puts on the mesh carries an OpenTela peer label
 ``authorization`` that tells the Serving API gateway who may list and use it:
 
-- ``public`` (the default) — anyone, including anonymous ``/v1/models`` callers.
+- ``public`` — anyone, including anonymous ``/v1/models`` callers. Also how the
+  gateway reads a missing label, so launches from before this feature stay
+  public.
 - a comma-separated email list — only those users.
 
-``private`` is a THIRD spelling that exists only in the CLI. The gateway has no
-idea who launched a job, so "only me" cannot be expressed as a label; SML
-resolves ``private`` to the launcher's own email (via the Serving API's
-``/v1/whoami``) before the job is submitted, and the literal string never
-reaches the mesh. :class:`~swiss_ai_model_launch.launchers.launch_args.LaunchArgs`
-rejects it as a guardrail against a code path that forgets to resolve it.
+``private`` — SML's default — is a THIRD spelling that exists only in SML. The
+gateway has no idea who launched a job, so "only me" cannot be expressed as a
+label; SML resolves ``private`` to the launcher's own email (via the Serving
+API's ``/v1/whoami``) before the job is submitted — the CLI before it builds the
+launch, a :class:`~swiss_ai_model_launch.launchers.launcher.Launcher` before it
+submits one built in Python — and the literal string never reaches the mesh.
+Rendering refuses it as a guardrail against a code path that forgets to resolve
+it: the gateway would read it as an allowlist naming nobody.
 
 Labels are self-asserted — anyone who can join the mesh can claim any label —
 so this is access control at the gateway, not authentication on the mesh. See

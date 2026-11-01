@@ -58,6 +58,7 @@ class SlurmLauncher(Launcher):
         model_registry: Path = MODEL_REGISTRY,
         telemetry_endpoint: str | None = None,
         working_dir: str | None = None,
+        serving_api_key: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -68,6 +69,7 @@ class SlurmLauncher(Launcher):
             qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
+            serving_api_key=serving_api_key,
         )
 
         # See FirecRESTLauncher.working_dir. None: ~/.sml.
@@ -181,7 +183,7 @@ class SlurmLauncher(Launcher):
         return await self._sbatch(launch_args)
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        prepared = await self._prepare_launch_args(launch_args)
+        prepared = await self._prepare_launch_args(await self.resolve_identity(launch_args))
         job_id = await self._submit_one(prepared)
         return job_id, prepared.served_model_name
 
@@ -195,6 +197,7 @@ class SlurmLauncher(Launcher):
             )
         )
 
+        launch_args = await self.resolve_identity(launch_args)
         job_id = await self._sbatch(launch_args)
         return job_id, launch_args.served_model_name
 

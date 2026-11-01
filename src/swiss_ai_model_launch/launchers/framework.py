@@ -5,6 +5,7 @@ import shlex
 from importlib.resources import files
 from typing import ClassVar
 
+from swiss_ai_model_launch.launchers.authorization import PRIVATE, PUBLIC, is_private
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
     ROUTER_SGLANG,
@@ -103,6 +104,16 @@ def _sml_version() -> str:
 
 
 def _opentela_labels(launch_args: LaunchArgs) -> str:
+    if is_private(launch_args.authorization):
+        # A guardrail, not a user-facing error: the CLI and Launcher both
+        # resolve "private" to the launcher's email before a job is rendered.
+        # The literal would reach the gateway as an allowlist naming nobody,
+        # locking everyone out of the model — the launcher included.
+        raise ValueError(
+            f"authorization={PRIVATE!r} must be resolved to the launcher's email before the job is "
+            "rendered: launch it through a Launcher, which resolves it with your Swiss AI Research "
+            f"API key, or pass an explicit policy ({PUBLIC!r} or an email list)."
+        )
     # Users often write framework_args with bash line-continuations + indented
     # follow-on lines, which collapse to runs of whitespace inside the quoted
     # string. Normalise here so the on-mesh label is the canonical single-space

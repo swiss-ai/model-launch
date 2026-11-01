@@ -120,6 +120,9 @@ async def launcher(env: dict[str, str]) -> AsyncIterator[FirecRESTLauncher]:
             system_name=env["SML_SYSTEM"],
             partition=env["SML_PARTITION"],
             reservation=env["SML_RESERVATION"] or None,
+            # Launches default to authorization="private", which the launcher
+            # resolves to the CI account's email with this key.
+            serving_api_key=env["SML_SWISSAI_RESEARCH_API_KEY"],
         )
     finally:
         await client.close_session()
