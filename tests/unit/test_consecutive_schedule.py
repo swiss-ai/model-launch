@@ -213,3 +213,56 @@ async def test_chain_last_job_trim_never_exceeds_cap():
     assert last == "02:00:00"  # 13h total - 11h last-offset
     assert all(a.time == "12:00:00" for a in launcher.submitted[:-1])
     assert scheduled  # sanity
+
+
+# ── launch identity across a chain ──────────────────────────────────────────
+
+
+def _label(script: str, key: str) -> str:
+    """The value of one `--label key=value` in a rendered job script."""
+    import re
+
+    match = re.search(rf"--label '?{key}=([^'\s\\]*)", script)
+    assert match, f"no {key} label in the rendered script"
+    return match.group(1)
+
+
+async def test_every_job_in_a_chain_carries_the_same_launch_identity():
+    """A post-launch access change is stored against launch_id, so it holds for
+    the whole chain only if every job advertises the same one. Checked on the
+    scripts that are actually submitted, for jobs that start hours apart."""
+    from swiss_ai_model_launch.launchers.framework import render_master
+
+    launcher = _FakeLauncher()
+    head = _make_args(
+        time="12:00:00",
+        authorization="a@epfl.ch,b@ethz.ch",
+        launched_by_email="a@epfl.ch",
+        disable_metrics=True,
+    )
+    await launcher.launch_consecutive_with_args(head, total_time="30:00:00", handover_time="03:00:00")
+    assert len(launcher.submitted) == 3
+
+    scripts = [render_master(job) for job in launcher.submitted]
+    for key, expected in (
+        ("launch_id", head.launch_id),
+        ("launched_by_email", "a@epfl.ch"),
+        ("authorization", "a@epfl.ch,b@ethz.ch"),
+        ("served_model_name", "vendor/model-abc1"),
+    ):
+        assert {_label(script, key) for script in scripts} == {expected}, key
+    # Distinct SLURM jobs nonetheless: the identity is the launch, not the job.
+    assert [job.previous_job_id for job in launcher.submitted] == [None, 100, 101]
+
+
+async def test_a_new_chain_is_a_new_launch():
+    """Relaunching starts from its own --authorization: a fresh launch_id, so
+    an override made on the previous chain does not follow it."""
+    first, second = _FakeLauncher(), _FakeLauncher()
+    await first.launch_consecutive_with_args(
+        _make_args(disable_metrics=True), total_time="30:00:00", handover_time="03:00:00"
+    )
+    await second.launch_consecutive_with_args(
+        _make_args(disable_metrics=True), total_time="30:00:00", handover_time="03:00:00"
+    )
+    assert {j.launch_id for j in first.submitted} != {j.launch_id for j in second.submitted}
