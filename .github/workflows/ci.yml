@@ -7,11 +7,6 @@ on:
     branches: [main]
     types: [opened, reopened, synchronize, labeled, ready_for_review]
   workflow_dispatch:
-    inputs:
-      image:
-        description: "Single image dir under images/ to build (leave empty to build all)."
-        required: false
-        default: ""
 
 jobs:
   static-checks:
@@ -19,229 +14,66 @@ jobs:
 
   detect-changes:
     needs: [static-checks]
-    name: Docker Changed Images Detection
-    # Draft PRs run static checks only; skip the heavier build/test pipeline.
+    name: Catalog-only Change Detection
+    # Draft PRs run static checks only; skip the heavier test pipeline.
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.detect.outputs.images }}
-      channel: ${{ steps.channel.outputs.channel }}
+      catalog_only: ${{ steps.catalog.outputs.catalog_only }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Resolve release channel
-        id: channel
+      - name: Detect catalog-only changes
+        id: catalog
         run: |
-          # PR builds publish to a per-PR pre-release channel so they can never
-          # overwrite what main published. Merging to main republishes under
-          # ":latest". build_image.py rejects any other channel value.
-          #
-          # ":latest" means "built from main" — gate on the ref, not the event.
-          # A workflow_dispatch runs against whatever branch it was dispatched
-          # from, and with an empty `image` input it rebuilds every image, so
-          # an ungated dispatch could republish all of :latest from unmerged
-          # code. Refuse rather than publish.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANNEL="pr-${{ github.event.pull_request.number }}"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            CHANNEL="latest"
-          else
-            echo "Refusing to publish images from ${{ github.ref }}." >&2
-            echo "Open a pull request to build under a pr-<number> channel." >&2
-            exit 1
-          fi
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "Release channel: $CHANNEL"
-
-      - name: Detect changed image directories
-        id: detect
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image }}" ]; then
-            # Manual run targeting one image; validated against images/ below.
-            CHANGED="${{ inputs.image }}"
+          # A model PR (model-launch-factory, or a person) adds a catalog entry
+          # (assets/models.json), an mfa_examples/ folder, the env TOML the entry
+          # points at (assets/envs/) and sometimes the image that env needs
+          # (images/<name>/Dockerfile). None of that is launcher code, so the
+          # integration test tiers below have nothing to test and would just burn
+          # real FirecREST/SLURM time. Images are built by the
+          # swiss-ai/model-launch-images repository, not here. Any file outside
+          # these paths (src/, tests/, the workflows, …) flips catalog_only to false.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANGED=""  # manual dispatch always runs full CI
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}" -- images/ \
-              | grep '^images/' \
-              | cut -d/ -f2 \
-              | sort -u)
+            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}" "${{ github.sha }}")
           else
             BEFORE="${{ github.event.before }}"
             AFTER="${{ github.sha }}"
-
-            # First push to branch or workflow_dispatch has all-zero before SHA
             if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
-              CHANGED=$(ls images/)
+              CHANGED=""  # first push to branch; can't diff, don't assume catalog-only
             else
-              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- images/ \
-                | grep '^images/' \
-                | cut -d/ -f2 \
-                | sort -u)
+              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
             fi
           fi
 
-          # Keep only entries that are actual image directories
-          VALID=""
-          for dir in $CHANGED; do
-            [ -d "images/$dir" ] && VALID="$VALID $dir"
-          done
-
-          IMAGES=$(echo "$VALID" | tr ' ' '\n' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
-          echo "Detected images: $IMAGES"
-
-  build:
-    name: Docker Build ${{ matrix.image }} (${{ matrix.arch }})
-    needs: [detect-changes, static-checks]
-    if: github.event.pull_request.draft != true && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    strategy:
-      matrix:
-        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
-        # Each arch is built natively on its own cluster, reached via a
-        # different FireCREST endpoint, and pushed to a :<channel>-<arch> tag.
-        # The merge-manifests job combines them into a multi-arch :<channel>.
-        arch: [arm64, amd64]
-      fail-fast: false
-    env:
-      # Service-account API key, sent as X-API-Key to the PAT gateway.
-      SML_FIRECREST_API_KEY: ${{ secrets.SML_FIRECREST_API_KEY }}
-      # arm64 (Grace) cluster — base vars.
-      SML_FIRECREST_URL: ${{ vars.SML_FIRECREST_URL }}
-      SML_SYSTEM: ${{ vars.SML_SYSTEM }}
-      SML_PARTITION: ${{ vars.SML_PARTITION }}
-      SML_RESERVATION: ${{ vars.SML_RESERVATION }}
-      # amd64 (x86_64) cluster — different URL / system / partition, same creds.
-      # No reservation on this cluster.
-      SML_FIRECREST_URL_AMD64: ${{ vars.SML_FIRECREST_URL_AMD64 }}
-      SML_SYSTEM_AMD64: ${{ vars.SML_SYSTEM_AMD64 }}
-      SML_PARTITION_AMD64: ${{ vars.SML_PARTITION_AMD64 }}
-      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GHCR_ACTOR: ${{ github.actor }}
-      # The channel is part of the cache key: a PR build only proves the
-      # pr-<N> artifacts exist. Without it, merging an already-built PR would
-      # hit the cache on main, skip the build, and never publish ":latest".
-      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
-    steps:
-      - uses: actions/checkout@v5
-      - name: Restore build cache
-        id: cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .build-sentinel
-          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
-      - uses: ./.github/actions/setup
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          python-version: "3.12"
-      - name: Build image and save sqsh
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: python .github/scripts/build_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
-        timeout-minutes: 300
-      - name: Save build cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: mkdir -p .build-sentinel && touch .build-sentinel/built
-      - uses: actions/cache/save@v4
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          path: .build-sentinel
-          key: build-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image)) }}
-
-  scan-secrets:
-    name: Secret Scan ${{ matrix.image }} (${{ matrix.arch }})
-    needs: [detect-changes, build]
-    if: needs.build.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
-    runs-on: ubuntu-latest
-    permissions:
-      packages: read
-    strategy:
-      matrix:
-        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
-        arch: [arm64, amd64]
-      fail-fast: false
-    env:
-      CHANNEL: ${{ needs.detect-changes.outputs.channel }}
-      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GHCR_ACTOR: ${{ github.actor }}
-    steps:
-      - uses: actions/checkout@v5
-      # Mirrors the build sentinel: skip rescanning image content that already
-      # passed under the same channel and scan rules.
-      - name: Restore scan cache
-        id: cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .scan-sentinel
-          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
-      - name: Install trufflehog
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin v3.95.9
-      # The runner's root disk is too small for the largest extracted layers;
-      # /mnt has ~65 GB free.
-      - name: Prepare scan workdir
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: sudo mkdir -p /mnt/image-scan && sudo chown "$USER" /mnt/image-scan
-      - name: Scan image layers for secrets
-        if: steps.cache.outputs.cache-hit != 'true'
-        env:
-          SCAN_WORKDIR: /mnt/image-scan
-        run: python3 .github/scripts/scan_image.py "${{ matrix.image }}" "${{ matrix.arch }}" "${{ env.CHANNEL }}"
-        timeout-minutes: 90
-      - name: Save scan cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: mkdir -p .scan-sentinel && touch .scan-sentinel/scanned
-      - uses: actions/cache/save@v4
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          path: .scan-sentinel
-          key: scan-${{ env.CHANNEL }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles(format('images/{0}/**', matrix.image), '.github/scripts/scan_image.py', '.github/image-scan-allowlist.txt') }}
-
-  merge-manifests:
-    name: Merge multi-arch manifest ${{ matrix.image }} (${{ needs.detect-changes.outputs.channel }})
-    needs: [detect-changes, build, scan-secrets]
-    # Only if every arch build succeeded — a partial set would yield a
-    # single-arch manifest — and no arch's secret scan failed: the per-arch
-    # tags are already pushed at this point, but a failed scan blocks the
-    # release from being published under the multi-arch :<channel> tag.
-    if: needs.build.result == 'success' && needs.scan-secrets.result == 'success' && needs.detect-changes.outputs.images != '[]' && needs.detect-changes.outputs.images != ''
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    strategy:
-      matrix:
-        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
-      fail-fast: false
-    steps:
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create and push multi-arch manifest
-        env:
-          IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
-          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
-        run: |
-          docker buildx imagetools create -t "${IMAGE}:${CHANNEL}" \
-            "${IMAGE}:${CHANNEL}-arm64" \
-            "${IMAGE}:${CHANNEL}-amd64"
-      - name: Inspect
-        env:
-          IMAGE: ghcr.io/swiss-ai/${{ matrix.image }}
-          CHANNEL: ${{ needs.detect-changes.outputs.channel }}
-        run: docker buildx imagetools inspect "${IMAGE}:${CHANNEL}"
+          CATALOG_ONLY=true
+          if [ -z "$CHANGED" ]; then
+            CATALOG_ONLY=false
+          else
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                mfa_examples/*) ;;
+                src/swiss_ai_model_launch/assets/models.json) ;;
+                src/swiss_ai_model_launch/assets/envs/*.toml) ;;
+                images/*/Dockerfile) ;;
+                *) CATALOG_ONLY=false ;;
+              esac
+            done <<< "$CHANGED"
+          fi
+          echo "catalog_only=$CATALOG_ONLY" >> "$GITHUB_OUTPUT"
+          echo "Catalog-only change: $CATALOG_ONLY"
 
   test-lightweight:
     name: Integration Tests (lightweight)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       github.event_name != 'workflow_dispatch' &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
@@ -262,11 +94,10 @@ jobs:
 
   test-std:
     name: Integration Tests (std)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
     runs-on: ubuntu-latest
@@ -286,11 +117,10 @@ jobs:
 
   test-comprehensive:
     name: Integration Tests (comprehensive)
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: |
-      always() &&
       github.event.pull_request.draft != true &&
-      needs.build.result != 'failure' &&
+      needs.detect-changes.outputs.catalog_only != 'true' &&
       (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests'))
     runs-on: ubuntu-latest
     env:

@@ -5,8 +5,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and sys_platform != 'win32'",
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version < '3.11' and sys_platform == 'win32'",
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.11' and sys_platform == 'win32'",
     "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 
@@ -19,7 +19,7 @@ resolution-markers = [
     "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "caio", version = "0.9.25", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "caio", version = "0.9.25", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/67/e2/d7cb819de8df6b5c1968a2756c3cb4122d4fa2b8fc768b53b7c9e5edb646/aiofile-3.9.0.tar.gz", hash = "sha256:e5ad718bb148b265b6df1b3752c4d1d83024b93da9bd599df74b9d9ffcf7919b", size = 17943, upload-time = "2024-10-08T10:39:35.846Z" }
 wheels = [
@@ -37,7 +37,7 @@ resolution-markers = [
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "caio", version = "0.12.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "caio", version = "0.12.2", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/14/31/edb06aabd8f8f0b56d659f30800795f40b93cba96be946ce179f6931e3a5/aiofile-3.12.3.tar.gz", hash = "sha256:caa6aa746b5e47e2165f7abd741b6415e49cf4d44fddc0f61844612cc3924d41", size = 21600, upload-time = "2026-08-04T22:59:27.171Z" }
 wheels = [
@@ -886,14 +886,14 @@ wheels = [
 
 [[package]]
 name = "hadolint-py"
-version = "2.15.1.2"
+version = "2.14.0.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b5/36/ca7181bda86742dcc26853b729a04b35aeb0d1ecdc810f39527c896f7574/hadolint_py-2.15.1.2.tar.gz", hash = "sha256:2bab20951d5497461c1c15350d6af97866fdb2842af77777a8bfe8a3668c07ec", size = 8323, upload-time = "2026-07-31T23:28:40.11Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/3f/13a80a4b3d9f602e7deda10e943d198caa2752f59773de59afbd2e7b9b11/hadolint_py-2.14.0.1.tar.gz", hash = "sha256:a7a949dcfd1cda1e6ec6bf62c0f66f61519ed5f74da015d9592e62a1a76cfb91", size = 5676, upload-time = "2026-03-20T00:17:08.085Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d6/2f/fafcaae9e38a4a128663ad3302bc9a40c4b852fdf4ed7cfbc99472e5336a/hadolint_py-2.15.1.2-py3-none-macosx_10_15_universal2.whl", hash = "sha256:58b641d14257ec3a4ec1e5c2677068b951c3804c629a8e732be570def2c09231", size = 21352551, upload-time = "2026-07-31T23:28:29.448Z" },
-    { url = "https://files.pythonhosted.org/packages/3a/28/2d8d8819031b9c4171784acd892eff957a121641686737f4e321aed86acc/hadolint_py-2.15.1.2-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:e85fda1da903e53b892a698c2e0eff7cea1f2e90f87f5f29bebbdbf0d4d8e332", size = 13065544, upload-time = "2026-07-31T23:28:32.514Z" },
-    { url = "https://files.pythonhosted.org/packages/45/c2/6039d33dbdc3c909c8b4ea598a8b0231e430747f7189d46b140a4aeeed9b/hadolint_py-2.15.1.2-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:4d0c2e4c2569fddc8774072690f0d23abf5643d69a9bb64277f5d0c8fabd49bd", size = 12157639, upload-time = "2026-07-31T23:28:35.361Z" },
-    { url = "https://files.pythonhosted.org/packages/49/34/1029ec8a3ecb1a680be72d2754250fd4e26145b63e4b9ddc7214e7213755/hadolint_py-2.15.1.2-py3-none-win_amd64.whl", hash = "sha256:dc636b2c96f61e372bf016703cbe07b3b31e9a16b6995f6175fd974f2474c5fd", size = 15596538, upload-time = "2026-07-31T23:28:38.236Z" },
+    { url = "https://files.pythonhosted.org/packages/da/c9/168c934801c159d61ca0deccb2e24a53f9c389a06446b70149a8f55f69da/hadolint_py-2.14.0.1-py3-none-macosx_10_15_universal2.whl", hash = "sha256:4beaa65cc53bf27fd5faf55267c4a644786184a36efdb7bfbc912af7807dd186", size = 20992560, upload-time = "2026-03-20T00:16:58.965Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/b9/ea2d8bfda6d5f96dad91b640fccf18048b06e11599a5d7405fb853fe9d01/hadolint_py-2.14.0.1-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:5e8253b12b45280a90d2e0cb476c59bbc5db9eb293201f713d087ce1a4beff34", size = 12843440, upload-time = "2026-03-20T00:17:01.216Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/ec/c3ae74bd2f3d06a91fda0a907df269a2c7edbab78c62342378b09fece381/hadolint_py-2.14.0.1-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:1f1dedb223c41f55b09bfcd5e2738175458dc0e1c119b3a48c52c3fcbced3bf1", size = 11942472, upload-time = "2026-03-20T00:17:03.547Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/dd/98f578a78c3f8fd541c167ed7c33547c67883b3213dcf32584a5b7cea1d2/hadolint_py-2.14.0.1-py3-none-win_amd64.whl", hash = "sha256:825e19deed50d2e42f50efb7e0d6c411b609e58e682afd1a8e6b2daeca109697", size = 15370525, upload-time = "2026-03-20T00:17:05.693Z" },
 ]
 
 [[package]]
@@ -956,7 +956,7 @@ name = "importlib-metadata"
 version = "9.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp", marker = "python_full_version < '3.14'" },
+    { name = "zipp" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a9/01/15bb152d77b21318514a96f43af312635eb2500c96b55398d020c93d86ea/importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc", size = 56405, upload-time = "2026-03-20T06:42:56.999Z" }
 wheels = [
@@ -2461,8 +2461,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "sys_platform != 'win32'" },
-    { name = "jeepney", marker = "sys_platform != 'win32'" },
+    { name = "cryptography" },
+    { name = "jeepney" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -2574,7 +2574,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "hadolint-py", specifier = ">=2.12" },
+    { name = "hadolint-py", specifier = "==2.14.0.1" },
     { name = "mypy", specifier = ">=1.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", specifier = ">=9.0" },

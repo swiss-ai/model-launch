@@ -13,11 +13,13 @@ from swiss_ai_model_launch.launchers.launch_args import (
 )
 
 SGLANG_ROUTER_PORT = 30000
-# Default (prod) OpenTela bootstrap address. The dev datacenter peer differs only
-# in the IP. Override per-launch via LaunchArgs.opentela_bootstrap_addr (CLI:
-# `--opentela-bootstrap-addr <multiaddr>` or shorthand `--dev`).
+# Default (prod) OpenTela bootstrap address. The dev datacenter peer has its own
+# IP and its own peer ID: sharing one ID made libp2p treat the two bootstraps as
+# one host and merged the dev and prod meshes. Override per-launch via
+# LaunchArgs.opentela_bootstrap_addr (CLI: `--opentela-bootstrap-addr <multiaddr>`
+# or shorthand `--dev`).
 OPENTELA_BOOTSTRAP_ADDR = "/ip4/148.187.108.178/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
-OPENTELA_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmbUKJkCfotDzbFE5uoTsXD4GRyPHjzZC1f2yAGLoeBMn9"
+OPENTELA_BOOTSTRAP_ADDR_DEV = "/ip4/148.187.108.177/tcp/43905/p2p/QmTnRyTRyUs2UCpDJHAgSz9CVeYQL1K3KiW1MdTjKEN55z"
 RAY_PORT = 6379
 NUM_GPUS_PER_NODE = 4
 SGLANG_DIST_INIT_PORT = 5757
@@ -823,10 +825,11 @@ MASTER_FILENAME = "master.sh"
 def _render_self_extracting_ranks(rank_scripts: dict[str, str]) -> str:
     blocks = [
         "# Self-extract rank scripts: this master.sh was submitted standalone\n"
-        "# (no sibling files), so we materialise the rank scripts under HOME\n"
-        "# (shared FS, visible to all compute nodes) at job start time. The\n"
+        "# (no sibling files), so we materialise the rank scripts in the\n"
+        "# launcher's working directory, which the job runs from (shared FS,\n"
+        "# visible to all compute nodes), at job start time. The\n"
         "# single-quoted heredoc keeps each body literal.",
-        'RANKS_DIR="$HOME/.sml/job-${SLURM_JOB_ID}"',
+        'RANKS_DIR="$PWD/job-${SLURM_JOB_ID}"',
         'mkdir -p "$RANKS_DIR"',
     ]
     for filename, content in rank_scripts.items():

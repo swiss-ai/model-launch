@@ -3,6 +3,7 @@ import tempfile
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from typing import Any, cast
 
 import firecrest as f7t
 
@@ -28,8 +29,8 @@ from swiss_ai_model_launch.launchers.utils import (
 # "Permission denied". Only these mean the path itself is unreachable.
 _PATH_UNREACHABLE_STATUSES = frozenset({403, 404})
 
-_SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang.toml")
-_VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm.toml")
+_SGLANG_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("sglang_base.toml")
+_VLLM_ENVIRONMENT = files("swiss_ai_model_launch.assets.envs").joinpath("vllm_base.toml")
 
 _PRECONFIGURED_MODELS = files("swiss_ai_model_launch.assets").joinpath("models.json")
 
@@ -58,6 +59,22 @@ def _firecrest_time(value: object) -> str | None:
     return None
 
 
+def _primary_group_name(user_info: dict[str, Any]) -> str:
+    """Extract the primary group name from a `userinfo` response.
+
+    Handles the shapes seen across API versions: pre-2.6.0 puts the primary
+    group in a top-level ``group`` field; 2.6.0+ drops that field and flags
+    the primary group with ``"default": true`` inside ``groups`` instead.
+    """
+    group = user_info.get("group")
+    if group is None:
+        groups = user_info.get("groups") or []
+        group = next((g for g in groups if g.get("default")), groups[0] if groups else None)
+    if group is None:
+        raise RuntimeError("FirecREST userinfo response has no group information")
+    return cast(str, group["name"])
+
+
 class FirecRESTLauncher(Launcher):
     def __init__(
         self,
@@ -67,9 +84,11 @@ class FirecRESTLauncher(Launcher):
         account: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
+        working_dir: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -77,6 +96,7 @@ class FirecRESTLauncher(Launcher):
             account=account,
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
         )
@@ -85,6 +105,11 @@ class FirecRESTLauncher(Launcher):
         # a shell on a replica's compute node (FirecREST itself offers no PTY).
         # None disables the terminal button (it falls back to copying the command).
         self.ssh_host = ssh_host
+        # Where jobs run from and keep their env files, rank scripts and logs
+        # on the cluster. None: ~/.sml of the FirecREST user. A service that
+        # launches for many people may want it off that home directory's
+        # small quota.
+        self.working_dir = working_dir
 
     @classmethod
     async def from_client(
@@ -93,27 +118,36 @@ class FirecRESTLauncher(Launcher):
         system_name: str,
         partition: str,
         reservation: str | None = None,
+        qos: str | None = None,
         account: str | None = None,
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
+        working_dir: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
             client=client,
             system_name=system_name,
             username=user_info["user"]["name"],
-            account=account or user_info["group"]["name"],
+            account=account or _primary_group_name(user_info),
             partition=partition,
             reservation=reservation,
+            qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
+            working_dir=working_dir,
         )
 
     def _get_user_dir(self) -> str:
         return f"/users/{self.username}"
 
     def _get_working_dir(self) -> str:
+        if self.working_dir:
+            return self.working_dir.rstrip("/")
         return str(Path(self._get_user_dir()) / _APP_WORKING_DIRECTORY)
+
+    def get_log_dir(self, job_id: int) -> str:
+        return f"{self._get_working_dir()}/logs/{job_id}"
 
     def _get_launch_args_from_request(
         self,
@@ -167,10 +201,13 @@ class FirecRESTLauncher(Launcher):
 
     async def _upload_env_file(self, local_env_path: str, framework: str) -> str:
         working_dir = self._get_working_dir()
+        # logs/ too: the job's --output is logs/%j/log.out, opened by SLURM
+        # before the job can create anything itself, and a newly configured
+        # working directory has no logs/ yet.
         await call_with_firecrest_retry(
             lambda: self.client.mkdir(
                 system_name=self.system_name,
-                path=working_dir,
+                path=f"{working_dir}/logs",
                 create_parents=True,
             )
         )
@@ -211,7 +248,9 @@ class FirecRESTLauncher(Launcher):
         return int(report["jobId"])
 
     async def _submit_one(self, launch_args: LaunchArgs) -> int:
-        script_str = render_sbatch_header(launch_args, reservation=self.reservation) + render_master(launch_args)
+        script_str = render_sbatch_header(launch_args, reservation=self.reservation, qos=self.qos) + render_master(
+            launch_args
+        )
         return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
@@ -351,7 +390,7 @@ class FirecRESTLauncher(Launcher):
             return out_log, err_log
 
     def get_tail_hint(self, job_id: int) -> str:
-        return f"ssh <host> tail -f ~/.sml/logs/{job_id}/log.out\n  (replace <host> with your cluster SSH alias)"
+        return f"ssh <host> tail -f {self.get_log_dir(job_id)}/log.out\n  (replace <host> with your cluster SSH alias)"
 
     def terminal_command(self, job_id: int, node_host: str) -> TerminalCommand:
         # FirecREST runs off-cluster (a REST gateway, no PTY), so reach the node by

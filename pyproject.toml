@@ -95,7 +95,7 @@ dev = [
   "pytest-xdist>=3.8.0",
   "pre-commit>=4.6.0",
   "shellcheck-py>=0.9",
-  "hadolint-py>=2.12",
+  "hadolint-py==2.14.0.1", # 2.15.1.2's macOS wheel has a corrupted deflate stream on PyPI
   "types-PyYAML>=6.0",
 ]
 docs = ["mkdocs-material>=9.5", "mkdocs-autorefs>=1.0"]
