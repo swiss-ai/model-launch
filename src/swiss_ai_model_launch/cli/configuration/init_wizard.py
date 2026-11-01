@@ -16,6 +16,8 @@ from swiss_ai_model_launch.cli.configuration.models import (
 )
 
 _ENV_CONFIG_DIR = os.environ.get("SML_CONFIG_DIR")
+# Same variable `sml init` reads the key from; at launch it overrides the stored key.
+_API_KEY_ENV = "SML_SWISSAI_RESEARCH_API_KEY"
 _CONFIG_DIR = Path(_ENV_CONFIG_DIR) if _ENV_CONFIG_DIR else Path.home() / ".sml"
 _CONFIG_FILE = _CONFIG_DIR / "config.yml"
 
@@ -138,6 +140,15 @@ class InitConfig(ChainConfiguration):
         for old_name in renamed:
             migrate_keyring_entry(old_name, _RENAMED_KEYS[old_name])
         return cls.model_validate(data)
+
+    def serving_api_key(self) -> str:
+        """The Swiss AI Research API key to launch with.
+
+        ``SML_SWISSAI_RESEARCH_API_KEY`` overrides the stored one for a single
+        command without touching the keyring — e.g. a dev key for a ``--dev``
+        launch, since the dev gateway has its own key database.
+        """
+        return os.environ.get(_API_KEY_ENV) or self.get_non_none_value("swissai_research_api_key")
 
     def save(self) -> None:
         _CONFIG_DIR.mkdir(exist_ok=True)

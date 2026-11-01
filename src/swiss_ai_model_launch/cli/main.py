@@ -53,6 +53,7 @@ from swiss_ai_model_launch.launchers.served_name import derive_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import call_with_firecrest_retry, create_salt, render_sbatch_header
 from swiss_ai_model_launch.mcp import mcp as _mcp
+from swiss_ai_model_launch.serving_api import use_dev_gateway
 
 _OptionsFactory = Callable[[], Awaitable[OptionsDict]] | Callable[[GetValueFn], Awaitable[OptionsDict]] | None
 
@@ -822,7 +823,7 @@ async def _run_preconfigured(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher = await _create_launcher(config, args)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     launch_request = await _get_launch_request(launcher, args)
     authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
     launch_request = launch_request.model_copy(
@@ -943,7 +944,7 @@ async def _run_advanced(args: argparse.Namespace) -> None:
 
     config = InitConfig.load()
     launcher = await _create_launcher(config, args, non_interactive=True)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
 
     authorization = await resolve_authorization(requested_from_args(args), swissai_research_api_key)
     launch_args = build_launch_args_from_advanced(
@@ -1062,6 +1063,10 @@ def _run_mcp() -> None:
 
 async def _main(args: argparse.Namespace) -> None:
     subcommand = args.subcommand
+    if getattr(args, "dev", False):
+        # A --dev launch joins the dev mesh, which only the dev gateway routes
+        # to — so identity, the conflict check and health checks ask it too.
+        use_dev_gateway()
     if subcommand == "init":
         await _run_initial_configuration_wizard(args)
     elif subcommand == "preconfigured":

@@ -8,15 +8,50 @@ SML talks to it for two launch-time reasons:
   a launch that would collide with a *different* policy under the same name
   can be refused before submission rather than becoming an unroutable model
   (see the conflict rule in serving-api ADR-0001).
+
+Which gateway: prod by default, the dev one for a ``--dev`` launch (see
+``use_dev_gateway``), or whatever ``SML_SERVING_API_URL`` says.
 """
 
+import os
 from dataclasses import dataclass
 from urllib.parse import quote
 
 import httpx
 
 BASE_URL = "https://api.swissai.svc.cscs.ch"
+DEV_BASE_URL = "https://apidev.swissai.svc.cscs.ch"
+BASE_URL_ENV = "SML_SERVING_API_URL"
+# Overrides the key `sml init` stored, for one command — e.g. a dev key, since
+# the dev gateway has its own key database.
+API_KEY_ENV = "SML_SWISSAI_RESEARCH_API_KEY"
 _TIMEOUT_SECONDS = 10
+
+_use_dev = False
+
+
+def use_dev_gateway() -> None:
+    """Talk to the dev Serving API for the rest of this process.
+
+    A ``--dev`` launch joins the dev mesh, which only the dev gateway routes
+    to: identity, the conflict check and health checks all have to ask that
+    gateway, under a key it knows. ``SML_SERVING_API_URL`` still wins.
+    """
+    global _use_dev
+    _use_dev = True
+
+
+def _reset_gateway_for_tests() -> None:
+    global _use_dev
+    _use_dev = False
+
+
+def base_url() -> str:
+    """The Serving API this process talks to."""
+    explicit = os.environ.get(BASE_URL_ENV)
+    if explicit:
+        return explicit.rstrip("/")
+    return DEV_BASE_URL if _use_dev else BASE_URL
 
 
 class ServingApiError(RuntimeError):
@@ -50,12 +85,12 @@ async def whoami(api_key: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{BASE_URL}/v1/whoami",
+                f"{base_url()}/v1/whoami",
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=_TIMEOUT_SECONDS,
             )
     except (httpx.TransportError, httpx.TimeoutException) as exc:
-        raise ServingApiError(f"Could not reach the Serving API at {BASE_URL}: {exc}") from exc
+        raise ServingApiError(f"Could not reach the Serving API at {base_url()}: {exc}") from exc
 
     if response.status_code == 401:
         raise ServingApiError(
@@ -109,12 +144,12 @@ async def served_model_access(api_key: str, served_model_name: str) -> ServedAcc
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{BASE_URL}/v1/model-access/{quote(served_model_name, safe='/')}",
+                f"{base_url()}/v1/model-access/{quote(served_model_name, safe='/')}",
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=_TIMEOUT_SECONDS,
             )
     except (httpx.TransportError, httpx.TimeoutException) as exc:
-        raise ServingApiError(f"Could not reach the Serving API at {BASE_URL}: {exc}") from exc
+        raise ServingApiError(f"Could not reach the Serving API at {base_url()}: {exc}") from exc
 
     if response.status_code == 404:
         return None

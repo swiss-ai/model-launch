@@ -358,6 +358,9 @@ def test_run_advanced_labels_the_launch_with_the_resolved_policy(monkeypatch):
         def get_non_none_value(self, name):
             return "sk-rc-key"
 
+        def serving_api_key(self):
+            return "sk-rc-key"
+
     class _Launcher:
         username = "alice"
         account = "proj01"
@@ -411,6 +414,9 @@ def test_loadtest_advanced_applies_the_policy_too(monkeypatch, tmp_path):
             return cls()
 
         def get_non_none_value(self, name):
+            return "sk-rc-key"
+
+        def serving_api_key(self):
             return "sk-rc-key"
 
         def get_value(self, name):

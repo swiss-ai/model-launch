@@ -272,6 +272,12 @@ If you disable it, you're responsible for reaching the model yourself — usuall
 The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
 
 - `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
+  It also points SML's own calls to the Serving API — resolving `private`, the conflict
+  check and health checks — at the dev gateway (`https://apidev.swissai.svc.cscs.ch`),
+  since only that gateway routes to the dev mesh. Dev has its own API keys: get one at
+  <https://servingdev.swissai.svc.cscs.ch> and pass it for the command as
+  `SML_SWISSAI_RESEARCH_API_KEY`, which overrides the key `sml init` stored.
+  `SML_SERVING_API_URL` points SML at any other gateway.
 - `--opentela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OpenTela instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
 
 Example:

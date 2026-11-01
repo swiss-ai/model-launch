@@ -444,7 +444,7 @@ async def _run_loadtest_against_existing_model(
         raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
 
     config = InitConfig.load()
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     loadtest_model = args.loadtest_model
     request_model = loadtest_model or ""
     loadtest_config = make_loadtest_config(args)
@@ -487,7 +487,7 @@ async def _run_loadtest_preconfigured(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     launch_request = await get_launch_request(launcher, args)
     authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
     launch_request = launch_request.model_copy(
@@ -525,7 +525,7 @@ async def _run_loadtest_advanced(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args, True)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     # A loadtest launch puts a real model on the mesh, so it carries the same
     # access policy as any other launch rather than defaulting to public.
     authorization = await resolve_authorization(requested_from_args(args), swissai_research_api_key)
