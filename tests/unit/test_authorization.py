@@ -24,7 +24,7 @@ from swiss_ai_model_launch.launchers.authorization import (
 )
 from swiss_ai_model_launch.launchers.framework import _opentela_labels
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-from swiss_ai_model_launch.serving_api import ServingApiError
+from swiss_ai_model_launch.serving_api import ServedAccess, ServingApiError
 
 
 def _run(coro):
@@ -237,37 +237,70 @@ def test_guided_flow_asks_for_the_policy():
 # ── served-name conflict guard ──────────────────────────────────────────────
 
 
-def _patch_existing(monkeypatch, values, error=None):
+def _patch_existing(monkeypatch, access, error=None):
     async def fake(api_key, served_model_name):
         if error is not None:
             raise error
-        return values
+        return access
 
-    monkeypatch.setattr(cli_authorization, "served_model_authorizations", fake)
+    monkeypatch.setattr(cli_authorization, "served_model_access", fake)
+
+
+def _running(policy, *, overridden=False):
+    return ServedAccess(policy=policy, overridden=overridden, conflict=False)
 
 
 def test_conflicting_policy_on_the_same_name_is_refused(monkeypatch):
     """OpenTela load-balances a name across every peer serving it, so a
     second launch with a different policy makes the gateway refuse the name
     for everyone — including the model that is already running."""
-    _patch_existing(monkeypatch, ["a@epfl.ch"])
+    _patch_existing(monkeypatch, _running("a@epfl.ch"))
     with pytest.raises(SystemExit, match="different authorization policy"):
         _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "public"))
 
 
 def test_same_policy_written_differently_is_not_a_conflict(monkeypatch):
-    _patch_existing(monkeypatch, ["b@ethz.ch,a@epfl.ch"])
+    _patch_existing(monkeypatch, _running("b@ethz.ch,a@epfl.ch"))
     _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "A@EPFL.ch,b@ethz.ch"))
 
 
-def test_an_unlabeled_running_peer_reads_as_public(monkeypatch):
-    _patch_existing(monkeypatch, [""])
+def test_a_public_running_model_matches_a_public_launch(monkeypatch):
+    _patch_existing(monkeypatch, _running("public"))
     _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "public"))
 
 
-def test_no_running_peers_is_not_a_conflict(monkeypatch):
-    _patch_existing(monkeypatch, [])
+def test_no_running_model_is_not_a_conflict(monkeypatch):
+    _patch_existing(monkeypatch, None)
     _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "a@epfl.ch"))
+
+
+def test_access_changed_in_the_web_ui_is_what_a_relaunch_must_match(monkeypatch):
+    """Launched public, then restricted from the web UI: the gateway enforces
+    the restriction, so a relaunch matching only the original --authorization
+    would disagree with it and take the name down."""
+    _patch_existing(monkeypatch, _running("a@epfl.ch", overridden=True))
+    with pytest.raises(SystemExit, match="changed after launch in the web UI"):
+        _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "public"))
+
+
+def test_a_relaunch_matching_the_changed_access_is_allowed(monkeypatch):
+    _patch_existing(monkeypatch, _running("a@epfl.ch", overridden=True))
+    _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "a@epfl.ch"))
+
+
+def test_an_unreadable_policy_warns_but_does_not_block(monkeypatch, capsys):
+    """Only the launcher or an admin sees a restricted model's allowlist. If
+    this key can't, there is nothing to compare against — the gateway still
+    decides, so the launch proceeds with a warning."""
+    _patch_existing(monkeypatch, _running(None))
+    _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "a@epfl.ch"))
+    assert "only its launcher or an admin" in capsys.readouterr().err
+
+
+def test_a_name_whose_launches_already_disagree_is_refused(monkeypatch):
+    _patch_existing(monkeypatch, ServedAccess(policy=None, overridden=False, conflict=True))
+    with pytest.raises(SystemExit, match="disagree on who may use it"):
+        _run(warn_or_refuse_conflict("sk-rc-key", "alice/swiss-ai/Apertus-70B", "public"))
 
 
 def test_an_unreachable_serving_api_warns_but_does_not_block(monkeypatch, capsys):

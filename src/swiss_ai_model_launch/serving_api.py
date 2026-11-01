@@ -4,12 +4,14 @@ SML talks to it for two launch-time reasons:
 
 - ``whoami`` resolves the user's Swiss AI Research API key to the email the
   gateway knows them by, which is what ``--authorization private`` becomes.
-- ``served_model_authorizations`` reports the ``authorization`` labels already
-  on the mesh for a served name, so a launch that would collide with a
-  *different* policy under the same name can be refused before submission
-  rather than becoming an unroutable model (see the conflict rule in
-  serving-api ADR-0001).
+- ``served_model_access`` reports the access a served name has right now, so
+  a launch that would collide with a *different* policy under the same name
+  can be refused before submission rather than becoming an unroutable model
+  (see the conflict rule in serving-api ADR-0001).
 """
+
+from dataclasses import dataclass
+from urllib.parse import quote
 
 import httpx
 
@@ -70,31 +72,67 @@ async def whoami(api_key: str) -> str:
     return str(email)
 
 
-async def served_model_authorizations(api_key: str, served_model_name: str) -> list[str]:
-    """The ``authorization`` label of every peer currently serving that name.
+@dataclass(frozen=True)
+class ServedAccess:
+    """Who may use a served name right now, as the gateway enforces it."""
 
-    Best effort by design: it only sees what the *caller* is allowed to see,
-    so a same-named model restricted to somebody else is invisible here. The
-    gateway is the authority — this exists to turn the common case (relaunching
-    your own model under a different policy while the old job is still up) into
-    an error at submission time instead of a model nobody can route to.
+    # The effective policy as a label value ("public" or an email list): the
+    # post-launch override where there is one, else the launch label. None
+    # when it cannot be compared — see served_model_access.
+    policy: str | None
+    # The policy was changed after launch from the web UI.
+    overridden: bool
+    # The launches serving the name already disagree, so the gateway is
+    # refusing it for everyone.
+    conflict: bool
+
+
+async def served_model_access(api_key: str, served_model_name: str) -> ServedAccess | None:
+    """The access ``served_model_name`` has right now, or None if nothing this
+    key can see is serving it.
+
+    Read from GET /v1/model-access rather than from the model listing: the
+    listing publishes people as names, not addresses, and does not say whether
+    access was changed after launch. This endpoint reports the EFFECTIVE policy
+    — the same thing the gateway compares when it decides a name's launches
+    disagree — and returns it as an email list to whoever may edit the model
+    (its launcher or an admin). Anyone else gets names, which cannot be
+    compared with an email list, so ``policy`` is None for them unless the
+    model is public.
+
+    Best effort by design: it only sees what the *caller* is allowed to see.
+    The gateway is the authority — this exists to turn the common case
+    (relaunching your own model under a different policy while the old job is
+    still up) into an error at submission time instead of a model nobody can
+    route to.
     """
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{BASE_URL}/v1/models_detailed",
+                f"{BASE_URL}/v1/model-access/{quote(served_model_name, safe='/')}",
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=_TIMEOUT_SECONDS,
             )
     except (httpx.TransportError, httpx.TimeoutException) as exc:
         raise ServingApiError(f"Could not reach the Serving API at {BASE_URL}: {exc}") from exc
 
+    if response.status_code == 404:
+        return None
+    if response.status_code == 401:
+        raise ServingApiError("The Serving API rejected your Swiss AI Research API key.")
     if not response.is_success:
-        raise ServingApiError(f"GET /v1/models_detailed returned HTTP {response.status_code}.")
+        raise ServingApiError(f"GET /v1/model-access returned HTTP {response.status_code}.")
 
-    entries = (response.json() or {}).get("data") or []
-    return [
-        str((entry.get("labels") or {}).get("authorization", ""))
-        for entry in entries
-        if entry.get("id") == served_model_name
-    ]
+    body = response.json() or {}
+    conflict = bool(body.get("conflict"))
+    effective = body.get("effective_authorization")
+    comparable = (
+        not conflict
+        and isinstance(effective, str)
+        and (bool(body.get("can_edit")) or effective.strip().lower() == "public")
+    )
+    return ServedAccess(
+        policy=effective if comparable else None,
+        overridden=bool(body.get("is_overridden")),
+        conflict=conflict,
+    )

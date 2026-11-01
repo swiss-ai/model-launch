@@ -15,7 +15,7 @@ from swiss_ai_model_launch.launchers.authorization import (
     normalize_authorization,
     policy_of,
 )
-from swiss_ai_model_launch.serving_api import ServingApiError, served_model_authorizations, whoami
+from swiss_ai_model_launch.serving_api import ServingApiError, served_model_access, whoami
 
 
 def is_valid_authorization(raw: str) -> bool:
@@ -104,12 +104,17 @@ async def warn_or_refuse_conflict(api_key: str, served_model_name: str, authoriz
     policy while the old job is still up; catching it here turns a confusing
     403-for-everyone into an error at submission time.
 
+    The comparison is against the running model's CURRENT access, not the
+    policy it was launched with: the gateway compares effective policies, so a
+    model whose access was changed from the web UI conflicts with a relaunch
+    that only matches its original --authorization.
+
     Best effort: the check needs the Serving API, and only sees models this key
     is allowed to see. If it can't ask, it says so and lets the launch proceed —
     the gateway remains the authority either way.
     """
     try:
-        existing = await served_model_authorizations(api_key, served_model_name)
+        access = await served_model_access(api_key, served_model_name)
     except ServingApiError as exc:
         print(
             f"warning: could not check for an authorization conflict on {served_model_name!r}: {exc}",
@@ -117,15 +122,40 @@ async def warn_or_refuse_conflict(api_key: str, served_model_name: str, authoriz
         )
         return
 
-    conflicting = {value for value in existing if policy_of(value) != policy_of(authorization)}
-    if not conflicting:
+    if access is None:
         return
 
+    if access.conflict:
+        raise SystemExit(
+            f"error: {served_model_name!r} is already being refused by the Serving API: the launches "
+            "serving it disagree on who may use it.\n"
+            "       Another launch under this name cannot fix that. Cancel the jobs that disagree first, "
+            "or launch under a different --served-model-name."
+        )
+
+    if access.policy is None:
+        print(
+            f"warning: could not check for an authorization conflict on {served_model_name!r}: "
+            "it is already running, and only its launcher or an admin can see its access policy.",
+            file=sys.stderr,
+        )
+        return
+
+    if policy_of(access.policy) == policy_of(authorization):
+        return
+
+    if access.overridden:
+        match_hint = (
+            "or match its current access (it was changed after launch in the web UI — "
+            "you can also Reset it there to its launch-time policy)."
+        )
+    else:
+        match_hint = "or match its --authorization."
     raise SystemExit(
         f"error: {served_model_name!r} is already served with a different authorization policy "
-        f"({', '.join(sorted(repr(c) for c in conflicting))} vs {authorization!r}).\n"
+        f"({access.policy!r} vs {authorization!r}).\n"
         "       The Serving API refuses to route a name whose replicas disagree, so this launch "
         "would take the running one down with it.\n"
         "       Cancel the running job first, launch under a different --served-model-name, "
-        "or match its --authorization."
+        f"{match_hint}"
     )

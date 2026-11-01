@@ -105,7 +105,9 @@ A few things worth knowing:
   gateway refuses to route that name for everyone until the conflict is gone. Served
   names are namespaced under your username, so the realistic way to hit this is
   relaunching your own model with a new policy while the old job is still up — SML
-  checks for it and refuses to submit rather than taking down the running model.
+  checks for it and refuses to submit rather than taking down the running model. It
+  compares against the running model's *current* access, so if you changed it in the
+  web UI, the relaunch has to match that rather than the original `--authorization`.
 - **Labels are self-asserted.** This is access control at the gateway, not
   authentication on the mesh: anyone able to join the mesh can claim any label. Treat
   it as "who is this model *for*", not as a security boundary against a hostile peer.
@@ -149,6 +151,10 @@ How it works:
   node, so it works even after you've detached the CLI.
 - **One endpoint.** Every job in the chain shares the same `--served-model-name`,
   so clients see a single continuous model across handovers.
+- **One launch, one access setting.** Every job in the chain is the same launch
+  (one `launch_id`), so a change made with **Manage access** in the web UI applies
+  to the whole chain — including jobs still waiting in the queue — and **Reset**
+  returns all of them to `--authorization`.
 - **Exact total.** Every job but the last runs the full `--max-job-time`; the
   last job's time limit is trimmed so the chain ends exactly at `--time` instead
   of overshooting by up to a whole job. The `36:00:00` example above runs

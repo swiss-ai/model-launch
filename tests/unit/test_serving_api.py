@@ -14,8 +14,9 @@ import pytest
 from swiss_ai_model_launch import serving_api
 from swiss_ai_model_launch.serving_api import (
     BASE_URL,
+    ServedAccess,
     ServingApiError,
-    served_model_authorizations,
+    served_model_access,
     whoami,
 )
 
@@ -128,61 +129,87 @@ def test_whoami_without_an_email_is_an_error_not_an_empty_string(monkeypatch):
         _run(whoami("sk-rc-key"))
 
 
-# ── served_model_authorizations ─────────────────────────────────────────────
+# ── served_model_access ─────────────────────────────────────────────────────
 
 
-_MODELS = {
-    "data": [
-        {"id": "alice/org/m", "labels": {"authorization": "a@epfl.ch"}},
-        {"id": "alice/org/m", "labels": {"authorization": "a@epfl.ch"}},
-        {"id": "alice/org/other", "labels": {"authorization": "public"}},
-        {"id": "bob/org/m", "labels": {"authorization": "b@ethz.ch"}},
-    ]
-}
+def _access(effective, *, can_edit=True, overridden=False, conflict=False):
+    """A GET /v1/model-access body, trimmed to what the client reads."""
+    return {
+        "model_id": "alice/org/m",
+        "effective_authorization": effective,
+        "is_overridden": overridden,
+        "conflict": conflict,
+        "can_edit": can_edit,
+    }
 
 
-def test_authorizations_returns_only_the_matching_names_labels(monkeypatch):
-    calls = _patch_http(monkeypatch, _responds(200, _MODELS))
+def test_access_asks_the_model_access_endpoint_for_the_name(monkeypatch):
+    calls = _patch_http(monkeypatch, _responds(200, _access("a@epfl.ch")))
 
-    assert _run(served_model_authorizations("sk-rc-key", "alice/org/m")) == [
-        "a@epfl.ch",
-        "a@epfl.ch",
-    ]
-    assert calls[0]["url"] == f"{BASE_URL}/v1/models_detailed"
+    assert _run(served_model_access("sk-rc-key", "alice/org/m")) == ServedAccess(
+        policy="a@epfl.ch", overridden=False, conflict=False
+    )
+    assert calls[0]["url"] == f"{BASE_URL}/v1/model-access/alice/org/m"
     assert calls[0]["headers"]["Authorization"] == "Bearer sk-rc-key"
 
 
-def test_authorizations_is_empty_when_the_name_is_not_served(monkeypatch):
-    _patch_http(monkeypatch, _responds(200, _MODELS))
+def test_access_reports_a_change_made_after_launch(monkeypatch):
+    """The listing only knew the launch label; the conflict rule compares
+    the policy actually enforced, which an override replaces."""
+    _patch_http(monkeypatch, _responds(200, _access("b@ethz.ch", overridden=True)))
 
-    assert _run(served_model_authorizations("sk-rc-key", "alice/org/unlaunched")) == []
-
-
-def test_authorizations_reads_a_missing_label_as_empty(monkeypatch):
-    """A peer with no authorization label is public; the caller compares
-    normalized policies, so "" has to survive the trip."""
-    _patch_http(monkeypatch, _responds(200, {"data": [{"id": "alice/org/m"}]}))
-
-    assert _run(served_model_authorizations("sk-rc-key", "alice/org/m")) == [""]
+    assert _run(served_model_access("sk-rc-key", "alice/org/m")) == ServedAccess(
+        policy="b@ethz.ch", overridden=True, conflict=False
+    )
 
 
-def test_authorizations_tolerates_an_empty_payload(monkeypatch):
-    _patch_http(monkeypatch, _responds(200, {}))
+def test_access_is_none_when_nothing_serves_the_name(monkeypatch):
+    _patch_http(monkeypatch, _responds(404, {"error": {"message": "No running model"}}))
 
-    assert _run(served_model_authorizations("sk-rc-key", "alice/org/m")) == []
+    assert _run(served_model_access("sk-rc-key", "alice/org/unlaunched")) is None
 
 
-def test_authorizations_http_error_is_reported(monkeypatch):
+def test_access_policy_is_not_comparable_for_someone_who_cannot_edit(monkeypatch):
+    """Only an editor gets addresses back; anyone else gets display names,
+    and a name compared with an email list would read as a conflict."""
+    _patch_http(monkeypatch, _responds(200, _access("Alice Example", can_edit=False)))
+
+    assert _run(served_model_access("sk-rc-key", "alice/org/m")).policy is None
+
+
+def test_access_public_is_comparable_for_anyone(monkeypatch):
+    _patch_http(monkeypatch, _responds(200, _access("public", can_edit=False)))
+
+    assert _run(served_model_access("sk-rc-key", "alice/org/m")).policy == "public"
+
+
+def test_access_reports_launches_that_already_disagree(monkeypatch):
+    _patch_http(monkeypatch, _responds(200, _access(None, conflict=True)))
+
+    assert _run(served_model_access("sk-rc-key", "alice/org/m")) == ServedAccess(
+        policy=None, overridden=False, conflict=True
+    )
+
+
+def test_access_rejected_key_is_reported(monkeypatch):
+    _patch_http(monkeypatch, _responds(401))
+
+    with pytest.raises(ServingApiError, match="rejected your Swiss AI Research API key"):
+        _run(served_model_access("sk-rc-key", "alice/org/m"))
+
+
+def test_access_http_error_is_reported(monkeypatch):
     _patch_http(monkeypatch, _responds(500))
 
     with pytest.raises(ServingApiError, match="HTTP 500"):
-        _run(served_model_authorizations("sk-rc-key", "alice/org/m"))
+        _run(served_model_access("sk-rc-key", "alice/org/m"))
 
 
-def test_authorizations_network_failure_is_reported(monkeypatch):
+def test_access_network_failure_is_reported(monkeypatch):
     """The caller downgrades this to a warning — it must be distinguishable
-    from "no conflicting peers", which is why it raises rather than returns []."""
+    from "nothing serves this name", which is why it raises rather than
+    returning None."""
     _patch_http(monkeypatch, _raises(httpx.ConnectError("no route")))
 
     with pytest.raises(ServingApiError, match="Could not reach the Serving API"):
-        _run(served_model_authorizations("sk-rc-key", "alice/org/m"))
+        _run(served_model_access("sk-rc-key", "alice/org/m"))
