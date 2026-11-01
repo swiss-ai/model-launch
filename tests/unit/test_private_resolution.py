@@ -1,9 +1,10 @@
-"""SML's default audience is the launcher alone — also for launches built in
-Python, which never pass through the CLI that resolves `--authorization`.
+"""`authorization="private"` works for launches built in Python too, which
+never pass through the CLI that resolves `--authorization`.
 
-A Launcher resolves the default "private" to the launcher's email itself,
-before it renders anything, and refuses to launch when it can't: the
-literal never reaches the mesh, and a launch never falls back to public.
+A Launcher resolves "private" to the launcher's email itself, before it
+renders anything, and refuses to launch when it can't: the literal never
+reaches the mesh, and a launch never falls back to public. A launch that
+does not ask for it stays public and costs no Serving API call.
 """
 
 import asyncio
@@ -61,6 +62,7 @@ def _args(**overrides) -> LaunchArgs:
         environment="/env.toml",
         framework="sglang",
         time="02:00:00",
+        authorization="private",
     )
     return LaunchArgs(**{**base, **overrides})
 
@@ -138,22 +140,35 @@ def test_a_passed_key_wins_over_the_environment(monkeypatch, whoami_calls):
     assert whoami_calls == ["sk-rc-passed"]
 
 
-def test_a_python_launch_with_no_policy_goes_out_private(whoami_calls):
-    """End to end through launch_model: a request that says nothing about its
-    audience is submitted labelled with the launcher's email alone."""
-    client = _RecordingClient()
-    request = LaunchRequest(
+def _request(**overrides) -> LaunchRequest:
+    base = dict(
         model="swiss-ai/Apertus-8B-Instruct-2509",
         framework="sglang",
         nodes_per_replica=1,
         replicas=1,
         time="01:00:00",
     )
-    _run(_launcher(client, serving_api_key="sk-rc-alice").launch_model(request))
+    return LaunchRequest(**{**base, **overrides})
+
+
+def test_a_python_launch_asking_for_private_goes_out_to_its_launcher(whoami_calls):
+    """End to end through launch_model: the submitted script is labelled with
+    the launcher's email alone."""
+    client = _RecordingClient()
+    _run(_launcher(client, serving_api_key="sk-rc-alice").launch_model(_request(authorization="private")))
 
     (script,) = client.scripts
     assert _label(script, "authorization") == "alice@epfl.ch"
     assert _label(script, "launched_by_email") == "Alice@EPFL.ch"
+
+
+def test_a_python_launch_with_no_policy_stays_public_without_a_network_call(whoami_calls):
+    client = _RecordingClient()
+    _run(_launcher(client).launch_model(_request()))
+
+    (script,) = client.scripts
+    assert _label(script, "authorization") == "public"
+    assert whoami_calls == []
 
 
 def test_launch_with_args_resolves_too(whoami_calls):

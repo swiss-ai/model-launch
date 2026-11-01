@@ -108,8 +108,8 @@ def _launch_args(**overrides) -> LaunchArgs:
     return LaunchArgs(**{**_BASE_ARGS, "authorization": "alice@epfl.ch", **overrides})
 
 
-def test_launch_args_default_is_private():
-    assert LaunchArgs(**_BASE_ARGS).authorization == "private"
+def test_launch_args_default_is_public():
+    assert LaunchArgs(**_BASE_ARGS).authorization == "public"
 
 
 def test_an_unresolved_private_is_never_rendered():
@@ -117,7 +117,7 @@ def test_an_unresolved_private_is_never_rendered():
     as an allowlist naming nobody, locking everyone out of the model, its
     launcher included. Any path that forgets to resolve must fail loudly."""
     with pytest.raises(ValueError, match="must be resolved"):
-        _opentela_labels(LaunchArgs(**_BASE_ARGS))
+        _opentela_labels(LaunchArgs(**_BASE_ARGS, authorization="private"))
 
 
 def test_launch_args_normalizes_the_label():
@@ -157,16 +157,16 @@ def _advanced_args(*extra: str):
     )
 
 
-def test_advanced_defaults_to_private(monkeypatch):
-    """SML's default audience is the launcher alone, resolved to their email
-    before anything is built."""
+def test_advanced_defaults_to_public(monkeypatch):
+    """Public stays the default until every Serving API answers /v1/whoami,
+    which "private" needs; resolving it costs no network call."""
 
-    async def _me(_key):
-        return "Alice@EPFL.ch"
+    async def _unexpected(_key):
+        raise AssertionError("a public launch must not need the Serving API")
 
-    monkeypatch.setattr(cli_authorization, "whoami", _me)
+    monkeypatch.setattr(cli_authorization, "whoami", _unexpected)
     args = _advanced_args()
-    assert args.authorization == "private"
+    assert args.authorization == "public"
     la = build_launch_args_from_advanced(
         args,
         username="alice",
@@ -174,7 +174,7 @@ def test_advanced_defaults_to_private(monkeypatch):
         partition="normal",
         authorization=_run(resolve_authorization(requested_from_args(args), "sk-rc-key")),
     )
-    assert la.authorization == "alice@epfl.ch"
+    assert la.authorization == "public"
 
 
 def test_advanced_accepts_an_email_list():
@@ -456,23 +456,17 @@ def test_loadtest_advanced_applies_the_policy_too(monkeypatch, tmp_path):
     assert seen["authorization"] == "a@epfl.ch"
 
 
-def test_argparse_namespace_without_the_flag_defaults_to_private(monkeypatch):
-    """Callers that build a Namespace by hand get SML's default too — never
-    an accidental public launch."""
-
-    async def _me(_key):
-        return "a@epfl.ch"
-
-    monkeypatch.setattr(cli_authorization, "whoami", _me)
-    assert _run(resolve_authorization(requested_from_args(argparse.Namespace()), "sk-rc-key")) == "a@epfl.ch"
+def test_argparse_namespace_without_the_flag_defaults_to_public():
+    """Callers that build a Namespace by hand get SML's default too."""
+    assert _run(resolve_authorization(requested_from_args(argparse.Namespace()), "sk-rc-key")) == "public"
 
 
-def test_the_guided_prompt_defaults_to_private():
+def test_the_guided_prompt_defaults_to_public():
     from swiss_ai_model_launch.cli.main import _make_launch_request_config
 
     config = _make_launch_request_config()
     prompt = next(c for c in config.chain if getattr(c, "name", None) == "authorization")
-    assert prompt.default == "private"
+    assert prompt.default == "public"
 
 
 # ── launch provenance ───────────────────────────────────────────────────────

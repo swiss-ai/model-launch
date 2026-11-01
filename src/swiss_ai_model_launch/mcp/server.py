@@ -14,7 +14,7 @@ from fastmcp import Context
 from swiss_ai_model_launch.cli.configuration import InitConfig, optional_value
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.authorization import PRIVATE, is_private, normalize_authorization
+from swiss_ai_model_launch.launchers.authorization import PUBLIC, is_private, normalize_authorization
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
@@ -265,13 +265,13 @@ async def launch_preconfigured_model(
     ] = "opentela",
     authorization: Annotated[
         str,
-        "Who may list and use the model on the Serving API. 'private' (default): only the "
-        "launching user — resolved to their email via the Serving API's /v1/whoami, which "
-        "needs SWISSAI_RESEARCH_API_KEY to be configured. 'public': everyone. Or a "
+        "Who may list and use the model on the Serving API. 'public' (default): everyone. "
+        "'private': only the launching user — resolved to their email via the Serving API's "
+        "/v1/whoami, which needs SWISSAI_RESEARCH_API_KEY to be configured. Or a "
         "comma-separated email list, e.g. 'user1@epfl.ch,user2@ethz.ch' (literal: it does "
         "not implicitly include the launcher). This is the policy the model STARTS with; "
         "the launcher can change it later from the Serving API web UI without relaunching.",
-    ] = PRIVATE,
+    ] = PUBLIC,
 ) -> str:
     """Launch a preconfigured model on an HPC cluster and wait for it to become healthy.
 
@@ -314,9 +314,9 @@ async def launch_preconfigured_model(
             # own email before the job is submitted.
             if not swissai_research_api_key:
                 return (
-                    "authorization='private' (the default) needs SWISSAI_RESEARCH_API_KEY to "
-                    "resolve your email via the Serving API. Configure it with `sml init`, or "
-                    "pass authorization='public' or an explicit email list."
+                    "authorization='private' needs SWISSAI_RESEARCH_API_KEY to resolve your "
+                    "email via the Serving API. Configure it with `sml init`, or pass "
+                    "authorization='public' or an explicit email list."
                 )
             resolved_authorization = normalize_authorization(await whoami(swissai_research_api_key))
     except (ValueError, ServingApiError) as e:

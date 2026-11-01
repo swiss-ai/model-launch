@@ -63,9 +63,9 @@ _OPENTELA_ROUTER_DESC = "OpenTela load-balances across the replica peers on the 
 
 _AUTHORIZATION_HELP = (
     "Who may list and use the model on the Serving API. "
-    f"'{PRIVATE}' (default): only you — SML resolves this to your own email via the Serving "
-    "API's /v1/whoami before submitting, using your Swiss AI Research API key. "
-    f"'{PUBLIC}': everyone. "
+    f"'{PUBLIC}' (default): everyone. "
+    f"'{PRIVATE}': only you — SML resolves this to your own email via the Serving API's "
+    "/v1/whoami before submitting, so it needs your Swiss AI Research API key. "
     "Or a comma-separated email list, e.g. 'user1@epfl.ch,user2@ethz.ch' "
     "(the list is literal: it does NOT implicitly include you). "
     f"Env: SML_AUTHORIZATION."
@@ -76,7 +76,7 @@ def _add_authorization_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--authorization",
         dest="authorization",
-        default=os.environ.get("SML_AUTHORIZATION", PRIVATE),
+        default=os.environ.get("SML_AUTHORIZATION", PUBLIC),
         metavar="POLICY",
         help=_AUTHORIZATION_HELP,
     )
@@ -206,10 +206,10 @@ def _make_launch_request_config(
             TextConfiguration(
                 name="authorization",
                 prompt=(
-                    f"Who may use the model: '{PRIVATE}' (only you), '{PUBLIC}' (anyone), or comma-separated emails."
+                    f"Who may use the model: '{PUBLIC}' (anyone), '{PRIVATE}' (only you), or comma-separated emails."
                 ),
                 validator=is_valid_authorization,
-                default=PRIVATE,
+                default=PUBLIC,
                 env_var="SML_AUTHORIZATION",
             ),
         ],
@@ -862,7 +862,7 @@ def build_launch_args_from_advanced(
     account: str,
     partition: str,
     telemetry_endpoint: str | None = None,
-    authorization: str = PRIVATE,
+    authorization: str = PUBLIC,
     launched_by_email: str = "",
 ) -> LaunchArgs:
     """Build a LaunchArgs from a parsed `sml advanced` namespace.

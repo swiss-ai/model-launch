@@ -3,12 +3,12 @@
 Every model SML puts on the mesh carries an OpenTela peer label
 ``authorization`` that tells the Serving API gateway who may list and use it:
 
-- ``public`` — anyone, including anonymous ``/v1/models`` callers. Also how the
-  gateway reads a missing label, so launches from before this feature stay
-  public.
+- ``public`` (the default) — anyone, including anonymous ``/v1/models``
+  callers. Also how the gateway reads a missing label, so launches from before
+  this feature stay public.
 - a comma-separated email list — only those users.
 
-``private`` — SML's default — is a THIRD spelling that exists only in SML. The
+``private`` is a THIRD spelling that exists only in SML. The
 gateway has no idea who launched a job, so "only me" cannot be expressed as a
 label; SML resolves ``private`` to the launcher's own email (via the Serving
 API's ``/v1/whoami``) before the job is submitted — the CLI before it builds the

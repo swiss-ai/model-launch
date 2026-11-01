@@ -10,6 +10,7 @@ import sys
 
 from swiss_ai_model_launch.launchers.authorization import (
     PRIVATE,
+    PUBLIC,
     is_private,
     normalize_authorization,
     policy_of,
@@ -29,8 +30,8 @@ def is_valid_authorization(raw: str) -> bool:
 
 def requested_from_args(args: argparse.Namespace) -> str:
     """The raw ``--authorization`` value off a parsed namespace, defaulting to
-    private — SML's default — for namespaces built without the flag."""
-    return getattr(args, "authorization", None) or PRIVATE
+    public — SML's default — for namespaces built without the flag."""
+    return getattr(args, "authorization", None) or PUBLIC
 
 
 async def resolve_authorization(requested: str | None, api_key: str) -> str:
@@ -47,7 +48,7 @@ async def resolve_authorization(requested: str | None, api_key: str) -> str:
     Raises SystemExit with a readable message rather than a traceback: this is
     the last thing between the user and a model with the wrong audience.
     """
-    requested = requested or PRIVATE
+    requested = requested or PUBLIC
     try:
         normalized = normalize_authorization(requested)
     except ValueError as exc:

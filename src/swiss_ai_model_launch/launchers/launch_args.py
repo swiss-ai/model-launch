@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from swiss_ai_model_launch.launchers.authorization import PRIVATE, normalize_authorization
+from swiss_ai_model_launch.launchers.authorization import PUBLIC, normalize_authorization
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
@@ -90,11 +90,11 @@ class LaunchArgs(BaseModel):
     previous_job_id: int | None = None
     environment: str
 
-    # Who may list and use the model once it is on the mesh: "public", a
-    # comma-separated email list, or "private" (the default) — only the
+    # Who may list and use the model once it is on the mesh: "public" (the
+    # default), a comma-separated email list, or "private" — only the
     # launcher, resolved to their email before submission by the CLI or by
     # Launcher.resolve_identity. Rendering refuses an unresolved "private".
-    authorization: str = PRIVATE
+    authorization: str = PUBLIC
     # The launcher's platform identity, resolved from /v1/whoami by the CLI.
     # Distinct from the `launched_by` label, which is the cluster shell
     # account ($USER) and cannot be matched against a Serving API key's owner.

@@ -26,7 +26,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                                                                                        |
 | `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                                                                                           |
 | `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. Namespaced under your username automatically — see the note below. |
-| `--authorization`           | `SML_AUTHORIZATION`  | Who may list and use the model: `private` (default), `public`, or a comma-separated email list — see [Model authorization](#model-authorization)                                                  |
+| `--authorization`           | `SML_AUTHORIZATION`  | Who may list and use the model: `public` (default), `private`, or a comma-separated email list — see [Model authorization](#model-authorization)                                                  |
 | `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                                                                                           |
 | `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                                                                                             |
 | `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                                                                                          |
@@ -61,19 +61,19 @@ For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://
 
 ## Model authorization
 
-By default a launched model is **private**: only you can see it in the model list at
+By default a launched model is **public**: anyone can see it in the model list at
 <https://serving.swissai.svc.cscs.ch> and send it inference requests. `--authorization`
-opens it up:
+narrows that down:
 
 ```bash
-sml advanced ... --authorization private                       # only you (default)
-sml advanced ... --authorization public                        # anyone
+sml advanced ... --authorization public                        # anyone (default)
+sml advanced ... --authorization private                       # only you
 sml advanced ... --authorization user1@epfl.ch,user2@ethz.ch   # only these users
 ```
 
-The default applies everywhere SML launches from — `sml preconfigured`, `sml advanced`,
-`sml loadtest`, the MCP server, and the Python API — and `SML_AUTHORIZATION` changes it.
-Models launched by older versions of SML, which carry no policy at all, stay public.
+The default is the same everywhere SML launches from — `sml preconfigured`,
+`sml advanced`, `sml loadtest`, the MCP server, and the Python API — and
+`SML_AUTHORIZATION` changes it.
 
 The policy is attached to the job as an OpenTela peer label, and the Serving API
 enforces it in two places: `/v1/models` hides models you may not use, and every
@@ -96,10 +96,9 @@ A few things worth knowing:
 - **`private` is resolved before submission.** The mesh has no notion of who launched
   a job, so SML swaps `private` for your own email by asking the Serving API's
   `/v1/whoami` with your Swiss AI Research API key (from `sml init`). Without a
-  working key, a `private` launch stops rather than falling back to public — so with
-  the default, the Serving API has to be reachable to launch at all.
-- **From Python, the launcher resolves it.** A `LaunchArgs` or `LaunchRequest` with no
-  `authorization` is private too; the launcher resolves it when you submit, with the
+  working key, a `private` launch stops rather than falling back to public.
+- **From Python, the launcher resolves it.** A `LaunchArgs` or `LaunchRequest` with
+  `authorization="private"` is resolved by the launcher when you submit, with the
   key you pass as `serving_api_key=`, else `SML_SWISSAI_RESEARCH_API_KEY`, else the one
   `sml init` stored.
 - **Emails are the ones the Serving API knows you by** — the address you log in with,

@@ -66,7 +66,7 @@ Two of those identify the launch rather than describe it. `launched_by_email` is
 
 ## Model authorization
 
-Who may list and use a served model. Set at launch via `--authorization`: `private` (the default — only you), `public` (anyone), or a comma-separated email list (exactly those users — it does not implicitly include you). It travels to the mesh as an OpenTela peer label and is enforced by the Serving API, which hides unauthorized models from `/v1/models` and answers `403` on inference routes.
+Who may list and use a served model. Set at launch via `--authorization`: `public` (the default — anyone), `private` (only you), or a comma-separated email list (exactly those users — it does not implicitly include you). It travels to the mesh as an OpenTela peer label and is enforced by the Serving API, which hides unauthorized models from `/v1/models` and answers `403` on inference routes.
 
 `private` never reaches the mesh: the gateway has no idea who launched a job, so SML resolves it to your own email via the Serving API's `/v1/whoami` before submitting. Because OpenTela load-balances a [served-model name](#served-model-name) across every peer advertising it, two launches sharing a name with *different* policies make that name unroutable for everyone — SML refuses such a launch up front.
 
