@@ -51,6 +51,29 @@ def test_non_email_values_are_rejected():
             normalize_authorization(bad)
 
 
+def test_ordinary_addresses_are_accepted():
+    for good in ("a@epfl.ch", "first.last+tag@student.ethz.ch", "u@sub.domain.example.org"):
+        assert normalize_authorization(good) == good
+
+
+def test_a_domain_needs_non_empty_labels():
+    for bad in ("a@epfl", "a@.ch", "a@epfl..ch", "a@epfl.ch.", "a@epfl.ch.."):
+        with pytest.raises(ValueError):
+            normalize_authorization(bad)
+
+
+def test_a_pathological_address_is_rejected_in_linear_time():
+    """A long run of dots used to make the email check backtrack
+    quadratically (seconds at 20k characters); a CLI argument should never
+    be able to stall a launch."""
+    import time
+
+    started = time.perf_counter()
+    with pytest.raises(ValueError):
+        normalize_authorization("a@" + "." * 50_000 + ",")
+    assert time.perf_counter() - started < 1.0
+
+
 def test_mixing_a_keyword_into_a_list_is_rejected():
     """'public,a@epfl.ch' is ambiguous — the gateway would read it as an email
     list containing a bogus address, silently restricting a model the user
@@ -513,16 +536,18 @@ def test_sml_version_falls_back_when_the_package_is_not_installed(monkeypatch):
 def test_every_launch_gets_a_unique_id():
     """The id is what a post-launch access change is recorded against, so two
     launches — even of the same name — must never share one."""
-    assert _launch_args().launch_id != _launch_args().launch_id
-    assert len(_launch_args().launch_id) == 32
+    first, second = _launch_args(), _launch_args()
+    assert first.launch_id != second.launch_id
+    assert len(first.launch_id) == 32
 
 
 def test_launch_id_is_stable_for_one_launch_args():
     """It identifies the launch, not the render: asking twice must not
     produce a script whose labels disagree with themselves."""
     args = _launch_args()
-    assert args.launch_id == args.launch_id
-    assert f"--label launch_id={args.launch_id}" in _opentela_labels(args)
+    first_render, second_render = _opentela_labels(args), _opentela_labels(args)
+    assert f"--label launch_id={args.launch_id}" in first_render
+    assert first_render == second_render
 
 
 def test_labels_carry_the_launch_owner_email():

@@ -31,7 +31,13 @@ PRIVATE = "private"
 # owner_email verbatim, so our job is to catch typos and shell-quoting
 # accidents ("--authorization user1@epfl.ch user2@ethz.ch" arriving as one
 # arg), not to adjudicate what a valid address is.
-_EMAIL_RE = re.compile(r"^[^@\s,]+@[^@\s,]+\.[^@\s,]+$")
+#
+# The domain is dot-separated labels that cannot themselves contain a dot.
+# Letting a label match "." too (as `[^@\s,]+\.[^@\s,]+` did) makes the
+# engine try every dot as the separator, which is quadratic on a long run of
+# dots; with disjoint classes there is only one way to split, so a mismatch
+# fails in linear time.
+_EMAIL_RE = re.compile(r"^[^@\s,]+@[^@\s,.]+(?:\.[^@\s,.]+)+$")
 
 
 def normalize_authorization(value: str) -> str:
