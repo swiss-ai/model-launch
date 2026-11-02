@@ -13,7 +13,7 @@ from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.launcher import Launcher, TerminalCommand
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
-from swiss_ai_model_launch.launchers.served_name import namespace_served_model_name
+from swiss_ai_model_launch.launchers.served_name import derive_served_model_name, namespace_served_model_name
 from swiss_ai_model_launch.launchers.topology import Topology
 from swiss_ai_model_launch.launchers.utils import (
     MODEL_REGISTRY,
@@ -89,6 +89,7 @@ class FirecRESTLauncher(Launcher):
         ssh_host: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
         working_dir: str | None = None,
+        serving_api_key: str | None = None,
     ):
         super().__init__(
             system_name=system_name,
@@ -99,6 +100,7 @@ class FirecRESTLauncher(Launcher):
             qos=qos,
             telemetry_endpoint=telemetry_endpoint,
             model_registry=model_registry,
+            serving_api_key=serving_api_key,
         )
         self.client = client
         # SSH alias/host used to reach the cluster's login node so the TUI can open
@@ -123,6 +125,7 @@ class FirecRESTLauncher(Launcher):
         telemetry_endpoint: str | None = None,
         ssh_host: str | None = None,
         working_dir: str | None = None,
+        serving_api_key: str | None = None,
     ) -> "FirecRESTLauncher":
         user_info = await call_with_firecrest_retry(lambda: client.userinfo(system_name))
         return cls(
@@ -136,6 +139,7 @@ class FirecRESTLauncher(Launcher):
             telemetry_endpoint=telemetry_endpoint,
             ssh_host=ssh_host,
             working_dir=working_dir,
+            serving_api_key=serving_api_key,
         )
 
     def _get_user_dir(self) -> str:
@@ -155,7 +159,13 @@ class FirecRESTLauncher(Launcher):
     ) -> LaunchArgs:
         model = launch_request.model
         job_name = launch_request.job_name or f"{model.replace('/', '_')}_{self.username}_{create_salt(8)}"
-        served_model_name = namespace_served_model_name(launch_request.served_model_name or model, self.username)
+        # An explicit name is honoured as given; only a name we invent carries
+        # the framework suffix that keeps sglang and vllm launches apart.
+        served_model_name = (
+            namespace_served_model_name(launch_request.served_model_name, self.username)
+            if launch_request.served_model_name
+            else derive_served_model_name(model, launch_request.framework, self.username)
+        )
         return LaunchArgs(
             job_name=job_name,
             account=self.account,
@@ -176,6 +186,8 @@ class FirecRESTLauncher(Launcher):
             pre_launch_cmds=launch_request.pre_launch_cmds or "",
             telemetry_endpoint=self.telemetry_endpoint,
             router=launch_request.router,
+            authorization=launch_request.authorization,
+            launched_by_email=launch_request.launched_by_email,
         )
 
     def _get_local_env_file_path(self, launch_request: LaunchRequest) -> str:
@@ -246,7 +258,7 @@ class FirecRESTLauncher(Launcher):
         return await self._submit_or_adopt(launch_args.job_name, lambda: self._submit_script(script_str))
 
     async def launch_with_args(self, launch_args: LaunchArgs) -> tuple[int, str]:
-        prepared = await self._prepare_launch_args(launch_args)
+        prepared = await self._prepare_launch_args(await self.resolve_identity(launch_args))
         job_id = await self._submit_one(prepared)
         return job_id, prepared.served_model_name
 
@@ -303,6 +315,7 @@ class FirecRESTLauncher(Launcher):
             )
         )
 
+        launch_args = await self.resolve_identity(launch_args)
         job_id = await self._submit_one(launch_args)
         return job_id, launch_args.served_model_name
 

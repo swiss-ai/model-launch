@@ -5,6 +5,7 @@ import shlex
 from importlib.resources import files
 from typing import ClassVar
 
+from swiss_ai_model_launch.launchers.authorization import PRIVATE, PUBLIC, is_private
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
     ROUTER_SGLANG,
@@ -85,7 +86,34 @@ def _compose_framework_args(launch_args: LaunchArgs) -> str:
     return f"--port {FRAMEWORK_PORT} {launch_args.framework_args}".strip()
 
 
+def _sml_version() -> str:
+    """The SML version rendering this launch.
+
+    Resolved here, on the machine that submits the job, not on the compute node
+    — SML is not installed there, and what we want to record is the version
+    that produced the script.
+
+    Falls back to "unknown" when the package metadata is missing (running from
+    a source checkout that was never installed). A launch is not worth failing
+    over a provenance label.
+    """
+    try:
+        return importlib.metadata.version("swiss-ai-model-launch")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
 def _opentela_labels(launch_args: LaunchArgs) -> str:
+    if is_private(launch_args.authorization):
+        # A guardrail, not a user-facing error: the CLI and Launcher both
+        # resolve "private" to the launcher's email before a job is rendered.
+        # The literal would reach the gateway as an allowlist naming nobody,
+        # locking everyone out of the model — the launcher included.
+        raise ValueError(
+            f"authorization={PRIVATE!r} must be resolved to the launcher's email before the job is "
+            "rendered: launch it through a Launcher, which resolves it with your Swiss AI Research "
+            f"API key, or pass an explicit policy ({PUBLIC!r} or an email list)."
+        )
     # Users often write framework_args with bash line-continuations + indented
     # follow-on lines, which collapse to runs of whitespace inside the quoted
     # string. Normalise here so the on-mesh label is the canonical single-space
@@ -94,15 +122,31 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
     user_input = [
         f"framework={launch_args.framework}",
         f"served_model_name={launch_args.served_model_name}",
+        # The gateway's access-control input: "public" or an email list. It is
+        # shlex-quoted like the other user-supplied labels because an email
+        # list is one comma-separated argument.
+        f"authorization={launch_args.authorization}",
+        # Who may CHANGE the policy above once the model is running. The
+        # gateway keys post-launch access changes off these two: the email
+        # says whose model it is (launched_by, next to it, is a shell account
+        # and matches no platform identity), and the id scopes any change to
+        # this launch so it cannot outlive the job.
+        f"launched_by_email={launch_args.launched_by_email}",
+        f"launch_id={launch_args.launch_id}",
         f"framework_args={framework_args_normalised}",
     ]
     quoted = " \\\n".join(f"    --label {shlex.quote(kv)}" for kv in user_input)
     seconds = time_str_to_seconds(launch_args.time)
+    # Baked in as a literal rather than resolved on the node: this records which
+    # SML built the script, which is what you want when a launch misbehaves and
+    # you need to know whether it predates a fix.
+    sml_version = shlex.quote(f"sml_version={_sml_version()}")
     return (
         "    --label launched_by=$USER \\\n"
         "    --label slurm_job_id=$SLURM_JOB_ID \\\n"
         "    --label slurm_partition=${SLURM_JOB_PARTITION:-unknown} \\\n"
         "    --label worker_group_id=$SLURM_JOB_ID \\\n"
+        f"    --label {sml_version} \\\n"
         f"{quoted} \\\n"
         "    --label started_at=$(date -u +%FT%TZ) \\\n"
         f'    --label expires_at=$(date -u -d "+{seconds} seconds" +%FT%TZ) \\\n'
@@ -377,7 +421,7 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
     # metrics-only). Otherwise each head advertises `llm` on the framework port.
     opentela_service_port = SGLANG_ROUTER_PORT if _fronted_by_router(launch_args) else FRAMEWORK_PORT
     fa = _compose_framework_args(launch_args)
-    sml_version = importlib.metadata.version("swiss-ai-model-launch")
+    sml_version = _sml_version()
     # The four telemetry keys below keep their original pre-rebrand spelling to match
     # the external ingestion schema and must not be renamed.
     payload = (

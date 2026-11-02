@@ -22,14 +22,14 @@ async def main() -> None:
 
     args = LaunchArgs(
         job_name=f"sml_apertus_8b_vllm_rocm_{username}",
-        served_model_name=f"swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username}",
+        served_model_name=f"{username}/swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm",
         account=account,
         partition="mi300",
         environment="src/swiss_ai_model_launch/assets/envs/vllm_rocm.toml",
         framework="vllm",
         framework_args=(
             "--model /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 "
-            f"--served-model-name swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm-{username} "
+            f"--served-model-name {username}/swiss-ai/Apertus-8B-Instruct-2509-vllm-rocm "
             "--host 0.0.0.0 "
             "--tensor-parallel-size 4 "
             "--gpu-memory-utilization 0.5"

@@ -9,10 +9,17 @@ from typing import Any, Protocol
 
 import questionary
 
+from swiss_ai_model_launch.cli.authorization import (
+    requested_from_args,
+    resolve_authorization,
+    resolve_launcher_email,
+    warn_or_refuse_conflict,
+)
 from swiss_ai_model_launch.cli.configuration import InitConfig
 from swiss_ai_model_launch.cli.healthcheck import check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.launchers import Launcher
+from swiss_ai_model_launch.launchers.authorization import PUBLIC
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.loadtest.cluster import (
@@ -64,6 +71,8 @@ class _BuildLaunchArgsFromAdvanced(Protocol):
         account: str,
         partition: str,
         telemetry_endpoint: str | None = None,
+        authorization: str = PUBLIC,
+        launched_by_email: str = "",
     ) -> LaunchArgs: ...
 
 
@@ -435,7 +444,7 @@ async def _run_loadtest_against_existing_model(
         raise ValueError("Run `sml init` first so SML can submit the cluster loadtest job.")
 
     config = InitConfig.load()
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     loadtest_model = args.loadtest_model
     request_model = loadtest_model or ""
     loadtest_config = make_loadtest_config(args)
@@ -478,8 +487,20 @@ async def _run_loadtest_preconfigured(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
     launch_request = await get_launch_request(launcher, args)
+    authorization = await resolve_authorization(launch_request.authorization, swissai_research_api_key)
+    launch_request = launch_request.model_copy(
+        update={
+            "authorization": authorization,
+            "launched_by_email": await resolve_launcher_email(swissai_research_api_key),
+        }
+    )
+    await warn_or_refuse_conflict(
+        swissai_research_api_key,
+        str(launch_request.served_model_name),
+        authorization,
+    )
     await _prompt_loadtest_scenario(args)
     loadtest_config = make_loadtest_config(args)
 
@@ -504,14 +525,20 @@ async def _run_loadtest_advanced(
 
     config = InitConfig.load()
     launcher = await create_launcher(config, args, True)
-    swissai_research_api_key = config.get_non_none_value("swissai_research_api_key")
+    swissai_research_api_key = config.serving_api_key()
+    # A loadtest launch puts a real model on the mesh, so it carries the same
+    # access policy as any other launch rather than defaulting to public.
+    authorization = await resolve_authorization(requested_from_args(args), swissai_research_api_key)
     launch_args = build_launch_args_from_advanced(
         args,
         username=launcher.username,
         account=launcher.account,
         partition=launcher.partition,
         telemetry_endpoint=config.get_value("telemetry_endpoint"),
+        authorization=authorization,
+        launched_by_email=await resolve_launcher_email(swissai_research_api_key),
     )
+    await warn_or_refuse_conflict(swissai_research_api_key, launch_args.served_model_name, authorization)
     loadtest_config = make_loadtest_config(args)
 
     await _submit_and_run_loadtest(

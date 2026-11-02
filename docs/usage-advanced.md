@@ -10,31 +10,32 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 
 ## Arguments
 
-| Argument                    | Environment Variable | Description                                                                                                                    |
-| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                              |
-| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                |
-| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                          |
-| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                   |
-| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                          |
-| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                      |
-| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                 |
-| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                              |
-| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                               |
-| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                  |
-| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
-| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
-| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
-| `--served-model-name`       |                      | Required: here, or `--served-model-name <name>` inside `--framework-args`. Namespaced — see the note below.                    |
-| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
-| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
-| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
-| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
-| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
-| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                   |
-| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                              |
-| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                              |
-| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                  |
+| Argument                    | Environment Variable | Description                                                                                                                                                                                       |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                                                                                                 |
+| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                                                                                   |
+| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                                                                                             |
+| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                                                                                      |
+| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                                                                                             |
+| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                                                                                         |
+| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                                                                                    |
+| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                                                                                                 |
+| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                                                                                                  |
+| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                                                                                     |
+| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                                                                                                 |
+| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                                                                                        |
+| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                                                                                           |
+| `--served-model-name`       |                      | Required: pass it here, or include `--served-model-name <name>` inside `--framework-args`. Omitting both aborts with an error. Namespaced under your username automatically — see the note below. |
+| `--authorization`           | `SML_AUTHORIZATION`  | Who may list and use the model: `public` (default), `private`, or a comma-separated email list — see [Model authorization](#model-authorization)                                                  |
+| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                                                                                           |
+| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                                                                                             |
+| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                                                                                          |
+| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                                                                                             |
+| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                                                                                     |
+| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                                                                                      |
+| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                                                                                                 |
+| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                                                                                                 |
+| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                                                                                     |
 
 > Total nodes is `--replicas × --nodes-per-replica`. The framework HTTP port is **8080**.
 
@@ -47,14 +48,77 @@ sml advanced \
   --framework sglang \
   --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 \
     --enable-metrics"
 ```
 
-> **Note:** A model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running — but you won't collide with it. SML prepends your cluster username, so the example above is served as `<your-username>/swiss-ai/Apertus-8B-Instruct-2509`, and that is the id to send in the `model` field. Write the name without a namespace and let SML add it; passing a name under another user's namespace is rejected before the job is submitted.
+> **Note:** Served names are namespaced under your cluster account — `<your-username>/<vendor>/<model>` — so although a model named `swiss-ai/Apertus-8B-Instruct-2509` is usually already running, you won't collide with it. The examples write that namespace out as `$USER/...`, and the expanded name is the id to send in the `model` field.
+>
+> `$USER` has to be your **cluster** account. It normally is, but if you run `sml` from a laptop whose local username differs from your CSCS one, the launch is rejected — the name would be namespaced under someone else. In that case pass `--served-model-name <your-cscs-user>/<vendor>/<model>` explicitly, or omit the namespace entirely and let SML prepend the right one. A name under another user's namespace is always rejected before submission.
 
 For more ready-to-run scripts per cluster and vendor, see [`examples/`](https://github.com/swiss-ai/model-launch/tree/main/examples).
+
+## Model authorization
+
+By default a launched model is **public**: anyone can see it in the model list at
+<https://serving.swissai.svc.cscs.ch> and send it inference requests. `--authorization`
+narrows that down:
+
+```bash
+sml advanced ... --authorization public                        # anyone (default)
+sml advanced ... --authorization private                       # only you
+sml advanced ... --authorization user1@epfl.ch,user2@ethz.ch   # only these users
+```
+
+The default is the same everywhere SML launches from — `sml preconfigured`,
+`sml advanced`, `sml loadtest`, the MCP server, and the Python API — and
+`SML_AUTHORIZATION` changes it.
+
+The policy is attached to the job as an OpenTela peer label, and the Serving API
+enforces it in two places: `/v1/models` hides models you may not use, and every
+inference route answers `403` if you are not on the list. It lives and dies with the
+job — there is nothing to clean up when the model goes away.
+
+**You can change it later without relaunching.** The label itself is fixed for the
+life of the job, so the flag above sets the policy the model *starts* with; to change
+who may use a model that is already running, open its card at
+<https://serving.swissai.svc.cscs.ch> and use **Manage access**. **Reset** puts it back
+to the policy it launched with. Only the person who launched the model (or an admin)
+sees that menu, and the change applies until it is reset or the job ends — a relaunch
+starts again at whatever `--authorization` says.
+
+A few things worth knowing:
+
+- **The email list is literal.** `--authorization user1@epfl.ch` means *that user
+  only* — it does not implicitly include you. That is what lets you hand a model to a
+  collaborator, and also how you lock yourself out.
+- **`private` is resolved before submission.** The mesh has no notion of who launched
+  a job, so SML swaps `private` for your own email by asking the Serving API's
+  `/v1/whoami` with your Swiss AI Research API key (from `sml init`). Without a
+  working key, a `private` launch stops rather than falling back to public.
+- **From Python, the launcher resolves it.** A `LaunchArgs` or `LaunchRequest` with
+  `authorization="private"` is resolved by the launcher when you submit, with the
+  key you pass as `serving_api_key=`, else `SML_SWISSAI_RESEARCH_API_KEY`, else the one
+  `sml init` stored.
+- **Emails are the ones the Serving API knows you by** — the address you log in with,
+  which is the owner of your API key. Case and spacing don't matter.
+- **Every launch is stamped with who you are and which launch it is.** SML resolves
+  your email once via `/v1/whoami` and attaches it (`launched_by_email`) alongside a
+  per-launch id (`launch_id`); together they are what lets the web UI know the model is
+  yours to manage. Unlike `private`, this lookup is best-effort — if the Serving API
+  can't be reached the launch still goes ahead, and the model is admin-managed.
+- **One name, one policy.** OpenTela load-balances a served name across every peer
+  advertising it, so if two launches share a name with *different* policies, the
+  gateway refuses to route that name for everyone until the conflict is gone. Served
+  names are namespaced under your username, so the realistic way to hit this is
+  relaunching your own model with a new policy while the old job is still up — SML
+  checks for it and refuses to submit rather than taking down the running model. It
+  compares against the running model's *current* access, so if you changed it in the
+  web UI, the relaunch has to match that rather than the original `--authorization`.
+- **Labels are self-asserted.** This is access control at the gateway, not
+  authentication on the mesh: anyone able to join the mesh can claim any label. Treat
+  it as "who is this model *for*", not as a security boundary against a hostile peer.
 
 ## Running past the 12 h cap (`--consecutive`)
 
@@ -71,7 +135,7 @@ sml advanced \
   --time 36:00:00 \
   --consecutive \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 --enable-metrics"
 ```
 
@@ -95,6 +159,10 @@ How it works:
   node, so it works even after you've detached the CLI.
 - **One endpoint.** Every job in the chain shares the same `--served-model-name`,
   so clients see a single continuous model across handovers.
+- **One launch, one access setting.** Every job in the chain is the same launch
+  (one `launch_id`), so a change made with **Manage access** in the web UI applies
+  to the whole chain — including jobs still waiting in the queue — and **Reset**
+  returns all of them to `--authorization`.
 - **Exact total.** Every job but the last runs the full `--max-job-time`; the
   last job's time limit is trimmed so the chain ends exactly at `--time` instead
   of overshooting by up to a whole job. The `36:00:00` example above runs
@@ -152,7 +220,7 @@ sml advanced \
   --framework sglang \
   --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
   --framework-args "--model-path /capstor/.../Apertus-8B-Instruct-2509 \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509 \
     --host 0.0.0.0 --enable-metrics" \
   --output-script /tmp/debug
 ```
@@ -203,6 +271,12 @@ If you disable it, you're responsible for reaching the model yourself — usuall
 The bootstrap multiaddr the replica uses to join the mesh is baked in — it's the prod peer by default. Two flags override it:
 
 - `--dev` — switch to the dev-datacenter peer. Shorthand for the most common alternate environment.
+  It also points SML's own calls to the Serving API — resolving `private`, the conflict
+  check and health checks — at the dev gateway (`https://apidev.swissai.svc.cscs.ch`),
+  since only that gateway routes to the dev mesh. Dev has its own API keys: get one at
+  <https://servingdev.swissai.svc.cscs.ch> and pass it for the command as
+  `SML_SWISSAI_RESEARCH_API_KEY`, which overrides the key `sml init` stored.
+  `SML_SERVING_API_URL` points SML at any other gateway.
 - `--opentela-bootstrap-addr <multiaddr>` — point at an arbitrary peer, e.g. an OpenTela instance running in another datacenter or on a custom IP. Takes precedence over `--dev` if both are passed (with a warning).
 
 Example:

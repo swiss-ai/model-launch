@@ -65,6 +65,7 @@ def _request(job_name=None) -> LaunchRequest:
         replicas=1,
         time="01:00:00",
         job_name=job_name,
+        authorization="alice@epfl.ch",
     )
 
 
@@ -102,7 +103,7 @@ def test_named_launch_adopts_the_job_a_failed_submit_created() -> None:
     job_id, served = asyncio.run(launcher.launch_model(_request(job_name="evalsvc-abc123")))
 
     assert job_id == 4242
-    assert served == "alice/swiss-ai/Apertus-8B-Instruct-2509"
+    assert served == "alice/swiss-ai/Apertus-8B-Instruct-2509-sglang"
     assert client.submits == 1  # no second sbatch
     assert len(client.lookups) == 1
 

@@ -21,7 +21,7 @@ sml loadtest advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model-path $MODEL \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-tp4-${SUFFIX} \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509-tp4-${SUFFIX} \
     --host 0.0.0.0 --port 8080 \
     --tp-size 4 \
     --enable-metrics" \
@@ -37,7 +37,7 @@ sml loadtest advanced \
   --framework sglang \
   --environment "$ENV" \
   --framework-args "--model-path $MODEL \
-    --served-model-name swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX} \
+    --served-model-name $USER/swiss-ai/Apertus-8B-Instruct-2509-tp1-dp4-${SUFFIX} \
     --host 0.0.0.0 --port 8080 \
     --tp-size 1 --dp-size 4 \
     --enable-metrics" \

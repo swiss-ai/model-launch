@@ -2,6 +2,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel
 
+from swiss_ai_model_launch.launchers.authorization import PUBLIC
 from swiss_ai_model_launch.launchers.launch_args import ROUTER_OPENTELA, RouterMode
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 
@@ -24,6 +25,14 @@ class LaunchRequest(BaseModel):
     # job by this name and returns it instead of submitting a second one.
     # Unset, a unique random name is generated.
     job_name: str | None = None
+    # Access policy for the served model: "public" (the default), a
+    # comma-separated email list, or "private" — only the launcher, resolved
+    # to their email by the CLI, or by the Launcher before it submits.
+    authorization: str = PUBLIC
+    # The launcher's platform identity (from /v1/whoami), stamped on the mesh
+    # so the gateway knows whose model this is when someone asks to change its
+    # access later. Empty is allowed and means admin-managed.
+    launched_by_email: str = ""
 
     @classmethod
     def from_catalog_entry(
@@ -34,6 +43,8 @@ class LaunchRequest(BaseModel):
         time: str,
         served_model_name: str | None = None,
         router: RouterMode = ROUTER_OPENTELA,
+        authorization: str = PUBLIC,
+        launched_by_email: str = "",
     ) -> Self:
         return cls(
             model=entry.model,
@@ -47,4 +58,6 @@ class LaunchRequest(BaseModel):
             served_model_name=served_model_name,
             router=router,
             model_path=entry.model_path,
+            authorization=authorization,
+            launched_by_email=launched_by_email,
         )

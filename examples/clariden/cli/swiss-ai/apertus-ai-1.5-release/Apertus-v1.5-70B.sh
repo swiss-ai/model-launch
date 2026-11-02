@@ -6,7 +6,7 @@ sml advanced \
   --time 12:00:00 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus_1.5_release.toml \
   --framework-args "--model swiss-ai/Apertus-v1.5-70B \
-    --served-model-name swiss-ai/Apertus-v1.5-70B \
+    --served-model-name $USER/swiss-ai/Apertus-v1.5-70B \
     --chat-template-content-format string \
     --tensor-parallel-size 4 \
     --gpu-memory-utilization 0.8 \

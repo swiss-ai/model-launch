@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from swiss_ai_model_launch.launchers.authorization import PRIVATE, PUBLIC, is_private, normalize_authorization
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
     LaunchArgs,
@@ -19,9 +21,38 @@ from swiss_ai_model_launch.launchers.launch_args import (
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
 from swiss_ai_model_launch.launchers.utils import MODEL_REGISTRY, is_firecrest_retryable, resolve_model_path
+from swiss_ai_model_launch.serving_api import ServingApiError, whoami
 
 if TYPE_CHECKING:
     from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport
+
+# Where a Launcher built in Python finds the key that resolves the default
+# `authorization="private"`, when none is passed to it.
+SERVING_API_KEY_ENV = "SML_SWISSAI_RESEARCH_API_KEY"
+
+
+def configured_serving_api_key() -> str | None:
+    """The Swiss AI Research API key from the environment, else the one
+    `sml init` stored — or None."""
+    return os.environ.get(SERVING_API_KEY_ENV) or _stored_serving_api_key()
+
+
+def _stored_serving_api_key() -> str | None:
+    """The key `sml init` stored, or None.
+
+    Imported lazily from the CLI's configuration: launchers do not otherwise
+    depend on the CLI, and a missing or unreadable config only means there is
+    no key to find, which the caller reports in its own terms.
+    """
+    try:
+        from swiss_ai_model_launch.cli.configuration import InitConfig
+
+        if InitConfig.exists():
+            return InitConfig.load().get_value("swissai_research_api_key") or None
+    except Exception:
+        return None
+    return None
+
 
 # The in-job checker writes its report next to the job logs.
 REPLICA_HEALTH_FILENAME = "replica_health.json"
@@ -86,6 +117,7 @@ class Launcher(ABC):
         qos: str | None = None,
         telemetry_endpoint: str | None = None,
         model_registry: Path = MODEL_REGISTRY,
+        serving_api_key: str | None = None,
     ):
         self.system_name = system_name
         self.username = username
@@ -95,6 +127,45 @@ class Launcher(ABC):
         self.qos = qos
         self.telemetry_endpoint = telemetry_endpoint
         self.model_registry = model_registry
+        # The user's Swiss AI Research API key, for resolving the default
+        # authorization="private" to their email before submission. None:
+        # SML_SWISSAI_RESEARCH_API_KEY, then the key `sml init` stored.
+        self.serving_api_key = serving_api_key
+
+    async def resolve_identity(self, launch_args: LaunchArgs) -> LaunchArgs:
+        """``launch_args`` with ``authorization="private"`` turned into the
+        launcher's email, ready to render.
+
+        Every launch entry point calls this before submitting, so a launch
+        built in Python gets SML's private default the same way the CLI's
+        does. Resolving also stamps ``launched_by_email`` when it is unset —
+        the email is in hand anyway — so the launcher can change the model's
+        access afterwards from the web UI.
+
+        Anything other than "private" is returned untouched, without a
+        network call. "private" fails closed: with no key, or no answer from
+        the Serving API, the launch is refused rather than going out public
+        (or as a label that would lock everyone out).
+        """
+        if not is_private(launch_args.authorization):
+            return launch_args
+        api_key = self.serving_api_key or configured_serving_api_key()
+        if not api_key:
+            raise ValueError(
+                f"authorization={PRIVATE!r} (the default) needs your Swiss AI Research API key to resolve "
+                f"your email: pass serving_api_key= to the launcher, set {SERVING_API_KEY_ENV}, or run "
+                f"`sml init`. Or choose the audience explicitly: {PUBLIC!r} or a list of emails."
+            )
+        try:
+            email = await whoami(api_key)
+        except ServingApiError as exc:
+            raise ValueError(f"authorization={PRIVATE!r} needs your identity from the Serving API, but: {exc}") from exc
+        return launch_args.model_copy(
+            update={
+                "authorization": normalize_authorization(email),
+                "launched_by_email": launch_args.launched_by_email or email,
+            }
+        )
 
     @abstractmethod
     async def get_preconfigured_models(self) -> list[ModelCatalogEntry]: ...
@@ -168,7 +239,9 @@ class Launcher(ABC):
         # overlap at least the requested handover (a slightly earlier successor).
         delay_minutes = max(1, interval_seconds // 60)
         base = now or datetime.now()
-        prepared = await self._prepare_launch_args(launch_args)
+        # Once for the whole chain: every job is copied from `prepared`, so
+        # they all carry the same resolved policy and owner (and launch_id).
+        prepared = await self._prepare_launch_args(await self.resolve_identity(launch_args))
 
         results: list[ScheduledJob] = []
         previous_job_id: int | None = None

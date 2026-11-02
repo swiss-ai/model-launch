@@ -1,10 +1,12 @@
 import math
 import re
+import uuid
 import warnings
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from swiss_ai_model_launch.launchers.authorization import PUBLIC, normalize_authorization
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
@@ -88,6 +90,24 @@ class LaunchArgs(BaseModel):
     previous_job_id: int | None = None
     environment: str
 
+    # Who may list and use the model once it is on the mesh: "public" (the
+    # default), a comma-separated email list, or "private" — only the
+    # launcher, resolved to their email before submission by the CLI or by
+    # Launcher.resolve_identity. Rendering refuses an unresolved "private".
+    authorization: str = PUBLIC
+    # The launcher's platform identity, resolved from /v1/whoami by the CLI.
+    # Distinct from the `launched_by` label, which is the cluster shell
+    # account ($USER) and cannot be matched against a Serving API key's owner.
+    # This is what lets the gateway decide who may change the model's access
+    # after launch; empty means nobody but an admin can.
+    launched_by_email: str = ""
+    # Identifies THIS launch, for the life of the job. A post-launch access
+    # change is recorded against it rather than against the served model
+    # name, so that an access rule can never outlive its job and re-apply to
+    # a different launch that later takes the same name. Generated per
+    # LaunchArgs, so every path that builds one gets a fresh id for free.
+    launch_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+
     framework: str
     framework_args: str = ""
     pre_launch_cmds: str = ""
@@ -107,6 +127,12 @@ class LaunchArgs(BaseModel):
     def _validate(self) -> "LaunchArgs":
         if not self.disable_metrics and not self.metrics_remote_write_url:
             raise ValueError("Metrics require a remote write URL when metrics are enabled.")
+        # Normalizing here (rather than only in the CLI) keeps the label
+        # canonical for launches built programmatically — tests, the MCP
+        # server, and the example scripts all construct LaunchArgs directly.
+        # "private" stays as it is: it is the default, so it has to be
+        # constructible, and it is resolved at launch (see the field).
+        self.authorization = normalize_authorization(self.authorization)
         if _PORT_FLAG_RE.search(self.framework_args):
             warnings.warn(
                 f"`--port` in framework_args is redundant; the framework port is hardcoded "

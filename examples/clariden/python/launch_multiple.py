@@ -31,7 +31,10 @@ async def launch_model(launcher: SlurmLauncher, model: dict[str, str | int]) -> 
     username = launcher.username
     vendor = model["vendor"]
     name = model["name"]
-    served = f"{vendor}/{name}-{username}"
+    # Served names are namespaced under the launching account:
+    # <username>/<vendor>/<model>. These build LaunchArgs directly, so
+    # nothing prepends it for us — spell it out.
+    served = f"{username}/{vendor}/{name}"
 
     args = LaunchArgs(
         job_name=f"sml_{name}_{username}",

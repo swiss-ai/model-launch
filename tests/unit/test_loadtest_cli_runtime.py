@@ -140,6 +140,9 @@ class DummyConfig:
     def get_non_none_value(self, name: str) -> str:
         return {"swissai_research_api_key": "secret"}[name]
 
+    def serving_api_key(self) -> str:
+        return "secret"
+
 
 class DummyLauncher(Launcher):
     def __init__(self) -> None:
