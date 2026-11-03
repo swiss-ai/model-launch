@@ -4,7 +4,7 @@
 # KISTI rejects jobs without --comment, and only hands out GPUs requested via --gres.
 # The pip uninstall works around torchcodec in vllm-openai:*-cu129 being built for CUDA 13.
 sml advanced \
-  --partition normal \
+  --partition "${SML_PARTITION:-intTest}" \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_kisti.toml \
   --container-runtime pyxis \
