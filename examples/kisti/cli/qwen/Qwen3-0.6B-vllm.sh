@@ -1,5 +1,6 @@
 #!/bin/bash
-# KISTI-6: run from the repo root on a KISTI login node with `sml init` set to the slurm launcher.
+# KISTI-6: run from the repo root on a KISTI login node with `sml init` set to the slurm launcher and
+#   export SML_ACCOUNT=<project> SML_WORKING_DIR=/scratch/$USER/sml   (jobs may not run from $HOME)
 # KISTI rejects jobs without --comment, and only hands out GPUs requested via --gres.
 # The pip uninstall works around torchcodec in vllm-openai:*-cu129 being built for CUDA 13.
 sml advanced \

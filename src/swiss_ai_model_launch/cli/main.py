@@ -571,6 +571,9 @@ async def _get_slurm_launcher(
         reservation=reservation,
         qos=qos,
         telemetry_endpoint=telemetry_endpoint,
+        # Jobs run from here; some sites (KISTI) refuse jobs whose working dir
+        # is under $HOME. Unset: ~/.sml.
+        working_dir=os.environ.get("SML_WORKING_DIR") or None,
     )
 
 
