@@ -2,7 +2,6 @@
 sml advanced \
   --system beverin \
   --framework vllm \
-  --replica 16 \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_rocm.toml \
   --time "05:00:00" \
   --partition mi300 \
