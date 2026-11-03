@@ -5,6 +5,7 @@ import importlib
 from pathlib import Path
 from typing import Any
 
+import keyring
 import pytest
 
 # `swiss_ai_model_launch.cli.main` is shadowed by the `main` function the package exports.
@@ -23,7 +24,14 @@ class _FirecrestInitConfig:
 
 
 @pytest.fixture
-def used_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Any]:
+def fake_keyring(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
+    store: dict[tuple[str, str], str] = {}
+    monkeypatch.setattr(keyring, "get_password", lambda service, name: store.get((service, name)))
+    return store
+
+
+@pytest.fixture
+def used_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_keyring: dict[tuple[str, str], str]) -> list[Any]:
     (tmp_path / "clusters.yml").write_text(
         "systems:\n"
         "  beverin:\n"
@@ -70,3 +78,13 @@ async def test_sml_system_env_var_selects_the_endpoint_too(
 async def test_other_systems_go_through_the_init_config(used_client: list[Any], system: str | None) -> None:
     await _launch(system)
     assert used_client == [_INIT_CONFIG_CLIENT]
+
+
+async def test_credentials_stored_by_init_system_reach_the_builtin_instance(
+    used_client: list[Any], fake_keyring: dict[tuple[str, str], str]
+) -> None:
+    fake_keyring[("swiss_ai_model_launch", "firecrest_client_id@daint")] = "id"
+    fake_keyring[("swiss_ai_model_launch", "firecrest_client_secret@daint")] = "secret"
+    await _launch("daint")
+    (client,) = used_client
+    assert client._firecrest_url == "https://api.cscs.ch/hpc/firecrest/v2"
