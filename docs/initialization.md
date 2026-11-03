@@ -75,6 +75,40 @@ chain:
 
 The `value: __keyring__` entries are placeholders; the actual secrets live in your OS keyring, not in this file. Treat both the file and your keyring as sensitive. Don't commit the file.
 
+## Systems on other FirecREST instances
+
+`sml init` configures one FirecREST instance, and an instance only serves its own systems: the ML
+platform instance (`https://api.cscs.ch/ml/firecrest/v2`) serves `clariden` and `bristen`, while
+Beverin (AMD MI300) has an instance of its own. To reach such a system without re-running
+`sml init`, list it in `~/.sml/clusters.yml` (or `$SML_CONFIG_DIR/clusters.yml`):
+
+```yaml
+systems:
+  beverin:
+    firecrest_url: https://api.svc.cscs.ch/beverin/firecrest/v2
+    client_id_env: BEVERIN_CLIENT_ID          # names of environment variables,
+    client_secret_env: BEVERIN_CLIENT_SECRET  # not the secrets themselves
+    # token_uri: defaults to the CSCS firecrest-clients token endpoint
+    # api_key_env: SERVICE_ACCOUNT_KEY        # instead of the client pair, for a service account
+```
+
+```bash
+export BEVERIN_CLIENT_ID=... BEVERIN_CLIENT_SECRET=...
+sml advanced --system beverin --partition mi300 ...   # Beverin's instance
+sml advanced --system clariden --partition normal ... # the sml init instance, as before
+```
+
+- A system listed in `clusters.yml` is reached through its own URL and credentials; every other
+  system goes through the `sml init` configuration. Without the file nothing changes.
+- The selection follows `--system` or `SML_SYSTEM`, for `sml advanced`, `sml preconfigured` and
+  the MCP server. The interactive system picker still lists the `sml init` instance's systems only.
+- The credentials need their own Developer Portal app, **subscribed to that instance's API**;
+  without the subscription FirecREST answers `403 API Subscription validation failed`.
+- Their secrets come from the environment, not the keyring, so they cannot overwrite the
+  `sml init` credentials.
+- Architecture-specific settings stay with the launch: Beverin needs a ROCm environment
+  (e.g. `vllm_rocm.toml`, `sglang_rocm.toml`) and its own partition.
+
 ## Next
 
 - [Using SML](usage-sml.md) — interactive launch
