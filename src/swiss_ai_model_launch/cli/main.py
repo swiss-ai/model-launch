@@ -27,6 +27,7 @@ from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
+from swiss_ai_model_launch.launchers.firecrest_endpoints import client_for_system
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -619,7 +620,10 @@ async def _create_launcher(
         _logger.warning("--system is ignored when using the SLURM launcher")
 
     if launcher_type == "firecrest":
-        firecrest_client = _get_firecrest_client_from_init_config(config)
+        # A system listed in clusters.yml lives on its own FirecREST instance;
+        # every other system is reached through the `sml init` configuration.
+        system = getattr(args, "system", None) or os.environ.get("SML_SYSTEM")
+        firecrest_client = client_for_system(system, lambda: _get_firecrest_client_from_init_config(config))
         # SSH host for the TUI's node-terminal button: an explicit override
         # (env or init config) wins; otherwise it's auto-derived from the
         # selected FirecREST system inside the helper below.
