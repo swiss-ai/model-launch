@@ -10,31 +10,33 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 
 ## Arguments
 
-| Argument                    | Environment Variable | Description                                                                                                                    |
-| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--system`                  | `SML_SYSTEM`         | Target HPC system                                                                                                              |
-| `--partition`               | `SML_PARTITION`      | SLURM partition                                                                                                                |
-| `--account`                 | `SML_ACCOUNT`        | SLURM account used for job submission                                                                                          |
-| `--reservation`             | `SML_RESERVATION`    | SLURM reservation (optional)                                                                                                   |
-| `--framework`               |                      | Inference framework (`sglang`, `vllm`) — **required**                                                                          |
-| `--environment`             |                      | Local path to the environment `.toml` file — **required**                                                                      |
-| `--framework-args`          |                      | Arguments forwarded to the inference framework                                                                                 |
-| `--replicas`                |                      | Number of replicas (default: `1`)                                                                                              |
-| `--nodes-per-replica`       |                      | Nodes per replica (default: `1`)                                                                                               |
-| `--time`                    |                      | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                  |
-| `--consecutive`             |                      | Serve a `--time` longer than the per-job cap with a chain of jobs                                                              |
-| `--handover-time`           |                      | Overlap before the previous job ends (default: `03:00:00`)                                                                     |
-| `--max-job-time`            |                      | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                        |
-| `--served-model-name`       |                      | Required: here, or `--served-model-name <name>` inside `--framework-args`. Namespaced — see the note below.                    |
-| `--router`                  |                      | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                        |
-| `--router-args`             |                      | Arguments forwarded to the router (`--router sglang`)                                                                          |
-| `--disable-opentela`        |                      | Disable OpenTela wrapper                                                                                                       |
-| `--opentela-bootstrap-addr` |                      | Override the OpenTela bootstrap peer (full multiaddr)                                                                          |
-| `--dev`                     |                      | Shorthand for the dev OpenTela bootstrap peer                                                                                  |
-| `--disable-metrics`         |                      | Disable vmagent metrics push                                                                                                   |
-| `--disable-dcgm-exporter`   |                      | Disable DCGM GPU metrics exporter                                                                                              |
-| `--pre-launch-cmds`         |                      | Shell commands to run before the framework starts                                                                              |
-| `--output-script DIR`       |                      | Render master.sh + rank scripts into DIR and exit (no submit)                                                                  |
+| Argument                    | Environment Variable    | Description                                                                                                                      |
+| --------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `--system`                  | `SML_SYSTEM`            | Target HPC system                                                                                                                |
+| `--partition`               | `SML_PARTITION`         | SLURM partition                                                                                                                  |
+| `--account`                 | `SML_ACCOUNT`           | SLURM account used for job submission                                                                                            |
+| `--reservation`             | `SML_RESERVATION`       | SLURM reservation (optional)                                                                                                     |
+| `--framework`               |                         | Inference framework (`sglang`, `vllm`) — **required**                                                                            |
+| `--environment`             |                         | Local path to the environment `.toml` file — **required**                                                                        |
+| `--container-runtime`       | `SML_CONTAINER_RUNTIME` | `edf` (default, CSCS `--environment`) or `pyxis` (stock pyxis `--container-image`) — see [Other clusters](#other-clusters-kisti) |
+| `--sbatch-arg`              | `SML_SBATCH_ARGS`       | Extra sbatch flag appended verbatim; repeatable                                                                                  |
+| `--framework-args`          |                         | Arguments forwarded to the inference framework                                                                                   |
+| `--replicas`                |                         | Number of replicas (default: `1`)                                                                                                |
+| `--nodes-per-replica`       |                         | Nodes per replica (default: `1`)                                                                                                 |
+| `--time`                    |                         | Total uptime `HH:MM:SS` (default: `02:00:00`)                                                                                    |
+| `--consecutive`             |                         | Serve a `--time` longer than the per-job cap with a chain of jobs                                                                |
+| `--handover-time`           |                         | Overlap before the previous job ends (default: `03:00:00`)                                                                       |
+| `--max-job-time`            |                         | Per-job cap for chains `HH:MM:SS` (default: `12:00:00`)                                                                          |
+| `--served-model-name`       |                         | Required: here, or `--served-model-name <name>` inside `--framework-args`. Namespaced — see the note below.                      |
+| `--router`                  |                         | Routing: `opentela` (default) or `sglang` (in-job router, replicas > 1)                                                          |
+| `--router-args`             |                         | Arguments forwarded to the router (`--router sglang`)                                                                            |
+| `--disable-opentela`        |                         | Disable OpenTela wrapper                                                                                                         |
+| `--opentela-bootstrap-addr` |                         | Override the OpenTela bootstrap peer (full multiaddr)                                                                            |
+| `--dev`                     |                         | Shorthand for the dev OpenTela bootstrap peer                                                                                    |
+| `--disable-metrics`         |                         | Disable vmagent metrics push                                                                                                     |
+| `--disable-dcgm-exporter`   |                         | Disable DCGM GPU metrics exporter                                                                                                |
+| `--pre-launch-cmds`         |                         | Shell commands to run before the framework starts                                                                                |
+| `--output-script DIR`       |                         | Render master.sh + rank scripts into DIR and exit (no submit)                                                                    |
 
 > Total nodes is `--replicas × --nodes-per-replica`. The framework HTTP port is **8080**.
 
@@ -83,7 +85,7 @@ How it works:
 - **Anchored to actual start, not a guessed clock.** The head job gets a single
   absolute SLURM `--begin` (≈ now); every successor is submitted with a SLURM
   `--dependency=after:<prev>+<interval>` so it starts that interval after its
-  predecessor *actually begins running*. If the head (or any job) sits in the
+  predecessor _actually begins running_. If the head (or any job) sits in the
   queue waiting for resources, the rest of the chain slides with it — the
   handover overlap stays correct instead of firing against stale wall-clock times.
 - **Handover overlap.** A job starts `--handover-time` (default `03:00:00`)
@@ -139,7 +141,7 @@ and adopts it instead of resubmitting; only if nothing exists does it retry,
 with backoff. 408 and 429 count as transient, like 5xx. Without `job_name` a
 unique random name is generated, and the same check still applies within the
 launcher's own retries. The name must be unique per logical launch — reuse it
-only for the *same* launch (e.g. derive it from your run id).
+only for the _same_ launch (e.g. derive it from your run id).
 
 ## Inspecting what would be submitted (`--output-script DIR`)
 
@@ -226,6 +228,23 @@ sml advanced \
 ```
 
 The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry payload, so launches against different environments are distinguishable downstream.
+
+## Other clusters (KISTI)
+
+Clusters without the CSCS container plugin run stock [pyxis](https://github.com/NVIDIA/pyxis). Pass `--container-runtime pyxis` and sml reads the env toml where it renders the job, translating `image`, `mounts`, `workdir` and `[env]` into `--container-*` flags (`annotations` are CSCS hooks and are ignored). Values are expanded by bash on the batch node, so `$USER` works. Site-specific sbatch flags go through `--sbatch-arg`.
+
+KISTI-6 (GH200) is set up via the slurm launcher, run from a login node:
+
+```bash
+uv tool install .                       # or: uv sync && source .venv/bin/activate
+sml init                                # choose the slurm launcher
+export SML_ACCOUNT=<your KISTI project>
+# one-time image import, see the header of the env toml
+enroot import -o /scratch/$USER/sml/images/vllm-v0.32.0-cu129-arm64.sqsh docker://vllm/vllm-openai:v0.32.0-cu129
+./examples/kisti/cli/qwen/Qwen3-0.6B-vllm.sh
+```
+
+KISTI-specific bits, all in the example: every job needs `--comment="field=...;appl=..."` (`showappl` lists values), GPUs must be requested with `--gres`, and OpenTela and metrics are disabled because their binaries and endpoints live on CSCS. The env toml is [`vllm_kisti.toml`](https://github.com/swiss-ai/model-launch/blob/main/src/swiss_ai_model_launch/assets/envs/vllm_kisti.toml).
 
 ## Notes on flag style
 

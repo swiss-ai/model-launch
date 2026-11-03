@@ -6,6 +6,7 @@ import importlib.metadata
 import logging
 import os
 import re
+import shlex
 import sys
 from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
@@ -26,6 +27,7 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
+from swiss_ai_model_launch.launchers.container import CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
@@ -195,6 +197,29 @@ def _add_advanced_launch_arguments(
         required=True,
         metavar="PATH",
         help="Local path to the environment .toml file.",
+    )
+    advanced_parser.add_argument(
+        "--container-runtime",
+        dest="container_runtime",
+        choices=[CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS],
+        default=os.environ.get("SML_CONTAINER_RUNTIME", CONTAINER_RUNTIME_EDF),
+        help=(
+            f"How replicas are containerised (env: SML_CONTAINER_RUNTIME). '{CONTAINER_RUNTIME_EDF}' (default): "
+            f"CSCS EDF via srun --environment. '{CONTAINER_RUNTIME_PYXIS}': stock pyxis via "
+            "--container-image, for clusters without the CSCS plugin (e.g. KISTI); the "
+            "environment toml must be readable locally."
+        ),
+    )
+    advanced_parser.add_argument(
+        "--sbatch-arg",
+        dest="sbatch_args",
+        action="append",
+        default=None,
+        metavar="ARG",
+        help=(
+            "Extra sbatch flag, appended verbatim; repeatable (e.g. "
+            "--sbatch-arg=--gres=gpu:4). Also read from SML_SBATCH_ARGS (shell-split)."
+        ),
     )
     advanced_parser.add_argument(
         "--framework-args",
@@ -864,6 +889,9 @@ def build_launch_args_from_advanced(
         ),
         time=args.time,
         environment=args.slurm_environment,
+        container_runtime=getattr(args, "container_runtime", CONTAINER_RUNTIME_EDF),
+        sbatch_extra_args=shlex.split(os.environ.get("SML_SBATCH_ARGS", ""))
+        + (getattr(args, "sbatch_args", None) or []),
         framework=args.framework,
         framework_args=framework_args,
         pre_launch_cmds=args.pre_launch_cmds,

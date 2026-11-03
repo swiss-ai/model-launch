@@ -5,6 +5,11 @@ import shlex
 from importlib.resources import files
 from typing import ClassVar
 
+from swiss_ai_model_launch.launchers.container import (
+    CONTAINER_RUNTIME_PYXIS,
+    PyxisEnvironment,
+    shell_double_quote,
+)
 from swiss_ai_model_launch.launchers.launch_args import (
     FRAMEWORK_PORT,
     ROUTER_SGLANG,
@@ -410,7 +415,8 @@ def _render_telemetry(launch_args: LaunchArgs) -> str:
         "}"
     )
     return (
-        f'curl -sf -X POST "{launch_args.telemetry_endpoint}" \\\n'
+        # Bounded: off-site clusters may silently drop traffic to the endpoint.
+        f'curl -sf -m 10 -X POST "{launch_args.telemetry_endpoint}" \\\n'
         f'    -H "Content-Type: application/json" \\\n'
         f"    -d '{payload}' || true"
     )
@@ -505,6 +511,50 @@ def _render_env_file_resolution(launch_args: LaunchArgs) -> str:
     )
 
 
+def _render_pyxis_setup(env: PyxisEnvironment) -> str:
+    # {arch} in the image path is resolved per node arch, like the EDF path.
+    image = shell_double_quote(env.image).replace("{arch}", "${SML_ARCH}")
+    lines = [
+        "# Stock pyxis (no CSCS EDF plugin): the env toml is translated into",
+        "# --container-* flags on each srun. Its [env] is exported here and",
+        "# reaches the containers through srun's environment propagation.",
+        f"SML_IMAGE={image}",
+        'if [[ "$SML_IMAGE" == /* && ! -e "$SML_IMAGE" ]]; then',
+        '    echo "Container image not found: $SML_IMAGE (arch ${SML_ARCH})" >&2',
+        "    exit 1",
+        "fi",
+    ]
+    lines += [f"export {key}={shell_double_quote(value)}" for key, value in env.env.items()]
+    if env.mounts:
+        lines.append(f"SML_CONTAINER_MOUNTS={shell_double_quote(','.join(env.container_mounts()))}")
+    return "\n".join(lines)
+
+
+def _render_container_flags(launch_args: LaunchArgs) -> str:
+    """Container flags for an srun that runs a rank/router script.
+
+    RANKS_DIR is bound into the container so the script (on the host's shared
+    FS) is visible inside it. Attached per-srun rather than via the env toml's
+    static mount list, which is being narrowed and read-only-ed.
+    """
+    if launch_args.container_runtime == CONTAINER_RUNTIME_PYXIS:
+        env = PyxisEnvironment.from_toml(launch_args.environment)
+        mounts = "$RANKS_DIR:$RANKS_DIR" + (",$SML_CONTAINER_MOUNTS" if env.mounts else "")
+        flags = (
+            '    --container-image="$SML_IMAGE" \\\n'
+            "    --container-writable \\\n"
+            f'    --container-mounts="{mounts}" \\\n'
+        )
+        if env.workdir:
+            flags += f"    --container-workdir={shell_double_quote(env.workdir)} \\\n"
+        return flags
+    return (
+        "    --container-writable \\\n"
+        '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
+        '    --environment="${SML_ENV_FILE}" \\\n'
+    )
+
+
 def _render_node_mapping() -> str:
     return (
         'mapfile -t nodes < <(scontrol show hostnames "$SLURM_NODELIST")\n'
@@ -539,18 +589,13 @@ def _render_replica_head_ip_discovery(replicas: int, nodes_per_replica: int) -> 
 def _render_replica_launches(launch_args: LaunchArgs) -> str:
     topology = launch_args.topology
     npr = topology.nodes_per_replica
+    container_flags = _render_container_flags(launch_args)
 
     def srun_call(node_index: int, script: str, args: str, comment: str, log_base: str) -> str:
         return (
             f"# {comment}\n"
             f'srun --nodes=1 --ntasks=1 --nodelist="${{nodes[{node_index}]}}" \\\n'
-            f"    --container-writable \\\n"
-            # Bind RANKS_DIR into the container so the rank script (on the
-            # host's shared FS) is visible to the bash invocation inside the
-            # pyxis container. Attached per-srun rather than via the env toml's
-            # static mount list, which is being narrowed and read-only-ed.
-            f'    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
-            '    --environment="${SML_ENV_FILE}" \\\n'
+            f"{container_flags}"
             # Per-replica stdout/stderr (the batch script's own log.out/log.err
             # only carries the master's orchestration output).
             f'    --output="logs/${{SLURM_JOB_ID}}/{log_base}.out" \\\n'
@@ -736,9 +781,7 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         'router_host_node="${nodes[0]}"\n'
         'router_host_ip="$replica_0_head_ip"\n'
         'srun --nodes=1 --ntasks=1 --nodelist="$router_host_node" \\\n'
-        "    --container-writable \\\n"
-        '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
-        '    --environment="${SML_ENV_FILE}" \\\n'
+        f"{_render_container_flags(launch_args)}"
         "    --overlap \\\n"
         '    --output="logs/${SLURM_JOB_ID}/router.out" \\\n'
         '    --error="logs/${SLURM_JOB_ID}/router.err" \\\n'
@@ -825,7 +868,10 @@ def render_master(launch_args: LaunchArgs) -> str:
         sections.append(telemetry)
 
     sections.append(_render_arch_detection(launch_args))
-    sections.append(_render_env_file_resolution(launch_args))
+    if launch_args.container_runtime == CONTAINER_RUNTIME_PYXIS:
+        sections.append(_render_pyxis_setup(PyxisEnvironment.from_toml(launch_args.environment)))
+    else:
+        sections.append(_render_env_file_resolution(launch_args))
     sections.append(_render_node_mapping())
 
     topology = launch_args.topology

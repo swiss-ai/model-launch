@@ -93,6 +93,7 @@ def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = N
         lines.append(f"#SBATCH --begin={launch_args.begin}")
     if launch_args.dependency:
         lines.append(f"#SBATCH --dependency={launch_args.dependency}")
+    lines += [f"#SBATCH {arg}" for arg in launch_args.sbatch_extra_args]
     lines += [
         "#SBATCH --output=logs/%j/log.out",
         "#SBATCH --error=logs/%j/log.err",

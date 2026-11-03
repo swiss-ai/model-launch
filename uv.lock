@@ -2539,6 +2539,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "questionary" },
     { name = "textual" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.dev-dependencies]
@@ -2570,6 +2571,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "questionary", specifier = ">=2.0" },
     { name = "textual", specifier = ">=8.1" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
 ]
 
 [package.metadata.requires-dev]
