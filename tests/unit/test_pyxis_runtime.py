@@ -67,6 +67,7 @@ def test_pyxis_master_uses_container_image(env_path: Path) -> None:
     assert master.count('--container-image="$SML_IMAGE"') == 2
     assert master.count('--container-mounts="$RANKS_DIR:$RANKS_DIR,$SML_CONTAINER_MOUNTS"') == 2
     assert '--container-workdir="/opt"' in master
+    assert master.count("--container-env=HF_HOME") == 2
 
 
 def test_pyxis_router_uses_container_image(env_path: Path) -> None:

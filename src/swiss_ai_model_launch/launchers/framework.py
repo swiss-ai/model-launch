@@ -517,7 +517,7 @@ def _render_pyxis_setup(env: PyxisEnvironment) -> str:
     lines = [
         "# Stock pyxis (no CSCS EDF plugin): the env toml is translated into",
         "# --container-* flags on each srun. Its [env] is exported here and",
-        "# reaches the containers through srun's environment propagation.",
+        "# passed into the containers with --container-env.",
         f"SML_IMAGE={image}",
         'if [[ "$SML_IMAGE" == /* && ! -e "$SML_IMAGE" ]]; then',
         '    echo "Container image not found: $SML_IMAGE (arch ${SML_ARCH})" >&2',
@@ -547,6 +547,9 @@ def _render_container_flags(launch_args: LaunchArgs) -> str:
         )
         if env.workdir:
             flags += f"    --container-workdir={shell_double_quote(env.workdir)} \\\n"
+        if env.env:
+            # Without this the image's own value wins for any variable it sets.
+            flags += f"    --container-env={','.join(env.env)} \\\n"
         return flags
     return (
         "    --container-writable \\\n"

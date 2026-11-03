@@ -1,15 +1,17 @@
 # vLLM on KISTI-6 (GH200). Stock pyxis, no CSCS EDF: use with `--container-runtime pyxis`.
 # Values are expanded by bash on the batch node, so $USER works.
+# Image and HF cache live on /appsdata: /scratch purges files unaccessed for 15 days.
 #
 # One-time image import (takes ~4 min):
-#   mkdir -p /scratch/$USER/sml/images
-#   enroot import -o /scratch/$USER/sml/images/vllm-v0.32.0-cu129-arm64.sqsh docker://vllm/vllm-openai:v0.32.0-cu129
+#   mkdir -p /appsdata/$USER/sml/images
+#   enroot import -o /appsdata/$USER/sml/images/vllm-v0.32.0-cu129-arm64.sqsh docker://vllm/vllm-openai:v0.32.0-cu129
 #
 # cu129, not the default cu13 build: KISTI's driver (570) tops out at CUDA 12.8,
 # and 12.9 runs on it via minor-version compatibility.
-image = "/scratch/$USER/sml/images/vllm-v0.32.0-cu129-{arch}.sqsh"
+image = "/appsdata/$USER/sml/images/vllm-v0.32.0-cu129-{arch}.sqsh"
 
-mounts = ["/scratch"]
+# /scratch and /appsdata are mounted by the site config.
+mounts = ["/scratch", "/appsdata"]
 
 [env]
-HF_HOME = "/scratch/$USER/sml/hf"
+HF_HOME = "/appsdata/$USER/sml/hf"

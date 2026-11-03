@@ -5,8 +5,9 @@ whole toml (image, mounts, env, annotations) to the site plugin. ``pyxis`` is
 stock NVIDIA pyxis, as found on sites without the CSCS plugin (e.g. KISTI):
 there is no EDF, so the same toml is read here and translated into
 ``--container-image`` / ``--container-mounts`` / ``--container-workdir`` flags,
-with its ``[env]`` table exported on the batch node (srun propagates the job
-environment into the container). ``annotations`` are CSCS hooks and are ignored.
+with its ``[env]`` table exported on the batch node and named in
+``--container-env`` (otherwise the image's value wins for variables it sets).
+``annotations`` are CSCS hooks and are ignored.
 """
 
 from __future__ import annotations
