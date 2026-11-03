@@ -231,21 +231,7 @@ The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry pay
 
 ## Other clusters (KISTI)
 
-Clusters without the CSCS container plugin run stock [pyxis](https://github.com/NVIDIA/pyxis). Pass `--container-runtime pyxis` and sml reads the env toml where it renders the job, translating `image`, `mounts`, `workdir` and `[env]` into `--container-*` flags (`annotations` are CSCS hooks and are ignored). Values are expanded by bash on the batch node, so `$USER` works. Site-specific sbatch flags go through `--sbatch-arg`.
-
-KISTI-6 (GH200) is set up via the slurm launcher, run from a login node:
-
-```bash
-uv tool install .                       # or: uv sync && source .venv/bin/activate
-sml init                                # choose the slurm launcher
-export SML_ACCOUNT=<your KISTI project>
-export SML_WORKING_DIR=/scratch/$USER/sml   # KISTI refuses jobs that run from $HOME
-# one-time image import, see the header of the env toml
-enroot import -o /scratch/$USER/sml/images/vllm-v0.32.0-cu129-arm64.sqsh docker://vllm/vllm-openai:v0.32.0-cu129
-./examples/kisti/cli/qwen/Qwen3-0.6B-vllm.sh
-```
-
-KISTI-specific bits: jobs must run from `/scratch` or `/appsdata` (hence `SML_WORKING_DIR`, which moves the job scripts and logs off `~/.sml`); and, in the example, every job needs `--comment="field=...;appl=..."` (`showappl` lists values), GPUs must be requested with `--gres`, and OpenTela and metrics are disabled because their binaries and endpoints live on CSCS. The env toml is [`vllm_kisti.toml`](https://github.com/swiss-ai/model-launch/blob/main/src/swiss_ai_model_launch/assets/envs/vllm_kisti.toml).
+Clusters without the CSCS container plugin run stock [pyxis](https://github.com/NVIDIA/pyxis): pass `--container-runtime pyxis`, and add site-specific sbatch flags with `--sbatch-arg`. See [Running on KISTI](kisti.md) for a full walkthrough.
 
 ## Notes on flag style
 
