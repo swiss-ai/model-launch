@@ -21,6 +21,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
     OptionsDict,
     TextConfiguration,
 )
+from swiss_ai_model_launch.cli.configuration.system_init import register_system
 from swiss_ai_model_launch.cli.display import ChainJobView, DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
@@ -384,6 +385,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
     InitConfig().add_to_parser(init_parser)
+    init_parser.add_argument(
+        "--system",
+        default=None,
+        help=(
+            "Add credentials for one more system served by its own FirecREST instance (e.g. beverin), "
+            "next to the main configuration instead of replacing it."
+        ),
+    )
 
     preconfigured_parser = subparsers.add_parser("preconfigured", help="Launch a model with guided prompts")
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
@@ -421,6 +430,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
+    if args.system:
+        await register_system(args.system, args.firecrest_url, args.firecrest_token_uri)
+        print(f"Credentials for {args.system} stored. Launch on it with --system {args.system}.")
+        return
     config = InitConfig()
     await config.aconfigure(args=args)
     config.save()
