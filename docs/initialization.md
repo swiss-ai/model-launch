@@ -79,35 +79,49 @@ The `value: __keyring__` entries are placeholders; the actual secrets live in yo
 
 `sml init` configures one FirecREST instance, and an instance only serves its own systems: the ML
 platform instance (`https://api.cscs.ch/ml/firecrest/v2`) serves `clariden` and `bristen`, while
-Beverin (AMD MI300) has an instance of its own. To reach such a system without re-running
-`sml init`, list it in `~/.sml/clusters.yml` (or `$SML_CONFIG_DIR/clusters.yml`):
+Beverin (AMD MI300) has an instance of its own. To use such a system as well, add its credentials
+once:
+
+```bash
+sml init --system beverin     # asks for the client ID and secret of an app subscribed to Beverin
+```
+
+and then pick it per launch, with no further `sml init`:
+
+```bash
+sml advanced --system beverin --partition mi300 ...    # Beverin's own instance
+sml advanced --system clariden --partition normal ...  # the sml init instance, as before
+```
+
+- The app must be **subscribed to that system's instance** in the
+  [Developer Portal](https://developer.svc.cscs.ch/devportal/apis); otherwise FirecREST answers
+  `403 API Subscription validation failed`.
+- The credentials are kept in the keyring under keys of that system (`firecrest_client_id@beverin`),
+  beside the `sml init` ones, so adding a system never replaces the main credentials.
+- sml knows the instance URLs of `daint`, `eiger`, `clariden`, `bristen` and `beverin`. For another
+  system pass its URL: `sml init --system NAME --firecrest-url URL` (stored in `clusters.yml`).
+- The selection follows `--system` or `SML_SYSTEM`, in `sml advanced`, `sml preconfigured` and the
+  MCP server. A system without credentials of its own goes through the `sml init` configuration
+  exactly as before. The interactive system picker lists the `sml init` instance's systems only.
+- Architecture-specific settings stay with the launch: Beverin needs a ROCm environment
+  (e.g. `vllm_rocm.toml`, `sglang_rocm.toml`) and its own partition.
+
+### `clusters.yml` for scripts and CI
+
+Where a keyring is not available, a system's credentials can come from environment variables
+instead, named in `~/.sml/clusters.yml` (or `$SML_CONFIG_DIR/clusters.yml`):
 
 ```yaml
 systems:
   beverin:
-    firecrest_url: https://api.svc.cscs.ch/beverin/firecrest/v2
     client_id_env: BEVERIN_CLIENT_ID          # names of environment variables,
     client_secret_env: BEVERIN_CLIENT_SECRET  # not the secrets themselves
-    # token_uri: defaults to the CSCS firecrest-clients token endpoint
-    # api_key_env: SERVICE_ACCOUNT_KEY        # instead of the client pair, for a service account
+    # api_key_env: SERVICE_ACCOUNT_KEY        # instead of the pair, for a service account
+    # firecrest_url: ...                      # only for systems sml does not know
+    # token_uri: ...                          # defaults to the CSCS firecrest-clients endpoint
 ```
 
-```bash
-export BEVERIN_CLIENT_ID=... BEVERIN_CLIENT_SECRET=...
-sml advanced --system beverin --partition mi300 ...   # Beverin's instance
-sml advanced --system clariden --partition normal ... # the sml init instance, as before
-```
-
-- A system listed in `clusters.yml` is reached through its own URL and credentials; every other
-  system goes through the `sml init` configuration. Without the file nothing changes.
-- The selection follows `--system` or `SML_SYSTEM`, for `sml advanced`, `sml preconfigured` and
-  the MCP server. The interactive system picker still lists the `sml init` instance's systems only.
-- The credentials need their own Developer Portal app, **subscribed to that instance's API**;
-  without the subscription FirecREST answers `403 API Subscription validation failed`.
-- Their secrets come from the environment, not the keyring, so they cannot overwrite the
-  `sml init` credentials.
-- Architecture-specific settings stay with the launch: Beverin needs a ROCm environment
-  (e.g. `vllm_rocm.toml`, `sglang_rocm.toml`) and its own partition.
+Variables named there take precedence over credentials stored with `sml init --system`.
 
 ## Next
 
