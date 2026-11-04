@@ -21,6 +21,7 @@ nav:
       - Interactive (sml): usage-sml.md
       - Advanced (sml advanced): usage-advanced.md
       - Porting a Raw Command: porting-commands.md
+      - Running on KISTI: kisti.md
   - Performance:
       - Sizing a Model: sizing.md
       - Benchmarking: benchmarking.md
@@ -32,7 +33,7 @@ nav:
   - Developers:
       - Development: development.md
       - Adding a New Model: adding-models.md
-      - Building Container Images: building-images.md
+      - Container Images: building-images.md
       - CI/CD: ci-cd.md
   - FAQ: faq.md
   - Glossary: glossary.md

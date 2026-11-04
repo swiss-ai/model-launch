@@ -6,16 +6,14 @@
 # --model flag; the weights come from the capstor registry via --framework-args.
 #
 # Why these flags (not in the model card or the SGLang cookbook):
-#   --attention-backend flashinfer   SGLang 0.5.20's default on Hopper is FA3, and the
-#                                    sglang-kernel wheel for aarch64 (GH200) ships without
-#                                    it ("Can not import FA3 in sgl_kernel"). FA4 (CuTe) was
-#                                    tried first and crashes on this model's head_dim=256
-#                                    paged-KV tiles ("Expected size in shape to be strictly
-#                                    positive, but got 0"). FlashInfer passed the gate.
-#   --mm-attention-backend triton_attn   Qwen3.8-27B is a Qwen3-VL model; its vision tower
-#                                    picks its own attention kernel and imports FA3 whatever
-#                                    --attention-backend says (sglang/srt/layers/attention/
-#                                    vision.py). triton_attn (or sdpa) avoids that import.
+#   (no attention-backend overrides) The factory run below needed --attention-backend
+#                                    flashinfer and --mm-attention-backend triton_attn because
+#                                    the aarch64 sgl-kernel wheel shipped without FA3 ("Can
+#                                    not import FA3 in sgl_kernel"). sglang_base ships FA3, so
+#                                    SGLang's defaults (FA3 for text and the vision tower) work.
+#   --host 0.0.0.0                   SGLang binds to localhost by default; the in-job replica
+#                                    health checker probes the node IP, so without it the
+#                                    replica always shows NOT_DEPLOYED.
 #   --context-length 131072          bounds the KV cache to what 4 GPUs hold; the model's
 #                                    default is longer.
 # Established by model-launch-factory run 1ecd11f6 on 2026-09-24 (three failed attempts
@@ -28,5 +26,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 1 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_0.5.20.toml \
-  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.8-27B --tp-size 4 --context-length 131072 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --attention-backend flashinfer --mm-attention-backend triton_attn"
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.8-27B --tp-size 4 --context-length 131072 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --host 0.0.0.0"

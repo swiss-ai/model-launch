@@ -17,5 +17,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 1 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3.8-27B --tensor-parallel-size 4 --max-model-len 131072 --max-num-seqs 16 --gpu-memory-utilization 0.85 --reasoning-parser qwen3"

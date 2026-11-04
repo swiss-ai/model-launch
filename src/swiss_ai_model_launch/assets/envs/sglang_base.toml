@@ -1,4 +1,5 @@
-image = "/capstor/store/cscs/swissai/infra01/container-images/vllm-qwen-omni-13.0.sqsh"
+# SGLang base image, released by model-launch-images CI from main. {arch} is resolved per system (arm64 on clariden).
+image = "/capstor/store/cscs/swissai/infra01/container-images/ci/sglang_base-{arch}.sqsh"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
@@ -27,6 +28,7 @@ FI_CXI_DEFAULT_CQ_SIZE = "131072"
 FI_CXI_DEFAULT_TX_SIZE = "32768"
 FI_CXI_DISABLE_HOST_REGISTER = "1"
 OFI_NCCL_DISABLE_DMABUF = "1"
+SGL_ENABLE_JIT_DEEPGEMM = "0"
 VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
 
 [annotations]

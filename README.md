@@ -7,7 +7,7 @@
   <a href="https://swiss-ai.github.io/model-launch/"><img alt="Docs" src="https://img.shields.io/github/actions/workflow/status/swiss-ai/model-launch/docs.yml?branch=main&label=docs"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Quality Gate" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=alert_status"></a>
   <a href="https://sonarcloud.io/summary/new_code?id=swiss-ai_model-launch"><img alt="Coverage" src="https://sonarcloud.io/api/project_badges/measure?project=swiss-ai_model-launch&metric=coverage"></a>
-  <img alt="Python" src="https://img.shields.io/badge/python-%E2%89%A53.10-blue">
+  <img alt="Python" src="https://img.shields.io/badge/python-%E2%89%A53.12-blue">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue"></a>
 </p>
 
@@ -21,7 +21,7 @@ A CLI for launching LLMs on HPC clusters via SLURM directly or through FirecREST
 
 ## Quickstart
 
-Install from source with [uv](https://docs.astral.sh/uv/) (requires Python 3.10–3.14):
+Install from source with [uv](https://docs.astral.sh/uv/) (requires Python 3.12+):
 
 ```bash
 git clone https://github.com/swiss-ai/model-launch.git
