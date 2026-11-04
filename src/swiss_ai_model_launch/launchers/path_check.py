@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from swiss_ai_model_launch.launchers.launcher import Launcher
 from swiss_ai_model_launch.launchers.model_catalog_entry import ModelCatalogEntry
@@ -32,7 +32,7 @@ TOKENIZER_MARKERS = ("tokenizer.json", "tokenizer_config.json")
 DEFAULT_CONCURRENCY = 8
 
 
-class PathStatus(str, Enum):
+class PathStatus(StrEnum):
     OK = "ok"
     # The directory is absent, or the launcher's account cannot read it — both
     # break a launch the same way, and the launcher can't tell them apart.

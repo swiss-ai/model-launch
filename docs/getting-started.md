@@ -4,7 +4,7 @@ This page is a router. Pick the goal that matches what you're trying to do — e
 
 ## Install first
 
-Requires Python 3.10 through 3.14.
+Requires Python 3.12 or newer.
 
 ```bash
 pip install git+https://github.com/swiss-ai/model-launch.git
