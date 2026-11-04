@@ -1,0 +1,27 @@
+#!/bin/bash
+sml advanced \
+  --system clariden \
+  --partition normal \
+  --nodes-per-replica 2 \
+  --time 06:00:00 \
+  --framework vllm \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus2.toml \
+  --framework-args "--model /capstor/store/cscs/swissai/infra01/hf-checkpoints/chonk-lc-16k-v0.1-ep1/iter_0019374 \
+    --served-model-name swiss-ai/chonk-lc-16k-v0.1-ep1-iter_0019374 \
+    --host 0.0.0.0 \
+    --trust-remote-code \
+    --dtype bfloat16 \
+    --max-model-len 16384 \
+    --tensor-parallel-size 1 \
+    --data-parallel-size 8 \
+    --data-parallel-size-local 4 \
+    --data-parallel-backend ray \
+    --enable-expert-parallel \
+    --all2all-backend allgather_reducescatter \
+    --moe-backend triton \
+    --numa-bind \
+    --load-format runai_streamer \
+    --gpu-memory-utilization 0.95 \
+    --max-num-seqs 8 \
+    --max-num-batched-tokens 512 \
+    --api-server-count 1"
