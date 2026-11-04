@@ -7,7 +7,6 @@ sml advanced \
   --framework vllm \
   --environment src/swiss_ai_model_launch/assets/envs/vllm_apertus2.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf-checkpoints/chonk-lc-16k-v0.1-ep1/iter_0019374 \
-    --tokenizer /users/rkreft/apertus/apertus2-evals/tokenizers/Apertus_2_instruct \
     --served-model-name swiss-ai/chonk-lc-16k-v0.1-ep1-iter_0019374 \
     --host 0.0.0.0 \
     --trust-remote-code \
