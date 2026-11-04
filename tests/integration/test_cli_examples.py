@@ -58,7 +58,7 @@ async def test_cli_example_launches_and_health(
     )
     try:
         stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=_JOB_SUBMISSION_TIMEOUT_SEC)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         pytest.fail(f"{script.name} did not complete submission within {_JOB_SUBMISSION_TIMEOUT_SEC}s")
 

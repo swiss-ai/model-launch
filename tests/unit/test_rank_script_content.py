@@ -263,7 +263,8 @@ def test_master_self_extracts_rank_scripts():
     master = render_master(args)
     assert 'cat > "$RANKS_DIR/head.sh"' in master
     assert 'cat > "$RANKS_DIR/follower.sh"' in master
-    assert 'RANKS_DIR="$HOME/.sml/job-${SLURM_JOB_ID}"' in master
+    # In the working directory the job runs from (~/.sml unless configured).
+    assert 'RANKS_DIR="$PWD/job-${SLURM_JOB_ID}"' in master
 
 
 def test_master_binds_ranks_dir_into_container():
