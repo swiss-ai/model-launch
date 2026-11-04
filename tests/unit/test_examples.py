@@ -46,6 +46,7 @@ def _parse_sml_advanced_script(content: str):
 # - multi-node single-replica sglang (--nodes-per-replica > 1)
 # - multi-replica multi-node with router (--router sglang + --replicas)
 # - multi-node single-replica vllm (vLLM Ray bootstrapping path)
+# - stock pyxis container runtime (KISTI)
 _SELECTED_EXAMPLES = [
     "examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh",
     "examples/beverin/cli/swiss-ai/Apertus-70B-Instruct-2509-sglang-rocm.sh",
@@ -53,7 +54,15 @@ _SELECTED_EXAMPLES = [
     "examples/clariden/cli/deepseek-ai/DeepSeek-V3.1-sglang.sh",
     "examples/clariden/cli/deepseek-ai/DeepSeek-V3.1-sglang-router.sh",
     "examples/clariden/cli/qwen/Qwen3-235B-A22B-Instruct-2507-vllm.sh",
+    # stock pyxis (KISTI): reads its env toml at render time
+    "examples/kisti/cli/qwen/Qwen3-0.6B-vllm.sh",
 ]
+
+
+@pytest.fixture(autouse=True)
+def _run_from_repo_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Examples pass repo-relative --environment paths, as when run from the root.
+    monkeypatch.chdir(_REPO_ROOT)
 
 
 @pytest.mark.parametrize("example_path", _SELECTED_EXAMPLES, ids=lambda p: Path(p).stem)

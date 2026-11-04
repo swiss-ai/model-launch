@@ -3,14 +3,11 @@ import secrets
 import string
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TypeVar
 
 import firecrest as f7t
 import httpx
 
 from swiss_ai_model_launch.launchers.launch_args import LaunchArgs
-
-_T = TypeVar("_T")
 
 # Shared storage holding the models the catalog refers to by HF repo id. Both
 # launchers resolve `<vendor>/<model>` under it unless an entry overrides the
@@ -44,7 +41,7 @@ def is_firecrest_retryable(exc: BaseException) -> bool:
     return isinstance(exc, httpx.HTTPError)
 
 
-async def call_with_firecrest_retry(make_call: Callable[[], Awaitable[_T]]) -> _T:
+async def call_with_firecrest_retry[T](make_call: Callable[[], Awaitable[T]]) -> T:
     """Invoke ``make_call()`` with retries on transient FirecREST errors.
 
     Retries up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s) on
@@ -93,6 +90,7 @@ def render_sbatch_header(launch_args: LaunchArgs, *, reservation: str | None = N
         lines.append(f"#SBATCH --begin={launch_args.begin}")
     if launch_args.dependency:
         lines.append(f"#SBATCH --dependency={launch_args.dependency}")
+    lines += [f"#SBATCH {arg}" for arg in launch_args.sbatch_extra_args]
     lines += [
         "#SBATCH --output=logs/%j/log.out",
         "#SBATCH --error=logs/%j/log.err",

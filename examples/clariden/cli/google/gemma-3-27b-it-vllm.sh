@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/google/gemma-3-27b-it \
     --served-model-name google/gemma-3-27b-it \
     --host 0.0.0.0 \
