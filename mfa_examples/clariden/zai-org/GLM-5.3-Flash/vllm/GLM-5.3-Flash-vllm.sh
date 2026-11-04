@@ -13,5 +13,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 2 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/zai-org/GLM-5.3-Flash --tensor-parallel-size 8 --reasoning-parser glm47 --tool-call-parser glm47 --enable-auto-tool-choice"

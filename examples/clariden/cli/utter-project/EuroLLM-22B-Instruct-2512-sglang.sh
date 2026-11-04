@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/utter-project/EuroLLM-22B-Instruct-2512 \
     --served-model-name utter-project/EuroLLM-22B-Instruct-2512 \
     --dp-size 4 \

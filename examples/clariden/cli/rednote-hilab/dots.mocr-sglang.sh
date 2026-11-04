@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/MLLM/OCR/rednote-hilab_dots.mocr \
     --host 0.0.0.0 \
     --served-model-name rednote-hilab/dots.mocr \

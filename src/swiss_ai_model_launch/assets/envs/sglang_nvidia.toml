@@ -1,5 +1,5 @@
 # SGLang base image, released by model-launch-images CI from main. {arch} is resolved per system (arm64 on clariden).
-image = "/capstor/store/cscs/swissai/infra01/container-images/ci/sglang_base-{arch}.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/container-images/ci/sglang_nvidia-{arch}.sqsh"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",

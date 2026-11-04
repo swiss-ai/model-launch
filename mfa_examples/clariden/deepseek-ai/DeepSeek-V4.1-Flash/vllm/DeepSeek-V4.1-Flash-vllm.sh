@@ -13,5 +13,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 2 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V4.1-Flash --tensor-parallel-size 8 --reasoning-parser deepseek_v41"

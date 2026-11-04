@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/HuggingFaceTB/SmolLM3-3B \
     --served-model-name HuggingFaceTB/SmolLM3-3B \
     --dp-size 4 \

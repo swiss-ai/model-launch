@@ -60,7 +60,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework sglang \
-  --environment src/swiss_ai_model_launch/assets/envs/sglang_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/sglang_nvidia.toml \
   --framework-args "--model-path /capstor/store/cscs/swissai/infra01/hf_models/models/swiss-ai/Apertus-8B-Instruct-2509 \
     --served-model-name swiss-ai/Apertus-8B-Instruct-2509 \
     --tp-size 4 \
@@ -92,7 +92,7 @@ sml advanced \
   --partition normal \
   --nodes-per-replica 4 \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V3.1 \
     --served-model-name deepseek-ai/DeepSeek-V3.1 \
     --tensor-parallel-size 16 \

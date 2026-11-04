@@ -4,7 +4,7 @@ sml advanced \
   --partition normal \
   --nodes-per-replica 2 \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_nvidia.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/deepseek-ai/DeepSeek-V4-Flash \
     --host 0.0.0.0 \
     --served-model-name deepseek-ai/DeepSeek-V4-Flash \
