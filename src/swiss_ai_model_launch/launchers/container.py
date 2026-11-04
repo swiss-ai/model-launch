@@ -12,16 +12,11 @@ with its ``[env]`` table exported on the batch node and named in
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
 
 ContainerRuntime = Literal["edf", "pyxis"]
 CONTAINER_RUNTIME_EDF: ContainerRuntime = "edf"
