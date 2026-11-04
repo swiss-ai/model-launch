@@ -46,7 +46,7 @@ export SML_RESERVATION=<your-reservation>
 | `make format`             | Format Python (`ruff`), TOML (`taplo`), JSON/YAML (`prettier`), Markdown (`markdownlint-cli2`) |
 | `make shellcheck`         | Lint shell scripts                                                                             |
 | `make markdownlint`       | Lint Markdown                                                                                  |
-| `make test-lightweight`   | Auto-CI subset of integration tests                                                            |
+| `make test-lightweight`   | Smallest subset of integration tests (CI: `requires-lightweight-tests` label)                  |
 | `make test-comprehensive` | Full integration test suite                                                                    |
 | `make clean-cache`        | Remove cache files                                                                             |
 | `make clean-dev`          | Remove the venv and cache                                                                      |
@@ -120,11 +120,11 @@ uv run pytest tests/unit/test_rendered_scripts_lint.py -q
 
 ## Container images
 
-The containers models run in are built from `images/<name>/Dockerfile` — on the cluster, by CI. See [Building Container Images](building-images.md) for how to add or change one.
+The containers models run in are built by the `swiss-ai/model-launch-images` repository. See [Container Images](building-images.md) for how this repository uses them.
 
 ## CI / CD
 
-See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → image build → integration tests; each stage gates the next.
+See [CI/CD](ci-cd.md) for the pipeline structure. PRs run static checks → integration tests; the first gates the second.
 
 ## Filing issues / PRs
 

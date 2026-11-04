@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from swiss_ai_model_launch.launchers.container import CONTAINER_RUNTIME_EDF, ContainerRuntime
 from swiss_ai_model_launch.launchers.topology import Topology
 
 # Routing strategy across replicas. OpenTela (default): OpenTela load-balances across
@@ -87,6 +88,10 @@ class LaunchArgs(BaseModel):
     dependency: str | None = None
     previous_job_id: int | None = None
     environment: str
+    container_runtime: ContainerRuntime = CONTAINER_RUNTIME_EDF
+    # Site-specific sbatch flags appended verbatim (e.g. KISTI rejects jobs
+    # without --comment="field=...;appl=...").
+    sbatch_extra_args: list[str] = Field(default_factory=list)
 
     framework: str
     framework_args: str = ""
@@ -140,6 +145,7 @@ class LaunchArgs(BaseModel):
             args.append(f"--begin={self.begin}")
         if self.dependency:
             args.append(f"--dependency={self.dependency}")
+        args.extend(self.sbatch_extra_args)
         return args
 
     def to_job_env(self) -> dict[str, str]:

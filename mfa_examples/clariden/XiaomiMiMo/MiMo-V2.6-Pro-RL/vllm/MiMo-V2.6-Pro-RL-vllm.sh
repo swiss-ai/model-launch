@@ -13,5 +13,5 @@ sml advanced \
   --replicas 1 \
   --nodes-per-replica 4 \
   --time 03:00:00 \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm_xiaomimimo__mimo-v2.6-pro-rl.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/hf_models/models/XiaomiMiMo/MiMo-V2.6-Pro-RL --tensor-parallel-size 4 --pipeline-parallel-size 4 --max-model-len 262144 --gpu-memory-utilization 0.85 --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice --trust-remote-code"

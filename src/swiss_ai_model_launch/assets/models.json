@@ -49,13 +49,6 @@
     "framework_args": "--tp-size 8 --ep-size 8 --tool-call-parser minimax-m2 --reasoning-parser minimax-append-think --trust-remote-code --mem-fraction-static 0.85 --enable-metrics"
   },
   {
-    "model": "moonshotai/Kimi-K2.5",
-    "framework": "sglang",
-    "environment": "src/swiss_ai_model_launch/assets/envs/sglang_kimi.toml",
-    "nodes_per_replica": 4,
-    "framework_args": "--tp-size 16 --trust-remote-code --tool-call-parser kimi_k2 --reasoning-parser kimi_k2 --enable-metrics"
-  },
-  {
     "model": "openai/gpt-oss-120b",
     "framework": "sglang",
     "environment": null,
@@ -133,7 +126,7 @@
   {
     "model": "zai-org/GLM-5",
     "framework": "sglang",
-    "environment": null,
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang.toml",
     "nodes_per_replica": 8,
     "framework_args": "--tp-size 32 --tool-call-parser glm47 --reasoning-parser glm45 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },
@@ -147,7 +140,7 @@
   {
     "model": "zai-org/GLM-5.1",
     "framework": "sglang",
-    "environment": null,
+    "environment": "src/swiss_ai_model_launch/assets/envs/sglang.toml",
     "nodes_per_replica": 8,
     "framework_args": "--tp-size 32 --reasoning-parser glm45 --tool-call-parser glm47 --speculative-algorithm EAGLE --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --mem-fraction-static 0.85 --enable-metrics"
   },

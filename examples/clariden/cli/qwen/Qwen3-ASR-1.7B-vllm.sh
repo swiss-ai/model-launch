@@ -3,7 +3,7 @@ sml advanced \
   --system clariden \
   --partition normal \
   --framework vllm \
-  --environment src/swiss_ai_model_launch/assets/envs/vllm.toml \
+  --environment src/swiss_ai_model_launch/assets/envs/vllm_base.toml \
   --pre-launch-cmds "pip install librosa audioread" \
   --framework-args "--model /capstor/store/cscs/swissai/infra01/MLLM/audio_asr/Qwen3-ASR-1.7B \
     --served-model-name Qwen/Qwen3-ASR-1.7B \
