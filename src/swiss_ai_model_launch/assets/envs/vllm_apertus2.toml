@@ -1,0 +1,61 @@
+# Apertus 2 vLLM CUDA image, copied from swiss-ai/evals-svc
+# (app/resources/envs/vllm-apertus2.toml @ 9617040).
+image = "jfrog.svc.cscs.ch/docker-group-csstaff/alps-images/vllm-apertus2-cuda@sha256:2daf3b1906ab62291c00b6a78d9eaa8aa85aad792abffb6695dc89ce9dcc9e05"
+
+# Copied from swiss-ai/apertus2_experiments (inference/vllm-apertus2.toml, branch
+# eval-kda-120b-chonk, 24c1b8291) with four changes: the OpenTela mount below,
+# VLLM_CACHE_ROOT on node-local /tmp, VLLM_ENGINE_READY_TIMEOUT_S and
+# VLLM_MAX_STOP_STRINGS (see [env]).
+# model-launch runs /opentelabin/prod/otela-<arch> on every node of a replica, and
+# every environment it packages mounts opentela-share there; apertus2_experiments
+# serves without model-launch, so its copy has no such mount and a launch through
+# the dashboard fails with exit code 127 (command not found).
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor/",
+  "/iopsstor/",
+  "/ritom/",
+  "${HOME}:${HOME}",
+]
+
+workdir = "${PWD}"
+writable = true
+
+[env]
+PATH = "/usr/local/lib/python3.12/dist-packages/torch_tensorrt/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/mpi/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/ucx/bin:/opt/amazon/efa/bin:/opt/tensorrt/bin"
+PYTHONNOUSERSITE = "1"
+PMIX_MCA_psec = "native"
+
+UCCL_EP_TRANSPORT = "cxi"
+UCCL_P2P_TRANSPORT = "cxi"
+UCCL_CXI_THREADING = "safe"
+NIXL_PLUGIN_DIR = "/usr/local/lib/aarch64-linux-gnu/plugins"
+
+HF_HOME = "/iopsstor/scratch/cscs/${USER}/hf_cache"
+HF_HUB_CACHE = "/iopsstor/scratch/cscs/${USER}/hf_cache/hub"
+XDG_CACHE_HOME = "/ritom/scratch/cscs/${USER}/cache"
+# Node-local, not the shared /ritom cache: the nodes of a multi-node replica
+# compiling into one network-FS directory crash a worker with "Stale file handle"
+# on torch_compile_cache (job 3638088). Costs a recompile per launch (~30 s).
+VLLM_CACHE_ROOT = "/tmp/vllm-cache"
+# vLLM's default 600 s is too short: the 120B Chonk checkpoint loads its weights
+# in ~7 min on 2 nodes, ~8.5 min to a ready engine, and timed out on 1 node.
+VLLM_ENGINE_READY_TIMEOUT_S = "1800"
+# vLLM rejects a request with more stop strings than this (default 4); lm-eval
+# tasks send more. 10 as in apertus2_experiments' Megachonk config (eval-megachonk,
+# inference/megachonk_vllm.py).
+VLLM_MAX_STOP_STRINGS = "10"
+FLASHINFER_WORKSPACE_BASE = "/ritom/scratch/cscs/${USER}/cache/flashinfer"
+TORCH_HOME = "/ritom/scratch/cscs/${USER}/cache/torch"
+PIP_CACHE_DIR = "/ritom/scratch/cscs/${USER}/cache/pip"
+TORCH_EXTENSIONS_DIR = "/tmp/torch-extensions"
+TRITON_CACHE_DIR = "/tmp/triton-cache"
+TORCHINDUCTOR_CACHE_DIR = "/tmp/inductor-cache"
+CUDA_CACHE_DISABLE = "1"
+
+NCCL_PXN_DISABLE = "1"
+NCCL_CROSS_NIC = "0"
+
+[annotations]
+com.hooks.cxi.enabled = "false"
+com.hooks.netstack.source = "host"
