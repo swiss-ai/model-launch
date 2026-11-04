@@ -71,10 +71,13 @@ jobs:
   test-lightweight:
     name: Integration Tests (lightweight)
     needs: [detect-changes]
+    # Opt-in (requires-lightweight-tests label) while the cluster-backed CI is
+    # broken; restore it as the default tier once that's fixed.
     if: |
       github.event.pull_request.draft != true &&
       needs.detect-changes.outputs.catalog_only != 'true' &&
       github.event_name != 'workflow_dispatch' &&
+      contains(github.event.pull_request.labels.*.name, 'requires-lightweight-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-std-tests') &&
       !contains(github.event.pull_request.labels.*.name, 'requires-comprehensive-tests')
     runs-on: ubuntu-latest

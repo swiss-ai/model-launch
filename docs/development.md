@@ -46,7 +46,7 @@ export SML_RESERVATION=<your-reservation>
 | `make format`             | Format Python (`ruff`), TOML (`taplo`), JSON/YAML (`prettier`), Markdown (`markdownlint-cli2`) |
 | `make shellcheck`         | Lint shell scripts                                                                             |
 | `make markdownlint`       | Lint Markdown                                                                                  |
-| `make test-lightweight`   | Auto-CI subset of integration tests                                                            |
+| `make test-lightweight`   | Smallest subset of integration tests (CI: `requires-lightweight-tests` label)                  |
 | `make test-comprehensive` | Full integration test suite                                                                    |
 | `make clean-cache`        | Remove cache files                                                                             |
 | `make clean-dev`          | Remove the venv and cache                                                                      |

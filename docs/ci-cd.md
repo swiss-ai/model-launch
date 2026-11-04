@@ -35,15 +35,15 @@ All reproducible locally with `make static`, or individually (`make lint`, `make
 
 ## Stage 2: integration tests
 
-Tests hit a real cluster over FireCREST. Exactly one tier runs per PR:
+Tests hit a real cluster over FireCREST. At most one tier runs per PR, and none by default: the lightweight tier is temporarily opt-in while the cluster-backed CI is broken.
 
 | Tier | Selected by | Target |
 | --- | --- | --- |
-| Lightweight | default | `make _test-lightweight` (`-n 2`) |
+| Lightweight | `requires-lightweight-tests` label | `make _test-lightweight` (`-n 2`) |
 | Standard | `requires-std-tests` label | `make _test-std` (`-n 13`) |
 | Comprehensive | `requires-comprehensive-tests` label, or dispatch | `make _test-comprehensive` (`-n 28`) |
 
-Comprehensive wins over std, which wins over the default. A PR that only touches the catalog (`models.json`, env tomls, `mfa_examples/`) skips the tiers — there is no launcher code to test.
+Comprehensive wins over std, which wins over lightweight. A PR that only touches the catalog (`models.json`, env tomls, `mfa_examples/`) skips the tiers — there is no launcher code to test.
 
 Locally, use the non-underscore targets (`make test-lightweight`) — they source `.test.sh` for credentials. See [Development](development.md#test-environment).
 
