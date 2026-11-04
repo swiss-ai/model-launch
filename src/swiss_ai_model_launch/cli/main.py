@@ -22,6 +22,7 @@ from swiss_ai_model_launch.cli.configuration.models import (
     OptionsDict,
     TextConfiguration,
 )
+from swiss_ai_model_launch.cli.configuration.system_init import register_system
 from swiss_ai_model_launch.cli.display import ChainJobView, DisplayState, LiveDisplay
 from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_model_health
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
@@ -29,6 +30,7 @@ from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.container import CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
+from swiss_ai_model_launch.launchers.firecrest_endpoints import client_for_system
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import (
@@ -408,6 +410,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     init_parser = subparsers.add_parser("init", help="Initialize SML configuration")
     InitConfig().add_to_parser(init_parser)
+    init_parser.add_argument(
+        "--system",
+        default=None,
+        help=(
+            "Add credentials for one more system served by its own FirecREST instance (e.g. beverin), "
+            "next to the main configuration instead of replacing it."
+        ),
+    )
 
     preconfigured_parser = subparsers.add_parser("preconfigured", help="Launch a model with guided prompts")
     _make_firecrest_launcher_config().add_to_parser(preconfigured_parser)
@@ -445,6 +455,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 async def _run_initial_configuration_wizard(args: argparse.Namespace) -> None:
+    if args.system:
+        await register_system(args.system, args.firecrest_url, args.firecrest_token_uri)
+        print(f"Credentials for {args.system} stored. Launch on it with --system {args.system}.")
+        return
     config = InitConfig()
     await config.aconfigure(args=args)
     config.save()
@@ -647,7 +661,10 @@ async def _create_launcher(
         _logger.warning("--system is ignored when using the SLURM launcher")
 
     if launcher_type == "firecrest":
-        firecrest_client = _get_firecrest_client_from_init_config(config)
+        # A system listed in clusters.yml lives on its own FirecREST instance;
+        # every other system is reached through the `sml init` configuration.
+        system = getattr(args, "system", None) or os.environ.get("SML_SYSTEM")
+        firecrest_client = client_for_system(system, lambda: _get_firecrest_client_from_init_config(config))
         # SSH host for the TUI's node-terminal button: an explicit override
         # (env or init config) wins; otherwise it's auto-derived from the
         # selected FirecREST system inside the helper below.

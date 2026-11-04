@@ -15,6 +15,7 @@ from swiss_ai_model_launch.cli.configuration import InitConfig, optional_value
 from swiss_ai_model_launch.cli.healthcheck import ModelHealth, check_model_health
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
+from swiss_ai_model_launch.launchers.firecrest_endpoints import client_for_system
 from swiss_ai_model_launch.launchers.job_status import JobStatus
 from swiss_ai_model_launch.launchers.launch_args import TELEMETRY_ENDPOINT
 from swiss_ai_model_launch.launchers.launch_request import LaunchRequest
@@ -98,7 +99,7 @@ async def _create_launcher(
         if not system:
             raise RuntimeError("No system specified. Call `establish` first, or set the SML_SYSTEM env var.")
         return await FirecRESTLauncher.from_client(
-            client=_build_firecrest_client(config),
+            client=client_for_system(system, lambda: _build_firecrest_client(config)),
             system_name=system,
             partition=partition,
             reservation=reservation,
