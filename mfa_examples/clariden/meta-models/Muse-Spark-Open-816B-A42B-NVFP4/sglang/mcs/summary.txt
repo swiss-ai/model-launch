@@ -1,0 +1,12 @@
+model-launch-factory run 0d6e2e14890841c6b50464948ec7d7f3, attempt fcadc84df84e45f4a71a39abfb94f916 (sglang)
+gate: PASSED — probe + streaming passed; advisory: core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_determinism); multimodal 7/8 (mm_image_small)
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_determinism)
+  - core_tokenizer_roundtrip: broken KeyError: 'prompt'
+  - core_tokenizer_unicode: broken KeyError: 'prompt'
+  - core_determinism: fail AssertionError: temp=0 output not reproducible:
+streaming 4/4
+multimodal 7/8 (mm_image_small)
+  - mm_image_small: broken TimeoutError: The read operation timed out
