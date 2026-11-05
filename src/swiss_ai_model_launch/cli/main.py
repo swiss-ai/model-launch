@@ -27,7 +27,11 @@ from swiss_ai_model_launch.cli.healthcheck import ReplicaHealthReport, check_mod
 from swiss_ai_model_launch.cli.healthcheck.model_health import ModelHealth
 from swiss_ai_model_launch.cli.loadtest import add_loadtest_parser, run_loadtest_command
 from swiss_ai_model_launch.launchers import FirecRESTLauncher, Launcher, SlurmLauncher
-from swiss_ai_model_launch.launchers.container import CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS
+from swiss_ai_model_launch.launchers.container import (
+    CONTAINER_RUNTIME_APPTAINER,
+    CONTAINER_RUNTIME_EDF,
+    CONTAINER_RUNTIME_PYXIS,
+)
 from swiss_ai_model_launch.launchers.firecrest_auth import build_client
 from swiss_ai_model_launch.launchers.framework import OPENTELA_BOOTSTRAP_ADDR_DEV, render_master, render_rank_scripts
 from swiss_ai_model_launch.launchers.job_status import JobStatus
@@ -201,13 +205,14 @@ def _add_advanced_launch_arguments(
     advanced_parser.add_argument(
         "--container-runtime",
         dest="container_runtime",
-        choices=[CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS],
+        choices=[CONTAINER_RUNTIME_EDF, CONTAINER_RUNTIME_PYXIS, CONTAINER_RUNTIME_APPTAINER],
         default=os.environ.get("SML_CONTAINER_RUNTIME", CONTAINER_RUNTIME_EDF),
         help=(
             f"How replicas are containerised (env: SML_CONTAINER_RUNTIME). '{CONTAINER_RUNTIME_EDF}' (default): "
             f"CSCS EDF via srun --environment. '{CONTAINER_RUNTIME_PYXIS}': stock pyxis via "
-            "--container-image, for clusters without the CSCS plugin (e.g. KISTI); the "
-            "environment toml must be readable locally."
+            "--container-image, for clusters without the CSCS plugin (e.g. KISTI). "
+            f"'{CONTAINER_RUNTIME_APPTAINER}': srun ... apptainer exec --nv, for clusters "
+            "without pyxis (e.g. JSC JUPITER). For both, the environment toml must be readable locally."
         ),
     )
     advanced_parser.add_argument(

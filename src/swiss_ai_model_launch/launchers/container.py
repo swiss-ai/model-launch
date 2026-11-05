@@ -7,7 +7,11 @@ there is no EDF, so the same toml is read here and translated into
 ``--container-image`` / ``--container-mounts`` / ``--container-workdir`` flags,
 with its ``[env]`` table exported on the batch node and named in
 ``--container-env`` (otherwise the image's value wins for variables it sets).
-``annotations`` are CSCS hooks and are ignored.
+``annotations`` are CSCS hooks and are ignored. ``apptainer`` is for sites with
+neither (e.g. JSC JUPITER): the toml is read the same way, but the container is
+started by the command itself, ``srun ... apptainer exec --nv <image> bash ...``,
+with ``mounts`` as ``--bind`` and ``workdir`` as ``--pwd``. Apptainer passes the
+host environment through, so the exported ``[env]`` needs no extra flag.
 """
 
 from __future__ import annotations
@@ -18,9 +22,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ContainerRuntime = Literal["edf", "pyxis"]
+ContainerRuntime = Literal["edf", "pyxis", "apptainer"]
 CONTAINER_RUNTIME_EDF: ContainerRuntime = "edf"
 CONTAINER_RUNTIME_PYXIS: ContainerRuntime = "pyxis"
+CONTAINER_RUNTIME_APPTAINER: ContainerRuntime = "apptainer"
 
 
 class PyxisEnvironment(BaseModel):

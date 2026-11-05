@@ -22,6 +22,7 @@ nav:
       - Advanced (sml advanced): usage-advanced.md
       - Porting a Raw Command: porting-commands.md
       - Running on KISTI: kisti.md
+      - Running on JUPITER: jupiter.md
   - Performance:
       - Sizing a Model: sizing.md
       - Benchmarking: benchmarking.md

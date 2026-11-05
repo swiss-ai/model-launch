@@ -18,7 +18,7 @@ For the guided flow with a curated catalog, use [`sml`](usage-sml.md).
 | `--reservation`             | `SML_RESERVATION`       | SLURM reservation (optional)                                                                                                     |
 | `--framework`               |                         | Inference framework (`sglang`, `vllm`) — **required**                                                                            |
 | `--environment`             |                         | Local path to the environment `.toml` file — **required**                                                                        |
-| `--container-runtime`       | `SML_CONTAINER_RUNTIME` | `edf` (default, CSCS `--environment`) or `pyxis` (stock pyxis `--container-image`) — see [Other clusters](#other-clusters-kisti) |
+| `--container-runtime`       | `SML_CONTAINER_RUNTIME` | `edf` (default, CSCS), `pyxis` (stock pyxis) or `apptainer` — see [Other clusters](#other-clusters-kisti)                        |
 | `--sbatch-arg`              | `SML_SBATCH_ARGS`       | Extra sbatch flag appended verbatim; repeatable                                                                                  |
 | `--framework-args`          |                         | Arguments forwarded to the inference framework                                                                                   |
 | `--replicas`                |                         | Number of replicas (default: `1`)                                                                                                |
@@ -231,7 +231,7 @@ The chosen multiaddr is recorded under `ocf_bootstrap_addr` in the telemetry pay
 
 ## Other clusters (KISTI)
 
-Clusters without the CSCS container plugin run stock [pyxis](https://github.com/NVIDIA/pyxis): pass `--container-runtime pyxis`, and add site-specific sbatch flags with `--sbatch-arg`. See [Running on KISTI](kisti.md) for a full walkthrough.
+Clusters without the CSCS container plugin run stock [pyxis](https://github.com/NVIDIA/pyxis): pass `--container-runtime pyxis`, and add site-specific sbatch flags with `--sbatch-arg`. See [Running on KISTI](kisti.md) for a full walkthrough. Clusters with neither (JSC JUPITER) use `--container-runtime apptainer`; see [Running on JUPITER](jupiter.md).
 
 ## Notes on flag style
 
