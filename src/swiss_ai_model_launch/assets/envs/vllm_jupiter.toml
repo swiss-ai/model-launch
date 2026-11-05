@@ -1,0 +1,18 @@
+# vLLM on JSC JUPITER (GH200). No pyxis, no CSCS EDF: use with `--container-runtime apptainer`.
+# Values are expanded by bash on the batch node, so $USER works.
+# Compute nodes have no internet: the image and the model weights must already be on /e.
+#
+# One-time image build, on a login node (needs the `container` group, see docs/jupiter.md):
+#   mkdir -p /e/home/jusers/$USER/jupiter/sml/images
+#   apptainer pull /e/home/jusers/$USER/jupiter/sml/images/vllm-v0.32.0-arm64.sif docker://vllm/vllm-openai:v0.32.0
+#
+# The default (CUDA 13) build: JUPITER's driver reports CUDA 13.3.
+image = "/e/home/jusers/$USER/jupiter/sml/images/vllm-v0.32.0-{arch}.sif"
+
+# /e holds project data and scratch; /p is not visible from JUPITER compute nodes.
+mounts = ["/e"]
+
+[env]
+# No internet on compute nodes: never try to reach the Hub.
+HF_HUB_OFFLINE = "1"
+HF_HOME = "/e/home/jusers/$USER/jupiter/sml/hf"

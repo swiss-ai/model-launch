@@ -47,6 +47,7 @@ def _parse_sml_advanced_script(content: str):
 # - multi-replica multi-node with router (--router sglang + --replicas)
 # - multi-node single-replica vllm (vLLM Ray bootstrapping path)
 # - stock pyxis container runtime (KISTI)
+# - apptainer container runtime (JSC JUPITER)
 _SELECTED_EXAMPLES = [
     "examples/clariden/cli/swiss-ai/Apertus-8B-Instruct-2509-sglang.sh",
     "examples/beverin/cli/swiss-ai/Apertus-70B-Instruct-2509-sglang-rocm.sh",
@@ -56,6 +57,8 @@ _SELECTED_EXAMPLES = [
     "examples/clariden/cli/qwen/Qwen3-235B-A22B-Instruct-2507-vllm.sh",
     # stock pyxis (KISTI): reads its env toml at render time
     "examples/kisti/cli/qwen/Qwen3-0.6B-vllm.sh",
+    # apptainer (JUPITER): reads its env toml at render time
+    "examples/jupiter/cli/qwen/Qwen3-0.6B-vllm.sh",
 ]
 
 

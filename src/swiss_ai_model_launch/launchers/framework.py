@@ -6,6 +6,7 @@ from importlib.resources import files
 from typing import ClassVar
 
 from swiss_ai_model_launch.launchers.container import (
+    CONTAINER_RUNTIME_APPTAINER,
     CONTAINER_RUNTIME_PYXIS,
     PyxisEnvironment,
     shell_double_quote,
@@ -515,9 +516,9 @@ def _render_pyxis_setup(env: PyxisEnvironment) -> str:
     # {arch} in the image path is resolved per node arch, like the EDF path.
     image = shell_double_quote(env.image).replace("{arch}", "${SML_ARCH}")
     lines = [
-        "# Stock pyxis (no CSCS EDF plugin): the env toml is translated into",
-        "# --container-* flags on each srun. Its [env] is exported here and",
-        "# passed into the containers with --container-env.",
+        "# No CSCS EDF plugin: the env toml is translated into container flags",
+        "# (pyxis --container-*, or an `apptainer exec` prefix) on each srun.",
+        "# Its [env] is exported here and passed into the containers.",
         f"SML_IMAGE={image}",
         'if [[ "$SML_IMAGE" == /* && ! -e "$SML_IMAGE" ]]; then',
         '    echo "Container image not found: $SML_IMAGE (arch ${SML_ARCH})" >&2',
@@ -537,6 +538,8 @@ def _render_container_flags(launch_args: LaunchArgs) -> str:
     FS) is visible inside it. Attached per-srun rather than via the env toml's
     static mount list, which is being narrowed and read-only-ed.
     """
+    if launch_args.container_runtime == CONTAINER_RUNTIME_APPTAINER:
+        return ""  # the container is started by the command; see _render_container_command
     if launch_args.container_runtime == CONTAINER_RUNTIME_PYXIS:
         env = PyxisEnvironment.from_toml(launch_args.environment)
         mounts = "$RANKS_DIR:$RANKS_DIR" + (",$SML_CONTAINER_MOUNTS" if env.mounts else "")
@@ -556,6 +559,20 @@ def _render_container_flags(launch_args: LaunchArgs) -> str:
         '    --container-mounts="$RANKS_DIR:$RANKS_DIR" \\\n'
         '    --environment="${SML_ENV_FILE}" \\\n'
     )
+
+
+def _render_container_command(launch_args: LaunchArgs) -> str:
+    """Command prefix that runs a rank/router script inside the container.
+
+    Empty unless the runtime starts containers from the command (apptainer).
+    ``--nv`` exposes the GPUs; RANKS_DIR is bound like the srun-flag runtimes.
+    """
+    if launch_args.container_runtime != CONTAINER_RUNTIME_APPTAINER:
+        return ""
+    env = PyxisEnvironment.from_toml(launch_args.environment)
+    mounts = "$RANKS_DIR:$RANKS_DIR" + (",$SML_CONTAINER_MOUNTS" if env.mounts else "")
+    pwd = f" --pwd {shell_double_quote(env.workdir)}" if env.workdir else ""
+    return f'apptainer exec --nv --bind "{mounts}"{pwd} "$SML_IMAGE" '
 
 
 def _render_node_mapping() -> str:
@@ -593,6 +610,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
     topology = launch_args.topology
     npr = topology.nodes_per_replica
     container_flags = _render_container_flags(launch_args)
+    container_command = _render_container_command(launch_args)
 
     def srun_call(node_index: int, script: str, args: str, comment: str, log_base: str) -> str:
         return (
@@ -603,7 +621,7 @@ def _render_replica_launches(launch_args: LaunchArgs) -> str:
             # only carries the master's orchestration output).
             f'    --output="logs/${{SLURM_JOB_ID}}/{log_base}.out" \\\n'
             f'    --error="logs/${{SLURM_JOB_ID}}/{log_base}.err" \\\n'
-            f'    bash "$RANKS_DIR/{script}" {args} &\n'
+            f'    {container_command}bash "$RANKS_DIR/{script}" {args} &\n'
             # Track this srun's PID so the footer's `wait -n` exits as soon
             # as the first critical bg job dies (and the trap kills the rest).
             f"critical_pids+=($!)"
@@ -788,7 +806,7 @@ def _render_router_launch(launch_args: LaunchArgs) -> str:
         "    --overlap \\\n"
         '    --output="logs/${SLURM_JOB_ID}/router.out" \\\n'
         '    --error="logs/${SLURM_JOB_ID}/router.err" \\\n'
-        f'    bash "$RANKS_DIR/router.sh" {ip_args} &\n'
+        f'    {_render_container_command(launch_args)}bash "$RANKS_DIR/router.sh" {ip_args} &\n'
         "critical_pids+=($!)\n"
         "\n"
         "echo\n"
@@ -871,7 +889,7 @@ def render_master(launch_args: LaunchArgs) -> str:
         sections.append(telemetry)
 
     sections.append(_render_arch_detection(launch_args))
-    if launch_args.container_runtime == CONTAINER_RUNTIME_PYXIS:
+    if launch_args.container_runtime in (CONTAINER_RUNTIME_PYXIS, CONTAINER_RUNTIME_APPTAINER):
         sections.append(_render_pyxis_setup(PyxisEnvironment.from_toml(launch_args.environment)))
     else:
         sections.append(_render_env_file_resolution(launch_args))

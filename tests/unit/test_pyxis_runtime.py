@@ -108,3 +108,22 @@ def test_cli_wiring(env_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     launch_args = build_launch_args_from_advanced(args, username="alice", account="proj01", partition="normal")
     assert launch_args.container_runtime == "pyxis"
     assert launch_args.sbatch_extra_args == ["--comment=field=nlp;appl=vllm", "--gres=gpu:4"]
+
+
+def test_apptainer_master_wraps_command_in_apptainer_exec(env_path: Path) -> None:
+    master = render_master(_make_args(env_path, container_runtime="apptainer", topology=Topology(replicas=2)))
+    assert "--environment=" not in master
+    assert "--container-image" not in master
+    assert 'SML_IMAGE="/scratch/$USER/images/vllm-${SML_ARCH}.sqsh"' in master
+    assert 'export HF_HOME="/scratch/$USER/hf"' in master
+    expected = 'apptainer exec --nv --bind "$RANKS_DIR:$RANKS_DIR,$SML_CONTAINER_MOUNTS" --pwd "/opt" "$SML_IMAGE" bash'
+    assert master.count(expected) == 2
+
+
+def test_apptainer_router_uses_apptainer_exec(env_path: Path) -> None:
+    master = render_master(
+        _make_args(
+            env_path, container_runtime="apptainer", framework="sglang", router="sglang", topology=Topology(replicas=2)
+        )
+    )
+    assert master.count('"$SML_IMAGE" bash "$RANKS_DIR/') == 3
