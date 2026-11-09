@@ -1,0 +1,15 @@
+model-launch-factory run be315b3079d54654ac881cb16bebb64a, attempt 0fcd1edc7d5b410885020183559decd6 (sglang)
+gate: PASSED — probe + streaming passed; advisory: core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_assistant_prefill); multimodal 4/8 (mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard_audio)
+blocking capabilities: streaming
+
+probe: ok (HTTP 200)
+core 10/13 (core_tokenizer_roundtrip, core_tokenizer_unicode, core_assistant_prefill)
+  - core_tokenizer_roundtrip: broken KeyError: 'prompt'
+  - core_tokenizer_unicode: broken KeyError: 'prompt'
+  - core_assistant_prefill: fail AssertionError: prefill not continued (expected 'Paris'): "What sentence would you like me to complete? Please provide the sentence, and I'll finish it with a single word."
+streaming 4/4
+multimodal 4/8 (mm_audio_small, mm_audio_large, mm_interleaved, mm_no_degeneration_hard_audio)
+  - mm_audio_small: broken mcs.client.ApiError: HTTP 400: {"error":{"object":"error","message":"Kimi-K3 supports image input only","type":"BadRequestError","param":null,"code":400}}
+  - mm_audio_large: broken mcs.client.ApiError: HTTP 400: {"error":{"object":"error","message":"Kimi-K3 supports image input only","type":"BadRequestError","param":null,"code":400}}
+  - mm_interleaved: broken mcs.client.ApiError: HTTP 400: {"error":{"object":"error","message":"Kimi-K3 supports image input only","type":"BadRequestError","param":null,"code":400}}
+  - mm_no_degeneration_hard_audio: broken mcs.client.ApiError: HTTP 400: {"error":{"object":"error","message":"Kimi-K3 supports image input only","type":"BadRequestError","param":null,"code":400}}
