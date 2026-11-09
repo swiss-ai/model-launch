@@ -134,6 +134,18 @@ def test_opentela_runs_with_an_ephemeral_identity_and_a_node_local_datadir():
             assert 'env HOME="/tmp/opentela' not in s
 
 
+def test_opentela_router_has_its_own_datadir():
+    # The sglang router and a replica's head can share a node: two OpenTela processes, two databases.
+    args = _make_args(framework="sglang", topology=Topology(replicas=2, nodes_per_replica=1), router="sglang")
+    scripts = render_rank_scripts(args)
+    for name in ("head.sh", "router.sh"):
+        s = scripts[name]
+        assert s.count("$OPENTELA_BIN start") == s.count("--ephemeral-identity") == 1
+        assert s.count('--datadir "$OPENTELA_DATADIR"') == s.count("OPENTELA_DATADIR=$(mktemp") == 1
+        assert s.count("trap ") == 1  # the datadir cleanup is the only EXIT trap
+        assert "--config-dir" not in s
+
+
 def test_opentela_datadir_is_per_process_and_removed_on_exit(tmp_path):
     # OpenTela writes <datadir>/ocfcore/...: it must not land in the shared $HOME, two OpenTela
     # processes on one node must not share it, and it must be removed when the rank script exits.
