@@ -107,30 +107,21 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
     )
 
 
-# OpenTela's identity key lives under ~/.config/opentela unless --config-dir
-# says otherwise. $HOME is the same shared filesystem on every node, so all
-# nodes of a multi-node replica (and concurrent jobs) would load one key,
-# announce one peer ID and write one ~/.ocfcore/ocfcore.<id>.db -- seen as
-# "stale file handle" errors and a gateway 503 "No provider found". Node-local
-# /tmp gives each node its own fresh key per job. --config-dir also moves where
-# cfg.yaml is read, so the user's own one (or its legacy location, which
-# OpenTela still falls back to) is copied in first: settings stay, only the
-# identity is new.
-#
-# OpenTela always keeps its peer database in $HOME/.ocfcore/ocfcore.<id>.db
-# (badger, hundreds of MB) and only clears its own id's one on start. With a
-# fresh id per job none is ever cleared, and they fill the 50 GB home quota.
-# So OpenTela itself runs with HOME set to the per-job dir, the database lands
-# next to the key, and the dir is removed when the rank script exits. The
-# subprocess gets the rank script's real HOME back.
-_OPENTELA_CONFIG_DIR_ARG = '    --config-dir "/tmp/opentela-${SLURM_JOB_ID}" \\\n'
-_OPENTELA_CONFIG_SEED = (
-    'mkdir -p "/tmp/opentela-${SLURM_JOB_ID}"\n'
-    "trap 'rm -rf \"/tmp/opentela-${SLURM_JOB_ID}\"' EXIT\n"
-    'for cfg in "$HOME/.config/opentela/cfg.yaml" "$HOME/.config/ocf/cfg.yaml"; do\n'
-    '    if [ -f "$cfg" ]; then cp "$cfg" "/tmp/opentela-${SLURM_JOB_ID}/cfg.yaml"; break; fi\n'
-    "done\n"
+# OpenTela keeps its identity key under ~/.config/opentela and its peer database under
+# ~/.ocfcore/ocfcore.<peer id>.db. $HOME is the same shared filesystem on every node, so all
+# nodes of a multi-node replica (and concurrent jobs) would load one key, announce one peer ID
+# and write one database -- seen as "stale file handle" / "file exists" errors, a crash on start
+# and a gateway 503 "No provider found". --ephemeral-identity gives each OpenTela process an
+# in-memory identity, and --datadir moves its peer database to a node-local directory of its own
+# (one per process: two OpenTela processes on a node, e.g. an sglang router and the replica's
+# head, must not share a database), which the rank script removes on exit. No $HOME override and
+# no config copy: the user's cfg.yaml is still read from its normal place. Needs an OpenTela with
+# these flags (eth-easl/OpenTela#68, release v0.2.7).
+_OPENTELA_DATADIR_SETUP = (
+    'OPENTELA_DATADIR=$(mktemp -d "/tmp/opentela-${SLURM_JOB_ID}.XXXXXX")\n'
+    "trap 'rm -rf -- \"${OPENTELA_DATADIR:?}\"' EXIT\n"
 )
+_OPENTELA_NODE_LOCAL_ARGS = '    --ephemeral-identity \\\n    --datadir "$OPENTELA_DATADIR" \\\n'
 
 
 def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
@@ -140,14 +131,14 @@ def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
 def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"{_OPENTELA_CONFIG_SEED}"
-        f'env HOME="/tmp/opentela-${{SLURM_JOB_ID}}" $OPENTELA_BIN start \\\n'
-        f"{_OPENTELA_CONFIG_DIR_ARG}"
+        f"{_OPENTELA_DATADIR_SETUP}"
+        f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_NODE_LOCAL_ARGS}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
         f"{_opentela_labels(launch_args)}"
-        f'    --subprocess "env HOME=$HOME {inner_cmd}"'
+        f'    --subprocess "{inner_cmd}"'
     )
 
 
@@ -172,12 +163,12 @@ def _opentela_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
 def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
-        f"{_OPENTELA_CONFIG_SEED}"
-        f'env HOME="/tmp/opentela-${{SLURM_JOB_ID}}" $OPENTELA_BIN start \\\n'
-        f"{_OPENTELA_CONFIG_DIR_ARG}"
+        f"{_OPENTELA_DATADIR_SETUP}"
+        f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_NODE_LOCAL_ARGS}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
-        f'    --subprocess "env HOME=$HOME {inner_cmd}"'
+        f'    --subprocess "{inner_cmd}"'
     )
 
 

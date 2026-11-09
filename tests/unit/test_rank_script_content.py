@@ -120,54 +120,23 @@ def test_opentela_bootstrap_addr_defaults_to_prod():
         assert OPENTELA_BOOTSTRAP_ADDR_DEV not in s
 
 
-def test_opentela_keeps_a_node_local_identity_per_job():
-    # $HOME is shared by all nodes: one key there means one peer ID for every node.
+def test_opentela_runs_with_an_ephemeral_identity_and_a_node_local_datadir():
+    # $HOME is shared by all nodes: one key there means one peer ID (and one database) for every node.
     for framework in ("sglang", "vllm"):
         args = _make_args(framework=framework, topology=Topology(replicas=1, nodes_per_replica=2))
         scripts = render_rank_scripts(args)
         for s in (scripts["head.sh"], scripts["follower.sh"]):
-            assert s.count("$OPENTELA_BIN start") == s.count('--config-dir "/tmp/opentela-${SLURM_JOB_ID}"') == 1
+            assert s.count("$OPENTELA_BIN start") == 1
+            assert s.count("--ephemeral-identity") == 1
+            assert s.count('--datadir "$OPENTELA_DATADIR"') == 1
+            # The older workaround (a per-job HOME and --config-dir) is gone.
+            assert "--config-dir" not in s
+            assert 'env HOME="/tmp/opentela' not in s
 
 
-def test_opentela_config_dir_starts_from_the_users_own_cfg(tmp_path):
-    # --config-dir also moves cfg.yaml: the user's settings must come along.
-    import os
-    import shutil
-    import subprocess
-    import uuid
-
-    head = render_rank_scripts(_make_args(topology=Topology(replicas=1, nodes_per_replica=1)))["head.sh"]
-    seed = head[head.index('mkdir -p "/tmp/opentela-') : head.index('env HOME="/tmp/opentela-')]
-    # The seed's EXIT trap removes the dir, so look at it before the shell exits.
-    seed += 'cp -r "/tmp/opentela-${SLURM_JOB_ID}" "$SNAPSHOT"\n'
-    for i, (location, expected) in enumerate(((".config/opentela", "new"), (".config/ocf", "legacy"), (None, None))):
-        home = tmp_path / f"home{i}"
-        home.mkdir()
-        if location:
-            (home / location).mkdir(parents=True)
-            (home / location / "cfg.yaml").write_text(expected)
-        job = f"test-{uuid.uuid4().hex}"
-        config_dir = str(tmp_path / f"snapshot{i}")
-        try:
-            subprocess.run(  # noqa: S603
-                ["bash", "-ec", seed],  # noqa: S607
-                check=True,
-                env={**os.environ, "HOME": str(home), "SLURM_JOB_ID": job, "SNAPSHOT": config_dir},
-            )
-            assert not os.path.exists(f"/tmp/opentela-{job}")  # noqa: S108
-            copied = os.path.join(config_dir, "cfg.yaml")
-            if expected:
-                with open(copied) as f:
-                    assert f.read() == expected
-            else:
-                assert os.path.isdir(config_dir) and not os.path.exists(copied)
-        finally:
-            shutil.rmtree(config_dir, ignore_errors=True)
-
-
-def test_opentela_peer_database_stays_out_of_home_and_is_removed_on_exit(tmp_path):
-    # OpenTela writes $HOME/.ocfcore/ocfcore.<peer id>.db and a fresh id per job
-    # never gets cleared: those filled the 50 GB home quota.
+def test_opentela_datadir_is_per_process_and_removed_on_exit(tmp_path):
+    # OpenTela writes <datadir>/ocfcore/...: it must not land in the shared $HOME, two OpenTela
+    # processes on one node must not share it, and it must be removed when the rank script exits.
     import os
     import subprocess
     import uuid
@@ -175,17 +144,20 @@ def test_opentela_peer_database_stays_out_of_home_and_is_removed_on_exit(tmp_pat
     fake_bin = tmp_path / "otela"
     fake_bin.write_text(
         "#!/bin/bash\n"
-        'mkdir -p "$HOME/.ocfcore/ocfcore.QmTest.db"\n'
-        'echo "$HOME" > "$RECORD/otela_home"\n'
-        'while [ $# -gt 0 ]; do [ "$1" = --subprocess ] && echo "$2" > "$RECORD/subprocess"; shift; done\n'
+        "while [ $# -gt 0 ]; do\n"
+        '    [ "$1" = --datadir ] && { mkdir -p "$2/ocfcore"; echo "$2" >> "$RECORD/datadirs"; }\n'
+        '    [ "$1" = --ephemeral-identity ] && echo seen >> "$RECORD/ephemeral"\n'
+        "    shift\n"
+        "done\n"
     )
     fake_bin.chmod(0o755)
     for framework in ("sglang", "vllm"):
         args = _make_args(framework=framework, topology=Topology(replicas=1, nodes_per_replica=2))
         scripts = render_rank_scripts(args)
+        seen = set()
         for name in ("head.sh", "follower.sh"):
             s = scripts[name]
-            wrap = s[s.index('mkdir -p "/tmp/opentela-') :]
+            wrap = s[s.index("OPENTELA_DATADIR=$(mktemp") :]
             home = tmp_path / f"home-{framework}-{name}"
             home.mkdir()
             record = tmp_path / f"record-{framework}-{name}"
@@ -202,10 +174,13 @@ def test_opentela_peer_database_stays_out_of_home_and_is_removed_on_exit(tmp_pat
                     "RECORD": str(record),
                 },
             )
-            assert (record / "otela_home").read_text().strip() == f"/tmp/opentela-{job}"  # noqa: S108
-            assert (record / "subprocess").read_text().startswith(f"env HOME={home} ")
-            assert not os.path.exists(f"/tmp/opentela-{job}")  # noqa: S108
-            assert not (home / ".ocfcore").exists()
+            datadir = (record / "datadirs").read_text().strip()
+            assert datadir.startswith(f"/tmp/opentela-{job}.")  # noqa: S108
+            assert (record / "ephemeral").read_text().strip() == "seen"
+            assert not os.path.exists(datadir)  # removed on exit
+            assert not (home / ".ocfcore").exists()  # nothing in the shared home
+            seen.add(datadir)
+        assert len(seen) == 2  # a distinct directory per process
 
 
 def test_opentela_bootstrap_addr_dev_override():
