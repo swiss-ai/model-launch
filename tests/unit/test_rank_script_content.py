@@ -120,6 +120,129 @@ def test_opentela_bootstrap_addr_defaults_to_prod():
         assert OPENTELA_BOOTSTRAP_ADDR_DEV not in s
 
 
+def test_opentela_runs_with_an_ephemeral_identity_and_a_node_local_datadir():
+    # $HOME is shared by all nodes: one key there means one peer ID (and one database) for every node.
+    for framework in ("sglang", "vllm"):
+        args = _make_args(framework=framework, topology=Topology(replicas=1, nodes_per_replica=2))
+        scripts = render_rank_scripts(args)
+        for s in (scripts["head.sh"], scripts["follower.sh"]):
+            assert s.count("$OPENTELA_BIN start") == 1
+            assert s.count("--ephemeral-identity") == 1
+            assert s.count('--datadir "$OPENTELA_DATADIR"') == 1
+            # The older workaround (a per-job HOME and --config-dir) is gone.
+            assert "--config-dir" not in s
+            assert 'env HOME="/tmp/opentela' not in s
+
+
+def test_opentela_router_has_its_own_datadir():
+    # The sglang router and a replica's head can share a node: two OpenTela processes, two databases.
+    args = _make_args(framework="sglang", topology=Topology(replicas=2, nodes_per_replica=1), router="sglang")
+    scripts = render_rank_scripts(args)
+    for name in ("head.sh", "router.sh"):
+        s = scripts[name]
+        assert s.count("$OPENTELA_BIN start") == s.count("--ephemeral-identity") == 1
+        assert s.count('--datadir "$OPENTELA_DATADIR"') == s.count("OPENTELA_DATADIR=$(mktemp") == 1
+        assert s.count("trap ") == 1  # the datadir cleanup is the only EXIT trap
+        assert "--config-dir" not in s
+
+
+def test_opentela_router_and_head_on_one_node_get_different_datadirs(tmp_path):
+    # The router and replica 0's head run side by side on node 0 under one SLURM_JOB_ID: their
+    # OpenTela processes must not end up in the same directory.
+    import os
+    import subprocess
+    import uuid
+
+    fake_bin = tmp_path / "otela"
+    fake_bin.write_text(
+        "#!/bin/bash\n"
+        'while [ $# -gt 0 ]; do [ "$1" = --datadir ] && echo "$2" > "$RECORD/$ROLE.dir"; shift; done\n'
+        # Wait for the other process to have started, then count the directories alive at that moment.
+        "for _ in $(seq 100); do\n"
+        '    [ -f "$RECORD/head.dir" ] && [ -f "$RECORD/router.dir" ] && break\n'
+        "    sleep 0.1\n"
+        "done\n"
+        'ls -d "/tmp/opentela-$SLURM_JOB_ID."* | wc -l > "$RECORD/$ROLE.alive"\n'
+    )
+    fake_bin.chmod(0o755)
+    args = _make_args(framework="sglang", topology=Topology(replicas=2, nodes_per_replica=1), router="sglang")
+    scripts = render_rank_scripts(args)
+    record = tmp_path / "record"
+    record.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    job = f"test-{uuid.uuid4().hex}"
+    env = {**os.environ, "HOME": str(home), "SLURM_JOB_ID": job, "OPENTELA_BIN": str(fake_bin), "RECORD": str(record)}
+    processes = []
+    for role, name in (("head", "head.sh"), ("router", "router.sh")):
+        s = scripts[name]
+        wrap = s[s.index("OPENTELA_DATADIR=$(mktemp") :]
+        processes.append(
+            subprocess.Popen(  # noqa: S603
+                ["bash", "-ec", wrap, "bash", "0", "10.0.0.1"],  # noqa: S607
+                env={**env, "ROLE": role},
+            )
+        )
+    for process in processes:
+        assert process.wait(timeout=30) == 0
+    head_dir = (record / "head.dir").read_text().strip()
+    router_dir = (record / "router.dir").read_text().strip()
+    assert head_dir != router_dir
+    assert head_dir.startswith(f"/tmp/opentela-{job}.") and router_dir.startswith(f"/tmp/opentela-{job}.")  # noqa: S108
+    # Both directories existed at the same time, and both are gone once the processes exited.
+    assert (record / "head.alive").read_text().strip() == (record / "router.alive").read_text().strip() == "2"
+    assert not os.path.exists(head_dir) and not os.path.exists(router_dir)
+
+
+def test_opentela_datadir_is_per_process_and_removed_on_exit(tmp_path):
+    # OpenTela writes <datadir>/ocfcore/...: it must not land in the shared $HOME, two OpenTela
+    # processes on one node must not share it, and it must be removed when the rank script exits.
+    import os
+    import subprocess
+    import uuid
+
+    fake_bin = tmp_path / "otela"
+    fake_bin.write_text(
+        "#!/bin/bash\n"
+        "while [ $# -gt 0 ]; do\n"
+        '    [ "$1" = --datadir ] && { mkdir -p "$2/ocfcore"; echo "$2" >> "$RECORD/datadirs"; }\n'
+        '    [ "$1" = --ephemeral-identity ] && echo seen >> "$RECORD/ephemeral"\n'
+        "    shift\n"
+        "done\n"
+    )
+    fake_bin.chmod(0o755)
+    for framework in ("sglang", "vllm"):
+        args = _make_args(framework=framework, topology=Topology(replicas=1, nodes_per_replica=2))
+        scripts = render_rank_scripts(args)
+        seen = set()
+        for name in ("head.sh", "follower.sh"):
+            s = scripts[name]
+            wrap = s[s.index("OPENTELA_DATADIR=$(mktemp") :]
+            home = tmp_path / f"home-{framework}-{name}"
+            home.mkdir()
+            record = tmp_path / f"record-{framework}-{name}"
+            record.mkdir()
+            job = f"test-{uuid.uuid4().hex}"
+            subprocess.run(  # noqa: S603
+                ["bash", "-ec", wrap, "bash", "0", "10.0.0.1"],  # noqa: S607
+                check=True,
+                env={
+                    **os.environ,
+                    "HOME": str(home),
+                    "SLURM_JOB_ID": job,
+                    "OPENTELA_BIN": str(fake_bin),
+                    "RECORD": str(record),
+                },
+            )
+            datadir = (record / "datadirs").read_text().strip()
+            assert datadir.startswith(f"/tmp/opentela-{job}.")  # noqa: S108
+            assert (record / "ephemeral").read_text().strip() == "seen"
+            assert not os.path.exists(datadir)  # removed on exit
+            assert not (home / ".ocfcore").exists()  # nothing in the shared home
+            seen.add(datadir)
+        assert len(seen) == 2  # a distinct directory per process
+
+
 def test_opentela_bootstrap_addr_dev_override():
     args = _make_args(
         topology=Topology(replicas=1, nodes_per_replica=2),

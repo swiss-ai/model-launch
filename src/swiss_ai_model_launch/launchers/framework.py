@@ -114,6 +114,23 @@ def _opentela_labels(launch_args: LaunchArgs) -> str:
     )
 
 
+# OpenTela keeps its identity key under ~/.config/opentela and its peer database under
+# ~/.ocfcore/ocfcore.<peer id>.db. $HOME is the same shared filesystem on every node, so all
+# nodes of a multi-node replica (and concurrent jobs) would load one key, announce one peer ID
+# and write one database -- seen as "stale file handle" / "file exists" errors, a crash on start
+# and a gateway 503 "No provider found". --ephemeral-identity gives each OpenTela process an
+# in-memory identity, and --datadir moves its peer database to a node-local directory of its own
+# (one per process: two OpenTela processes on a node, e.g. an sglang router and the replica's
+# head, must not share a database), which the rank script removes on exit. No $HOME override and
+# no config copy: the user's cfg.yaml is still read from its normal place. Needs an OpenTela with
+# these flags (eth-easl/OpenTela#68, release v0.2.7).
+_OPENTELA_DATADIR_SETUP = (
+    'OPENTELA_DATADIR=$(mktemp -d "/tmp/opentela-${SLURM_JOB_ID}.XXXXXX")\n'
+    "trap 'rm -rf -- \"${OPENTELA_DATADIR:?}\"' EXIT\n"
+)
+_OPENTELA_NODE_LOCAL_ARGS = '    --ephemeral-identity \\\n    --datadir "$OPENTELA_DATADIR" \\\n'
+
+
 def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
     return launch_args.opentela_bootstrap_addr or OPENTELA_BOOTSTRAP_ADDR
 
@@ -121,7 +138,9 @@ def _resolve_opentela_bootstrap_addr(launch_args: LaunchArgs) -> str:
 def _opentela_wrap(inner_cmd: str, launch_args: LaunchArgs, service_port: int = FRAMEWORK_PORT) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
+        f"{_OPENTELA_DATADIR_SETUP}"
         f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_NODE_LOCAL_ARGS}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"    --service.name llm \\\n"
         f"    --service.port {service_port} \\\n"
@@ -151,7 +170,9 @@ def _opentela_wrap_head(inner_cmd: str, launch_args: LaunchArgs) -> str:
 def _opentela_wrap_metrics_only(inner_cmd: str, launch_args: LaunchArgs) -> str:
     bootstrap_addr = _resolve_opentela_bootstrap_addr(launch_args)
     return (
+        f"{_OPENTELA_DATADIR_SETUP}"
         f"$OPENTELA_BIN start \\\n"
+        f"{_OPENTELA_NODE_LOCAL_ARGS}"
         f'    --bootstrap.static "{bootstrap_addr}" \\\n'
         f"{_opentela_labels(launch_args)}"
         f'    --subprocess "{inner_cmd}"'
