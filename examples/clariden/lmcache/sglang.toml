@@ -1,6 +1,11 @@
 # Shared ARM64 image: SGLang with LMCache 0.3.11, validated on Clariden GH200.
 image = "/capstor/store/cscs/swissai/infra01/container-images/examples/sglang_cuda13-lmcache-0.3.11-arm64.sqsh"
-mounts = ["/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin", "/capstor", "/iopsstor", "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1"]
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor",
+  "/iopsstor",
+  "/usr/lib64/libnuma.so.1:/usr/lib/libnuma.so.1",
+]
 workdir = "/opt"
 
 [env]

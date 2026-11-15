@@ -7,7 +7,8 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd -- "$script_dir/../../.." && pwd)"
 engine="${1:-vllm}"
 if [[ $# -gt 0 ]]; then shift; fi
-model="${MODEL_PATH:-/iopsstor/scratch/cscs/anunay/models/Apertus-8B-Instruct-2509}"
+model="/iopsstor/scratch/cscs/anunay/models/Apertus-8B-Instruct-2509"
+model="${MODEL_PATH:-$model}"
 pre_launch_cmds=$'ulimit -c 0\nexport OPENTELA_BIN=/opentelabin/prod/otela-arm64'
 case "$engine" in
   vllm)

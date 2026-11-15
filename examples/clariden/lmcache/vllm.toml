@@ -1,6 +1,10 @@
 # Shared ARM64 image: vLLM with LMCache 0.5.6, validated on Clariden GH200.
 image = "/capstor/store/cscs/swissai/infra01/container-images/examples/vllm_cuda13-lmcache-0.5.6-arm64.sqsh"
-mounts = ["/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin", "/capstor", "/iopsstor"]
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor",
+  "/iopsstor",
+]
 workdir = "/opt"
 
 [env]
