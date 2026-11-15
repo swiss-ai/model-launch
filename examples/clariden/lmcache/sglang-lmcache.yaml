@@ -1,0 +1,8 @@
+# RAM cache size is 8 GiB per TP worker. Disk and remote backends are disabled.
+chunk_size: 256
+local_cpu: true
+max_local_cpu_size: 8
+use_layerwise: true
+save_unfull_chunk: false
+local_disk: null
+remote_url: null
