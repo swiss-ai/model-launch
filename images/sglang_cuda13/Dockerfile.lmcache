@@ -1,0 +1,31 @@
+# Extend the SGLang 0.5.10.post1 CUDA 13 image without replacing its engine or Torch.
+ARG BASE_IMAGE=ghcr.io/swiss-ai/sglang_cuda13:latest
+FROM ${BASE_IMAGE}
+
+# LMCache 0.3.11 matches this engine's in-process layerwise adapter.
+ARG LMCACHE_COMMIT=f032152171102e23b62abc7b4448e20cdeb2845a
+ARG TORCH_CUDA_ARCH_LIST=9.0
+ARG MAX_JOBS=8
+
+# Keep these explicit when BASE_IMAGE comes from an imported SQSH root filesystem.
+ENV PATH=/opt/conda/bin:/usr/local/cuda/bin:${PATH} \
+    CUDA_HOME=/usr/local/cuda
+
+# Build against the existing Torch ABI. The upstream CUDA 12 CuPy dependency is
+# replaced with its CUDA 13 equivalent; retain the verified release's version.
+# hadolint ignore=DL3013
+RUN set -eux; \
+    python -c 'from importlib.metadata import version; assert version("sglang") == "0.5.10.post1", "This LMCache adapter requires SGLang 0.5.10.post1"'; \
+    python -c 'from importlib.metadata import distributions, version; installed = {d.metadata["Name"].lower().replace("_", "-") for d in distributions()}; names = ("torch", "sglang") + tuple(n for n in ("torchvision", "torchaudio", "sgl-kernel", "sglang-kernel") if n in installed); print("\n".join(f"{n}=={version(n)}" for n in names))' > /tmp/lmcache-constraints.txt; \
+    python -m pip install --no-cache-dir "setuptools>=77.0.3,<81" setuptools_scm ninja packaging wheel; \
+    git clone --depth 1 --branch v0.3.11 https://github.com/LMCache/LMCache.git /tmp/lmcache; \
+    test "$(git -C /tmp/lmcache rev-parse HEAD)" = "${LMCACHE_COMMIT}"; \
+    sed -i 's/^cupy-cuda12x$/cupy-cuda13x==14.2.0/' /tmp/lmcache/requirements/common.txt; \
+    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_LMCACHE=0.3.11 \
+      TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" MAX_JOBS="${MAX_JOBS}" \
+      python -m pip install --no-cache-dir --no-build-isolation \
+      --constraint /tmp/lmcache-constraints.txt /tmp/lmcache; \
+    python -c 'import torch, lmcache.c_ops, cupy; from importlib.metadata import version; from pathlib import Path; expected = dict(line.split("==", 1) for line in Path("/tmp/lmcache-constraints.txt").read_text().splitlines()); assert all(version(n) == v for n, v in expected.items()), "Base runtime versions changed"; assert version("lmcache") == "0.3.11"; assert version("cupy-cuda13x") == "14.2.0"; print("sglang=" + version("sglang"), "torch=" + torch.__version__, "lmcache=" + version("lmcache"), "cupy=" + cupy.__version__)'; \
+    rm -rf /tmp/lmcache /tmp/lmcache-constraints.txt
+
+WORKDIR /opt

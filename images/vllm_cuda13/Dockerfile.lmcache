@@ -1,0 +1,25 @@
+# Build on the existing CUDA 13 vLLM image; BASE_IMAGE can select a local import.
+ARG BASE_IMAGE=ghcr.io/swiss-ai/vllm_cuda13:latest
+FROM ${BASE_IMAGE}
+
+ENV PATH=/opt/conda/bin:/usr/local/cuda/bin:$PATH
+
+# LMCache 0.5.6 wheels target Torch 2.13, CUDA 13, and the C++11 ABI.
+# Constrain the existing engine/runtime so dependency resolution cannot replace them.
+# Its older OTEL stack leaves the base's newer otlp-common package unused.
+RUN python -c "import torch; from importlib.metadata import version; \
+    assert torch.__version__.split('+')[0] == '2.13.0' and torch.version.cuda == '13.0', \
+    'Select a BASE_IMAGE with Torch 2.13.0+cu130 for LMCache 0.5.6'; \
+    assert torch._C._GLIBCXX_USE_CXX11_ABI, 'LMCache wheels require the C++11 ABI'; \
+    print('torch==' + version('torch')); print('vllm==' + version('vllm'))" \
+      > /tmp/lmcache-constraints.txt && \
+    python -m pip install --no-cache-dir --only-binary=lmcache \
+      --constraint /tmp/lmcache-constraints.txt lmcache==0.5.6 && \
+    python -m pip uninstall -y opentelemetry-exporter-otlp-common && \
+    python -c "import torch, lmcache.cuda_ops, lmcache.lmcache_native; \
+    from lmcache.integration.vllm.lmcache_mp_connector import LMCacheMPConnector; \
+    from importlib.metadata import version; assert version('lmcache') == '0.5.6'; \
+    print('vllm=' + version('vllm'), 'torch=' + torch.__version__, 'lmcache=' + version('lmcache'))" && \
+    rm /tmp/lmcache-constraints.txt
+
+WORKDIR /opt
