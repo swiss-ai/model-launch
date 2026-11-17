@@ -1,0 +1,3 @@
+kv_transfer_config:
+  kv_connector: MooncakeStoreConnector
+  kv_role: kv_both

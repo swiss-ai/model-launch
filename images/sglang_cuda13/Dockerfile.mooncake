@@ -1,0 +1,28 @@
+# Extend the existing SGLang CUDA 13 image with Mooncake Store bindings.
+ARG BASE_IMAGE=ghcr.io/swiss-ai/sglang_cuda13:latest
+FROM ${BASE_IMAGE}
+
+ENV PATH=/opt/conda/bin:/usr/local/cuda/bin:$PATH
+
+# The wheel links RDMA libraries even when the serving example uses TCP.
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libibverbs1 ibverbs-providers libnuma1 libcurl4t64 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Keep the installed engine and Torch. Only one Mooncake CUDA variant can own
+# the shared Python module paths. Native Store imports are checked with a GPU.
+RUN python -c "from importlib.metadata import version; \
+    print('torch==' + version('torch')); print('sglang==' + version('sglang'))" \
+      > /tmp/mooncake-constraints.txt && \
+    python -m pip uninstall -y mooncake-transfer-engine mooncake-transfer-engine-cuda13 && \
+    python -m pip install --no-cache-dir --only-binary=mooncake-transfer-engine-cuda13 \
+      --constraint /tmp/mooncake-constraints.txt mooncake-transfer-engine-cuda13==0.3.14 && \
+    python -c "from importlib.metadata import version; from pathlib import Path; \
+    expected = dict(line.split('==', 1) for line in Path('/tmp/mooncake-constraints.txt').read_text().splitlines()); \
+    assert all(version(name) == value for name, value in expected.items()), 'Base runtime changed'; \
+    assert version('mooncake-transfer-engine-cuda13') == '0.3.14'" && \
+    mooncake_master --version && \
+    rm /tmp/mooncake-constraints.txt
+
+WORKDIR /opt
