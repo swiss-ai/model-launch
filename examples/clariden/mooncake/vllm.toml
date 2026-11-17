@@ -1,0 +1,18 @@
+# Mooncake 0.3.14 CUDA 13 Store bindings, ARM64.
+image = "/capstor/store/cscs/swissai/infra01/container-images/examples/vllm_cuda13-mooncake-0.3.14-arm64.sqsh"
+mounts = [
+  "/capstor/store/cscs/swissai/infra01/opentela-share:/opentelabin",
+  "/capstor",
+  "/iopsstor",
+]
+workdir = "/opt"
+
+[env]
+HF_HUB_OFFLINE = "1"
+TRANSFORMERS_OFFLINE = "1"
+MOONCAKE_STORE_BACKEND = "cpp"
+MOONCAKE_REQUESTER_LOCAL_HOSTNAME = "127.0.0.1"
+VLLM_MOONCAKE_STORE_TIER_LOG = "1"
+VLLM_ALLREDUCE_USE_SYMM_MEM = "0"
+VLLM_ALLREDUCE_USE_FLASHINFER = "0"
+VLLM_ALLREDUCE_USE_FLASHINFER_PCIE_IPC = "0"
